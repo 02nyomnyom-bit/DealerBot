@@ -69,61 +69,45 @@ class AttendanceMasterCog(commands.Cog):
                     record_dates = [record['date'] for record in attendance_records]
                 else: # 문자열 리스트라고 가정
                     record_dates = attendance_records
+            
+            # 중복된 날짜 기록을 제거하여 정확성을 높입니다.
+            unique_dates = sorted(list(set(record_dates)), reverse=True)
         
             today = self.get_korean_date_object()
             today_str = today.strftime('%Y-%m-%d')
             
             # 1. 오늘 이미 출석했는지 확인
-            today_attended = today_str in record_dates
+            today_attended = today_str in unique_dates
             
-            if today_attended:
-                # 출석 완료 상태일 때 연속일 계산 후 False 반환
-                return self.calculate_streak_from_records(record_dates), False
-        
-            # 2. 어제부터 시작해서 연속된 날짜 카운트
+            # 2. 연속 출석일 계산
             streak = 0
-            check_date = today - timedelta(days=1)  # 어제부터 확인
-        
-            # 날짜를 최신순으로 정렬하여 연속 출석일 계산
-            for record_str in sorted(record_dates, reverse=True):
-                record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
+            # 오늘 출석했다면 오늘부터, 아니라면 어제부터 확인 시작
+            check_date = today if today_attended else today - timedelta(days=1)
             
+            # 날짜를 최신순으로 정렬하여 연속 출석일 계산
+            for record_str in unique_dates:
+                record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
+                
+                # streak 계산은 check_date부터 시작하므로, 그보다 최신 날짜는 건너뜁니다.
+                if record_date > check_date:
+                    continue
+
                 if record_date == check_date:
                     streak += 1
                     check_date -= timedelta(days=1)
-                elif record_date < check_date:
+                else:
                     # 날짜가 연속되지 않으면 중단
                     break
-        
-            return streak, True
+            
+            # 오늘 출석하지 않은 경우, 계산된 streak은 어제까지의 연속일입니다.
+            # 오늘 출석한 경우, 계산된 streak은 오늘까지의 연속일입니다.
+            return streak, not today_attended
         
         except Exception as e:
             # 예외 처리 로직 수정
             print(f"연속 출석일 계산 중 오류: {e}")
             # 오류 발생 시 0, True를 반환하거나 다른 적절한 값으로 대체
             return 0, True
-    
-    def calculate_streak_from_records(self, records: list) -> int:
-        # 이 함수는 이제 날짜 문자열 리스트를 받으므로, 현재 코드는 맞습니다.
-        if not records:
-            return 0
-        
-        today = self.get_korean_date_object()
-        streak = 0
-        check_date = today
-        
-        # 최신 기록부터 확인 (문자열 리스트를 정렬)
-        for record_str in sorted(records, reverse=True): # record_str을 사용
-            record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
-            
-            if record_date == check_date:
-                streak += 1
-                check_date -= timedelta(days=1)
-            elif record_date < check_date:
-                # 날짜가 연속되지 않으면 중단
-                break
-        
-        return streak
 
     @app_commands.command(name="출석체크", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
     async def attendance_check_v2(self, interaction: discord.Interaction):
