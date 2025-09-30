@@ -60,7 +60,6 @@ class AttendanceMasterCog(commands.Cog):
     
     def calculate_attendance_streak(self, guild_id: str, user_id: str) -> tuple[int, bool]:
         try:
-<<<<<<< HEAD
             # DB에서 모든 기록을 가져옵니다 (딕셔너리 리스트 또는 문자열 리스트)
             attendance_records = self.db.get_user_attendance_history(guild_id, user_id)
             
@@ -70,19 +69,10 @@ class AttendanceMasterCog(commands.Cog):
                     record_dates = [record['date'] for record in attendance_records]
                 else: # 문자열 리스트라고 가정
                     record_dates = attendance_records
-=======
-            # DB에서 모든 기록을 가져옵니다 (딕셔너리 리스트일 수 있음)
-            attendance_records = self.db.get_user_attendance_history(guild_id, user_id)
-            
-            # --- DB가 딕셔너리 리스트를 반환한다고 가정하고 수정 ---
-            record_dates = [record['date'] for record in attendance_records]
-            # --- -------------------------------------------- ---
->>>>>>> b687bd9f5f3c6c00aa878573f5aa68a0275bd99e
         
             today = self.get_korean_date_object()
             today_str = today.strftime('%Y-%m-%d')
             
-<<<<<<< HEAD
             # 1. 오늘 이미 출석했는지 확인
             today_attended = today_str in record_dates
             
@@ -96,26 +86,13 @@ class AttendanceMasterCog(commands.Cog):
         
             # 날짜를 최신순으로 정렬하여 연속 출석일 계산
             for record_str in sorted(record_dates, reverse=True):
-=======
-            # 1. 오늘 이미 출석했는지 확인 (새 리스트 사용)
-            today_attended = today_str in record_dates # 오늘 날짜 문자열이 리스트에 있는지 확인
-            
-            if today_attended:
-                # 출석 완료 상태일 때 연속일 계산 후 False 반환
-                return self.calculate_streak_from_records(record_dates), False # calculate_streak_from_records 함수도 변경 필요
-        
-            # 2. 어제부터 시작해서 연속된 날짜 카운트 (새 리스트 사용)
-            streak = 0
-            check_date = today - timedelta(days=1)  # 어제부터 확인
-        
-            for record_str in record_dates: # records 대신 record_dates 사용
->>>>>>> b687bd9f5f3c6c00aa878573f5aa68a0275bd99e
                 record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
             
                 if record_date == check_date:
                     streak += 1
                     check_date -= timedelta(days=1)
                 elif record_date < check_date:
+                    # 날짜가 연속되지 않으면 중단
                     break
         
             return streak, True
