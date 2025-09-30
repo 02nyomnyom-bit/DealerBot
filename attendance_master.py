@@ -10,32 +10,8 @@ import random
 import os
 import json
 
-# 설정 파일 경로 (leaderboard_system.py와 동일하게)
-DATA_DIR = "data"
-LEADERBOARD_SETTINGS_FILE = os.path.join(DATA_DIR, "leaderboard_settings.json")
-
-# 기본 설정값
-DEFAULT_SETTINGS = {
-    "attendance_cash": 3000,
-    "attendance_xp": 100,
-}
-
-def load_settings():
-    """설정 로드 (leaderboard_system.py와 동기화)"""
-    if not os.path.exists(DATA_DIR):
-        os.makedirs(DATA_DIR)
-    if os.path.exists(LEADERBOARD_SETTINGS_FILE):
-        try:
-            with open(LEADERBOARD_SETTINGS_FILE, 'r', encoding='utf-8') as f:
-                settings = json.load(f)
-                # 기본값이 존재하는지 확인하고 없으면 추가
-                for key, value in DEFAULT_SETTINGS.items():
-                    settings.setdefault(key, value)
-                return settings
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"⚠️ 설정 파일({LEADERBOARD_SETTINGS_FILE})을 읽는 중 오류 발생: {e}. 기본 설정을 사용합니다.")
-            return DEFAULT_SETTINGS.copy()
-    return DEFAULT_SETTINGS.copy()
+# leaderboard_system.py에서 설정 로드 함수와 기본 설정 가져오기
+from leaderboard_system import load_settings, DEFAULT_SETTINGS
 
 # ✅ 권장: database_manager 모듈을 안전하게 불러오는 로직 추가
 try:
@@ -213,8 +189,8 @@ class AttendanceMasterCog(commands.Cog):
             new_streak = current_streak + 1
             
             # 6. 보상 계산 및 지급 (연동된 설정 사용)
-            base_cash_reward = self.settings.get('attendance_cash', 3000)
-            base_xp_reward = self.settings.get('attendance_xp', 100)
+            base_cash_reward = self.settings.get('attendance_cash', DEFAULT_SETTINGS['attendance_cash'])
+            base_xp_reward = self.settings.get('attendance_xp', DEFAULT_SETTINGS['attendance_xp'])
 
             # 연속 출석 보너스 (최대 30일까지 증가)
             bonus_days = min(new_streak - 1, self.max_streak_bonus)
