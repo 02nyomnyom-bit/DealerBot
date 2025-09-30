@@ -33,11 +33,6 @@ class AttendanceMasterCog(commands.Cog):
         # 설정 로드
         self.settings = load_settings()
         
-        # 연속 출석 보너스 설정 (이 값들은 아직 leaderboard_system과 연동되지 않음)
-        self.bonus_cash_per_day = 100
-        self.bonus_xp_per_day = 10
-        self.max_streak_bonus = 30
-        
         print("✅ 출석체크 마스터 시스템 v4.2 로드 완료 (리더보드 설정 연동)")
 
     def get_korean_date_string(self) -> str:
@@ -129,7 +124,6 @@ class AttendanceMasterCog(commands.Cog):
 
     @app_commands.command(name="출석체크", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
     async def attendance_check_v2(self, interaction: discord.Interaction):
-        """✅ 연속 출석일 계산이 개선된 출석체크 명령어"""
         await interaction.response.defer()
         
         # ✅ DB 사용 가능 여부 확인
@@ -192,11 +186,16 @@ class AttendanceMasterCog(commands.Cog):
             base_cash_reward = self.settings.get('attendance_cash', DEFAULT_SETTINGS['attendance_cash'])
             base_xp_reward = self.settings.get('attendance_xp', DEFAULT_SETTINGS['attendance_xp'])
 
-            # 연속 출석 보너스 (최대 30일까지 증가)
-            bonus_days = min(new_streak - 1, self.max_streak_bonus)
-            bonus_cash = bonus_days * self.bonus_cash_per_day
-            bonus_xp = bonus_days * self.bonus_xp_per_day
+            # ✅ 리더보드 시스템의 설정값을 사용하여 연속 출석 보너스 계산
+            bonus_cash_per_day = self.settings.get('streak_cash_per_day', DEFAULT_SETTINGS['streak_cash_per_day'])
+            bonus_xp_per_day = self.settings.get('streak_xp_per_day', DEFAULT_SETTINGS['streak_xp_per_day'])
+            max_bonus_days = self.settings.get('max_streak_bonus_days', DEFAULT_SETTINGS['max_streak_bonus_days'])
             
+            # 연속 출석 보너스 (최대 일수까지 증가)
+            bonus_days = min(new_streak - 1, max_bonus_days)
+            bonus_cash = bonus_days * bonus_cash_per_day
+            bonus_xp = bonus_days * bonus_xp_per_day
+
             total_cash = base_cash_reward + bonus_cash
             total_xp = base_xp_reward + bonus_xp
             

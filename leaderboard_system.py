@@ -47,6 +47,9 @@ os.makedirs(DATA_DIR, exist_ok=True)
 DEFAULT_SETTINGS = {
     "attendance_cash": 3000,
     "attendance_xp": 100,
+    "streak_cash_per_day": 100,      # 연속 출석일당 추가 현금
+    "streak_xp_per_day": 10,         # 연속 출석일당 추가 XP
+    "max_streak_bonus_days": 30,     # 연속 보너스가 적용되는 최대 일수
     "weekly_cash_bonus": 1000,
     "weekly_xp_bonus": 500,
     "monthly_cash_bonus": 10000,
@@ -369,6 +372,9 @@ class IntegratedLeaderboardCog(commands.Cog):
     @app_commands.choices(설정=[
         app_commands.Choice(name="💰 출석 현금 보상", value="attendance_cash"),
         app_commands.Choice(name="✨ 출석 XP 보상", value="attendance_xp"),
+        app_commands.Choice(name="🔥 연속 현금 보너스/일", value="streak_cash_per_day"),
+        app_commands.Choice(name="✨ 연속 XP 보너스/일", value="streak_xp_per_day"),
+        app_commands.Choice(name="🗓️ 최대 연속 보너스 일수", value="max_streak_bonus_days"),
         app_commands.Choice(name="🎁 7일 현금 보너스", value="weekly_cash_bonus"),
         app_commands.Choice(name="✨ 7일 XP 보너스", value="weekly_xp_bonus"),
         app_commands.Choice(name="🏆 30일 현금 보너스", value="monthly_cash_bonus"),
