@@ -59,41 +59,39 @@ class AttendanceMasterCog(commands.Cog):
         return f"{xp:,} XP"
     
     def calculate_attendance_streak(self, guild_id: str, user_id: str) -> tuple[int, bool]:
-        """
-        연속 출석일을 정확하게 계산하는 함수
-        Returns: (연속_출석일, 오늘_출석_가능_여부)
-        """
         try:
-            # DB에서 해당 사용자의 모든 출석 기록을 가져옵니다 (최신순)
+            # DB에서 모든 기록을 가져옵니다 (딕셔너리 리스트일 수 있음)
             attendance_records = self.db.get_user_attendance_history(guild_id, user_id)
+            
+            # --- DB가 딕셔너리 리스트를 반환한다고 가정하고 수정 ---
+            record_dates = [record['date'] for record in attendance_records]
+            # --- -------------------------------------------- ---
         
             today = self.get_korean_date_object()
-        
-            # 오늘 이미 출석했는지 확인
-            # record['date'] 대신 record 사용
-            today_attended = any(record == today.strftime('%Y-%m-%d') for record in attendance_records)
-        
+            today_str = today.strftime('%Y-%m-%d')
+            
+            # 1. 오늘 이미 출석했는지 확인 (새 리스트 사용)
+            today_attended = today_str in record_dates # 오늘 날짜 문자열이 리스트에 있는지 확인
+            
             if today_attended:
-                # calculate_streak_from_records 함수도 수정 필요
-                return self.calculate_streak_from_records(attendance_records), False
+                # 출석 완료 상태일 때 연속일 계산 후 False 반환
+                return self.calculate_streak_from_records(record_dates), False # calculate_streak_from_records 함수도 변경 필요
         
-            # 어제부터 시작해서 연속된 날짜 카운트
+            # 2. 어제부터 시작해서 연속된 날짜 카운트 (새 리스트 사용)
             streak = 0
             check_date = today - timedelta(days=1)  # 어제부터 확인
         
-            for record in attendance_records:
-                # datetime.strptime(record['date'], ...) 대신 record를 바로 사용
-                record_date = datetime.strptime(record, '%Y-%m-%d').date()
+            for record_str in record_dates: # records 대신 record_dates 사용
+                record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
             
                 if record_date == check_date:
                     streak += 1
                     check_date -= timedelta(days=1)
                 elif record_date < check_date:
-                    # 날짜가 연속되지 않으면 중단
                     break
         
             return streak, True
-    
+        
         except Exception as e:
             # 예외 처리 로직 수정
             print(f"연속 출석일 계산 중 오류: {e}")
@@ -101,7 +99,7 @@ class AttendanceMasterCog(commands.Cog):
             return 0, True
     
     def calculate_streak_from_records(self, records: list) -> int:
-        """출석 기록 리스트에서 현재까지의 연속 출석일 계산 (버그 수정)"""
+        # 이 함수는 이제 날짜 문자열 리스트를 받으므로, 현재 코드는 맞습니다.
         if not records:
             return 0
         
@@ -110,7 +108,7 @@ class AttendanceMasterCog(commands.Cog):
         check_date = today
         
         # 최신 기록부터 확인 (문자열 리스트를 정렬)
-        for record_str in sorted(records, reverse=True):
+        for record_str in sorted(records, reverse=True): # record_str을 사용
             record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
             
             if record_date == check_date:
