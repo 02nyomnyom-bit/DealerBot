@@ -145,29 +145,33 @@ class RoleRewardManager:
                 print(f"⚠️ 역할 관리 권한이 없어서 {member.display_name}에게 역할을 부여할 수 없습니다.")
                 return
             
-            # 새로 획득해야 하는 역할들 (현재 레벨 이하의 모든 보상 레벨)
+            # 사용자가 달성한 레벨 이하의 모든 보상 레벨
             earned_levels = self.get_all_levels_for_user(guild_id, new_level)
             
-            # 제거해야 하는 역할들과 추가해야 하는 역할들
+            # 획득한 가장 높은 레벨의 역할만 유지
+            highest_earned_level = max(earned_levels) if earned_levels else None
+            target_role_id = guild_rewards.get(highest_earned_level) if highest_earned_level else None
+
             roles_to_remove = []
             roles_to_add = []
-            
-            for level, role_id in guild_rewards.items():
-                role = member.guild.get_role(int(role_id))
+
+            for level, role_id_str in guild_rewards.items():
+                role = member.guild.get_role(int(role_id_str))
                 if not role:
                     continue  # 역할이 존재하지 않음
-                
+
                 # 봇 역할이 대상 역할보다 높은지 확인
                 if role.position >= member.guild.me.top_role.position:
-                    print(f"⚠️ 봇의 역할이 {role.name} 역할보다 낮아서 부여할 수 없습니다.")
+                    print(f"⚠️ 봇의 역할이 '{role.name}' 역할보다 낮아서 관리할 수 없습니다.")
                     continue
-                
+
                 has_role = role in member.roles
-                should_have_role = level in earned_levels
-                
-                if should_have_role and not has_role:
+                # 현재 역할이 사용자가 가져야 할 가장 높은 레벨의 역할인지 확인
+                is_target_role = str(role.id) == target_role_id
+
+                if is_target_role and not has_role:
                     roles_to_add.append((level, role))
-                elif not should_have_role and has_role:
+                elif not is_target_role and has_role:
                     roles_to_remove.append((level, role))
             
             # 역할 제거
