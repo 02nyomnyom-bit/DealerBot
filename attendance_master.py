@@ -196,12 +196,48 @@ class AttendanceMasterCog(commands.Cog):
             bonus_cash = bonus_days * bonus_cash_per_day
             bonus_xp = bonus_days * bonus_xp_per_day
 
-            total_cash = base_cash_reward + bonus_cash
-            total_xp = base_xp_reward + bonus_xp
+            # --- 👇 7일/30일 보너스 로직 추가 시작 👇 ---
+            
+            special_bonus_cash = 0
+            special_bonus_xp = 0
+            special_message = ""
+
+            # 7일(주간) 특별 보너스 확인 및 추가
+            if new_streak % 7 == 0:
+                weekly_cash = self.settings.get('weekly_cash_bonus', DEFAULT_SETTINGS['weekly_cash_bonus'])
+                weekly_xp = self.settings.get('weekly_xp_bonus', DEFAULT_SETTINGS['weekly_xp_bonus'])
+                special_bonus_cash += weekly_cash
+                special_bonus_xp += weekly_xp
+                special_message = f"🎁 7일 연속 보너스 지급! ({weekly_cash:,}원, {weekly_xp} XP)"
+
+            # 30일(월간) 특별 보너스 확인 및 추가
+            if new_streak % 30 == 0:
+                monthly_cash = self.settings.get('monthly_cash_bonus', DEFAULT_SETTINGS['monthly_cash_bonus'])
+                monthly_xp = self.settings.get('monthly_xp_bonus', DEFAULT_SETTINGS['monthly_xp_bonus'])
+                special_bonus_cash += monthly_cash
+                special_bonus_xp += monthly_xp
+                # 7일 보너스와 동시에 지급될 경우 메시지를 업데이트 (30일이 7일의 배수이므로)
+                if new_streak == 30:
+                    special_message = f"🏆 30일 연속 보너스 지급! ({monthly_cash:,}원, {monthly_xp} XP)"
+                elif new_streak > 30 and new_streak % 7 == 0:
+                     special_message += f"\n🏆 30일 연속 보너스 지급! ({monthly_cash:,}원, {monthly_xp} XP)"
+                else:
+                    special_message = f"🏆 30일 연속 보너스 지급! ({monthly_cash:,}원, {monthly_xp} XP)"
+            
+            # --- 👆 7일/30일 보너스 로직 추가 끝 👆 ---
+
+            # 최종 보상 합산
+            total_cash = base_cash_reward + bonus_cash + special_bonus_cash
+            total_xp = base_xp_reward + bonus_xp + special_bonus_xp
             
             # 현금 및 XP 지급
             self.db.add_user_cash(user_id, total_cash)
-            self.db.add_transaction(user_id, "출석체크", total_cash, f"{new_streak}일 연속 출석 보상")
+            # 현금 지급 기록에 어떤 보상을 받았는지 명시
+            transaction_detail = f"{new_streak}일 연속 출석 보상"
+            if special_message:
+                 transaction_detail += f" (+ 특별 보너스)"
+            
+            self.db.add_transaction(user_id, "출석체크", total_cash, transaction_detail)
             self.db.add_user_xp(guild_id, user_id, total_xp)
             
             # 7. 성공 메시지 전송
@@ -218,11 +254,12 @@ class AttendanceMasterCog(commands.Cog):
             if bonus_cash > 0:
                 embed.add_field(name="🎁 연속 보너스", value=f"+{bonus_cash:,}원 | +{bonus_xp} XP", inline=False)
             
+            # --- 👇 특별 보너스 메시지 추가 👇 ---
+            if special_message:
+                embed.add_field(name="🎉 특별 보상 알림", value=special_message, inline=False)
+            # --- 👆 특별 보너스 메시지 추가 👆 ---
+
             embed.add_field(name="💎 총 획득", value=f"**{total_cash:,}원**과 **{total_xp} XP**를 획득했습니다!", inline=False)
-            
-            # 특별 보상 알림
-            if new_streak in [3, 7, 30, 100]:
-                embed.add_field(name="🎊 축하합니다!", value=f"**{new_streak}일 연속 출석** 달성!", inline=False)
             
             embed.set_footer(text=f"출석 시간: {today_str}")
             
