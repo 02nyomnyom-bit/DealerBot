@@ -19,6 +19,12 @@ from discord import app_commands, Member
 PROJECT_ROOT = Path(__file__).parent.absolute()
 sys.path.insert(0, str(PROJECT_ROOT))
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # ✅ 설정 클래스 (서버 제한 기능 강화)
 class Config:
     """봇 설정 관리 클래스"""
