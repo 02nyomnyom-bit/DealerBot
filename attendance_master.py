@@ -1,4 +1,4 @@
-# attendance_master.py - 출석체크 마스터 시스템 v4.1 (연속 출석일 계산 개선)
+# attendance_master.py - 출석체크 마스터 시스템 v4.2 (리더보드 설정 연동)
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -7,6 +7,35 @@ from discord import Interaction
 import asyncio
 from datetime import datetime, timedelta, timezone, date
 import random
+import os
+import json
+
+# 설정 파일 경로 (leaderboard_system.py와 동일하게)
+DATA_DIR = "data"
+LEADERBOARD_SETTINGS_FILE = os.path.join(DATA_DIR, "leaderboard_settings.json")
+
+# 기본 설정값
+DEFAULT_SETTINGS = {
+    "attendance_cash": 3000,
+    "attendance_xp": 100,
+}
+
+def load_settings():
+    """설정 로드 (leaderboard_system.py와 동기화)"""
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+    if os.path.exists(LEADERBOARD_SETTINGS_FILE):
+        try:
+            with open(LEADERBOARD_SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+                # 기본값이 존재하는지 확인하고 없으면 추가
+                for key, value in DEFAULT_SETTINGS.items():
+                    settings.setdefault(key, value)
+                return settings
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"⚠️ 설정 파일({LEADERBOARD_SETTINGS_FILE})을 읽는 중 오류 발생: {e}. 기본 설정을 사용합니다.")
+            return DEFAULT_SETTINGS.copy()
+    return DEFAULT_SETTINGS.copy()
 
 # ✅ 권장: database_manager 모듈을 안전하게 불러오는 로직 추가
 try:
@@ -20,20 +49,20 @@ except ImportError:
 class AttendanceMasterCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = db_manager if DB_AVAILABLE else None  # DB가 있을 때만 할당
-        self.db_available = DB_AVAILABLE  # 클래스 내에서 DB 사용 가능 여부 확인용
+        self.db = db_manager if DB_AVAILABLE else None
+        self.db_available = DB_AVAILABLE
 
-        # 한국 시간대 설정
         self.korea_tz = timezone(timedelta(hours=9))
         
-        # 출석 보상 설정
-        self.base_cash_reward = 3000
-        self.base_xp_reward = 100
+        # 설정 로드
+        self.settings = load_settings()
+        
+        # 연속 출석 보너스 설정 (이 값들은 아직 leaderboard_system과 연동되지 않음)
         self.bonus_cash_per_day = 100
         self.bonus_xp_per_day = 10
         self.max_streak_bonus = 30
         
-        print("✅ 출석체크 마스터 시스템 v4.1 로드 완료")
+        print("✅ 출석체크 마스터 시스템 v4.2 로드 완료 (리더보드 설정 연동)")
 
     def get_korean_date_string(self) -> str:
         """한국 시간 기준 날짜 문자열 반환 (YYYY-MM-DD)"""
@@ -101,7 +130,7 @@ class AttendanceMasterCog(commands.Cog):
             return 0, True
     
     def calculate_streak_from_records(self, records: list) -> int:
-        """출석 기록 리스트에서 현재까지의 연속 출석일 계산"""
+        """출석 기록 리스트에서 현재까지의 연속 출석일 계산 (버그 수정)"""
         if not records:
             return 0
         
@@ -109,9 +138,9 @@ class AttendanceMasterCog(commands.Cog):
         streak = 0
         check_date = today
         
-        # 최신 기록부터 확인
-        for record in sorted(records, key=lambda x: x['date'], reverse=True):
-            record_date = datetime.strptime(record['date'], '%Y-%m-%d').date()
+        # 최신 기록부터 확인 (문자열 리스트를 정렬)
+        for record_str in sorted(records, reverse=True):
+            record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
             
             if record_date == check_date:
                 streak += 1
@@ -150,6 +179,9 @@ class AttendanceMasterCog(commands.Cog):
             return await interaction.followup.send(embed=embed)
         
         try:
+            # 설정 다시 로드 (관리자가 변경했을 수 있으므로)
+            self.settings = load_settings()
+
             # 2. 연속 출석일 및 오늘 출석 가능 여부 확인
             current_streak, can_attend_today = self.calculate_attendance_streak(guild_id, user_id)
             
@@ -180,14 +212,17 @@ class AttendanceMasterCog(commands.Cog):
             # 5. 새로운 연속 출석일 계산 (오늘 포함)
             new_streak = current_streak + 1
             
-            # 6. 보상 계산 및 지급
+            # 6. 보상 계산 및 지급 (연동된 설정 사용)
+            base_cash_reward = self.settings.get('attendance_cash', 3000)
+            base_xp_reward = self.settings.get('attendance_xp', 100)
+
             # 연속 출석 보너스 (최대 30일까지 증가)
             bonus_days = min(new_streak - 1, self.max_streak_bonus)
             bonus_cash = bonus_days * self.bonus_cash_per_day
             bonus_xp = bonus_days * self.bonus_xp_per_day
             
-            total_cash = self.base_cash_reward + bonus_cash
-            total_xp = self.base_xp_reward + bonus_xp
+            total_cash = base_cash_reward + bonus_cash
+            total_xp = base_xp_reward + bonus_xp
             
             # 현금 및 XP 지급
             self.db.add_user_cash(user_id, total_cash)
@@ -203,7 +238,7 @@ class AttendanceMasterCog(commands.Cog):
             embed.set_thumbnail(url=interaction.user.display_avatar.url)
             
             embed.add_field(name="🔥 연속 출석", value=f"**{new_streak}일** 달성!", inline=False)
-            embed.add_field(name="💰 기본 보상", value=f"{self.base_cash_reward:,}원 | {self.base_xp_reward} XP", inline=False)
+            embed.add_field(name="💰 기본 보상", value=f"{base_cash_reward:,}원 | {base_xp_reward} XP", inline=False)
             
             if bonus_cash > 0:
                 embed.add_field(name="🎁 연속 보너스", value=f"+{bonus_cash:,}원 | +{bonus_xp} XP", inline=False)
