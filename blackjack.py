@@ -182,7 +182,7 @@ class BlackjackGame:
     def determine_winner(self):
         """승부 판정"""
         player_value = self.calculate_hand_value(self.player_cards)
-        dealer_value = self.game.calculate_hand_value(self.game.dealer_cards)
+        dealer_value = self.calculate_hand_value(self.dealer_cards)
         
         player_bj = self.is_blackjack(self.player_cards)
         dealer_bj = self.is_blackjack(self.dealer_cards)
@@ -207,10 +207,11 @@ class BlackjackGame:
 
 # ✅ 블랙잭 게임 View
 class BlackjackView(View):
-    def __init__(self, user: discord.User, bet: int):
+    def __init__(self, user: discord.User, bet: int, bot: commands.Bot):
         super().__init__(timeout=120)
         self.user = user
         self.bet = bet
+        self.bot = bot
         self.game = BlackjackGame(bet)
         self.message = None
     
@@ -512,7 +513,7 @@ class BlackjackCog(commands.Cog):
             
             embed.set_footer(text="히트 또는 스탠드를 선택하세요!")
 
-            view = BlackjackView(interaction.user, 배팅)
+            view = BlackjackView(interaction.user, 배팅, self.bot)
             await interaction.response.send_message(embed=embed, view=view)
             view.message = await interaction.original_response()
             

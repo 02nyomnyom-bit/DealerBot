@@ -24,20 +24,29 @@ try:
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
     
+    # dice_game.py - (약 33줄 부근)
+
     class MockPointManager:
         @staticmethod
-        def is_registered(user_id):
+        # 🚨 수정: guild_id 인자 추가
+        def is_registered(guild_id, user_id):
             return True
+    
         @staticmethod
-        def get_point(user_id):
+        # 🚨 수정: guild_id 인자 추가
+        def get_point(guild_id, user_id):
             return 10000
+    
         @staticmethod
-        def add_point(user_id, amount):
-            pass
-        @staticmethod
-        def register_user(user_id):
+        # 🚨 수정: guild_id 인자 추가
+        def add_point(guild_id, user_id, amount):
             pass
     
+        @staticmethod
+        # 🚨 수정: guild_id 인자 추가
+        def register_user(guild_id, user_id):
+            pass
+
     point_manager = MockPointManager()
 
 # 주사위 이모지
@@ -73,6 +82,8 @@ class SingleDiceView(View):
             return await interaction.response.send_message("❗ 본인만 주사위를 굴릴 수 있습니다.", ephemeral=True)
 
         uid = str(interaction.user.id)
+        # ✅ 추가: guild_id 가져오기
+        gid = str(interaction.guild_id) 
         
         # 주사위 굴리기
         user_roll = random.randint(1, 6)
@@ -81,13 +92,13 @@ class SingleDiceView(View):
         # 결과 판정 및 통계 기록
         if user_roll > bot_roll:
             reward = self.bet * 2
-            point_manager.add_point(uid, reward)
+            point_manager.add_point(gid, uid, reward)
             result = f"🎉 승리! +{reward:,}원"
             result_color = "🟢"
             is_win = True
             payout = reward
         elif user_roll < bot_roll:
-            point_manager.add_point(uid, -self.bet)
+            point_manager.add_point(gid, uid, -self.bet)
             result = f"😢 패배! -{self.bet:,}원"
             result_color = "🔴"
             is_win = False
@@ -112,7 +123,8 @@ class SingleDiceView(View):
                 f"🎯 **{self.user.display_name}**: {DICE_EMOJIS[user_roll]} ({user_roll})\n"
                 f"🤖 **딜러**: {DICE_EMOJIS[bot_roll]} ({bot_roll})\n\n"
                 f"🏆 **결과**: {result}\n"
-                f"💰 **현재 잔액**: {point_manager.get_point(uid):,}원"
+                # 🚨 수정: gid 인자 추가
+                f"💰 **현재 잔액**: {point_manager.get_point(gid, uid):,}원"
             ),
             view=self
         )
@@ -151,12 +163,14 @@ class MultiDiceView(View):
     async def join_game(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = interaction.user
         uid = str(user.id)
+        # ✅ 추가: guild_id 가져오기
+        gid = str(interaction.guild_id)
 
         # 기본 검증
-        if not point_manager.is_registered(uid):
+        if not point_manager.is_registered(gid, uid):
             return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
-        if point_manager.get_point(uid) < self.bet:
+        if point_manager.get_point(gid, uid) < self.bet:
             return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
         # 참여자 검증
@@ -220,22 +234,24 @@ class MultiDiceView(View):
         # 두 명 모두 굴린 경우 - 게임 종료
         await interaction.response.defer()
 
+        gid = str(interaction.guild_id)
+
         # 배팅 차감
         p1_id = str(self.player1.id)
         p2_id = str(self.player2.id)
-        point_manager.add_point(p1_id, -self.bet)
-        point_manager.add_point(p2_id, -self.bet)
+        point_manager.add_point(gid, p1_id, -self.bet)
+        point_manager.add_point(gid, p2_id, -self.bet)
 
         # 승부 판정 및 통계 기록
         if self.player1_roll > self.player2_roll:
-            point_manager.add_point(p1_id, self.bet * 2)
+            point_manager.add_point(gid, p1_id, self.bet * 2)
             result_emoji = "🎉"
             result_text = f"{self.player1.mention} 승리!"
             # ✅ 통계 기록 (추가)
             record_dice_game(p1_id, self.player1.display_name, self.bet, self.bet * 2, True)
             record_dice_game(p2_id, self.player2.display_name, self.bet, 0, False)
         elif self.player1_roll < self.player2_roll:
-            point_manager.add_point(p2_id, self.bet * 2)
+            point_manager.add_point(gid, p2_id, self.bet * 2)
             result_emoji = "🎉"
             result_text = f"{self.player2.mention} 승리!"
             # ✅ 통계 기록 (추가)
@@ -243,8 +259,8 @@ class MultiDiceView(View):
             record_dice_game(p2_id, self.player2.display_name, self.bet, self.bet * 2, True)
         else:
             # 무승부 - 배팅 금액 반환
-            point_manager.add_point(p1_id, self.bet)
-            point_manager.add_point(p2_id, self.bet)
+            point_manager.add_point(gid, p1_id, self.bet)
+            point_manager.add_point(gid, p2_id, self.bet)
             result_emoji = "🤝"
             result_text = "무승부!"
             # ✅ 통계 기록 (추가)
@@ -263,8 +279,8 @@ class MultiDiceView(View):
                     f"🎯 **{self.player2.display_name}**: {DICE_EMOJIS[self.player2_roll]} ({self.player2_roll})\n\n"
                     f"🏆 **결과**: {result_text}\n"
                     f"💰 **배팅 금액**: {self.bet:,}원\n\n"
-                    f"💰 **{self.player1.display_name} 잔액**: {point_manager.get_point(p1_id):,}원\n"
-                    f"💰 **{self.player2.display_name} 잔액**: {point_manager.get_point(p2_id):,}원"
+                    f"💰 **{self.player1.display_name} 잔액**: {point_manager.get_point(gid, p1_id):,}원\n"
+                    f"💰 **{self.player2.display_name} 잔액**: {point_manager.get_point(gid, p2_id):,}원"
                 ), view=self)
             else:
                 await interaction.followup.send(content=(
@@ -273,8 +289,8 @@ class MultiDiceView(View):
                     f"🎯 **{self.player2.display_name}**: {DICE_EMOJIS[self.player2_roll]} ({self.player2_roll})\n\n"
                     f"🏆 **결과**: {result_text}\n"
                     f"💰 **배팅 금액**: {self.bet:,}원\n\n"
-                    f"💰 **{self.player1.display_name} 잔액**: {point_manager.get_point(p1_id):,}원\n"
-                    f"💰 **{self.player2.display_name} 잔액**: {point_manager.get_point(p2_id):,}원"
+                    f"💰 **{self.player1.display_name} 잔액**: {point_manager.get_point(gid, p1_id):,}원\n"
+                    f"💰 **{self.player2.display_name} 잔액**: {point_manager.get_point(gid, p2_id):,}원"
                 ))
         except:
             pass  # 메시지 수정 실패 시 무시
@@ -315,15 +331,15 @@ class DiceGameCog(commands.Cog):
         상대방: Optional[discord.User] = None
     ):
         uid = str(interaction.user.id)
+        gid = str(interaction.guild_id) 
 
-        # 기본 검증
-        if not point_manager.is_registered(uid):
+        if not point_manager.is_registered(gid, uid):
             return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
         if 배팅 < 1:
             return await interaction.response.send_message("❗ 배팅 금액은 1원 이상이어야 합니다.", ephemeral=True)
 
-        if point_manager.get_point(uid) < 배팅:
+        if point_manager.get_point(gid, uid) < 배팅:
             return await interaction.response.send_message("❌ 잔액이 부족합니다!", ephemeral=True)
 
         # 싱글 모드
@@ -348,9 +364,11 @@ class DiceGameCog(commands.Cog):
             if 상대방:
                 if 상대방.id == interaction.user.id:
                     return await interaction.response.send_message("❌ 자기 자신과는 게임할 수 없습니다.", ephemeral=True)
-                if not point_manager.is_registered(str(상대방.id)):
+                
+                if not point_manager.is_registered(gid, str(상대방.id)):
                     return await interaction.response.send_message("❌ 상대방이 등록되어 있지 않습니다.", ephemeral=True)
-                if point_manager.get_point(str(상대방.id)) < 배팅:
+                
+                if point_manager.get_point(gid, str(상대방.id)) < 배팅:
                     return await interaction.response.send_message("❌ 상대방의 잔액이 부족합니다.", ephemeral=True)
 
             embed = discord.Embed(
