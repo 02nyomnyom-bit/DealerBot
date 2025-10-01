@@ -39,16 +39,13 @@ def setup_logging():
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         
+        logger.setLevel(logging.ERROR)
         # 파일 핸들러
         file_handler = logging.FileHandler(log_dir / 'database.log', encoding='utf-8')
-        file_handler.setFormatter(formatter)
-        file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
         
         # 콘솔 핸들러
         console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        console_handler.setLevel(logging.INFO)
         logger.addHandler(console_handler)
         
     return logger
