@@ -1,4 +1,3 @@
-# attendance_master.py - 출석체크 마스터 시스템 v4.2 (리더보드 설정 연동)
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -10,12 +9,9 @@ import random
 import os
 import json
 
-# leaderboard_system.py에서 설정 로드 함수와 기본 설정 가져오기
-from leaderboard_system import load_settings, DEFAULT_SETTINGS
-
 # ✅ 권장: database_manager 모듈을 안전하게 불러오는 로직 추가
 try:
-    from database_manager import db_manager
+    from database_manager import get_guild_db_manager, DEFAULT_LEADERBOARD_SETTINGS
     DB_AVAILABLE = True
     print("✅ database_manager 모듈 로드 완료")
 except ImportError:
@@ -25,13 +21,13 @@ except ImportError:
 class AttendanceMasterCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = db_manager if DB_AVAILABLE else None
-        self.db_available = DB_AVAILABLE
+        self.db_available = DB_AVAILABLE # Keep this for initial check
 
         self.korea_tz = timezone(timedelta(hours=9))
         
-        # 설정 로드
-        self.settings = load_settings()
+        # self.settings는 이제 각 명령어에서 guild_id를 기반으로 로드됩니다.
+        # 초기화 시점에는 특정 길드 ID가 없으므로 로드하지 않습니다.
+        self.settings = DEFAULT_LEADERBOARD_SETTINGS # 기본값으로 초기화
         
         print("✅ 출석체크 마스터 시스템 v4.2 로드 완료 (리더보드 설정 연동)")
 
@@ -59,61 +55,32 @@ class AttendanceMasterCog(commands.Cog):
         return f"{xp:,} XP"
     
     def calculate_attendance_streak(self, guild_id: str, user_id: str) -> tuple[int, bool]:
+        if not self.db_available:
+            print("❌ calculate_attendance_streak: 데이터베이스를 사용할 수 없습니다.")
+            return 0, True
         try:
-            # DB에서 모든 기록을 가져옵니다 (딕셔너리 리스트 또는 문자열 리스트)
-            attendance_records = self.db.get_user_attendance_history(guild_id, user_id)
+            db = get_guild_db_manager(guild_id)
             
-            record_dates = []
-            if attendance_records:
-                if isinstance(attendance_records[0], dict):
-                    record_dates = [record['date'] for record in attendance_records]
-                else: # 문자열 리스트라고 가정
-                    record_dates = attendance_records
+            # 데이터베이스에서 현재 연속 출석일 가져오기
+            current_streak = db.get_user_attendance_streak(user_id)
             
-            # 중복된 날짜 기록을 제거하여 정확성을 높입니다.
-            unique_dates = sorted(list(set(record_dates)), reverse=True)
-        
-            today = self.get_korean_date_object()
-            today_str = today.strftime('%Y-%m-%d')
+            # 오늘 출석했는지 확인
+            today_attended = db.has_attended_today(user_id)
             
-            # 1. 오늘 이미 출석했는지 확인
-            today_attended = today_str in unique_dates
-            
-            # 2. 연속 출석일 계산
-            streak = 0
-            # 오늘 출석했다면 오늘부터, 아니라면 어제부터 확인 시작
-            check_date = today if today_attended else today - timedelta(days=1)
-            
-            # 날짜를 최신순으로 정렬하여 연속 출석일 계산
-            for record_str in unique_dates:
-                record_date = datetime.strptime(record_str, '%Y-%m-%d').date()
-                
-                # streak 계산은 check_date부터 시작하므로, 그보다 최신 날짜는 건너뜁니다.
-                if record_date > check_date:
-                    continue
-
-                if record_date == check_date:
-                    streak += 1
-                    check_date -= timedelta(days=1)
-                else:
-                    # 날짜가 연속되지 않으면 중단
-                    break
-            
-            # 오늘 출석하지 않은 경우, 계산된 streak은 어제까지의 연속일입니다.
-            # 오늘 출석한 경우, 계산된 streak은 오늘까지의 연속일입니다.
-            return streak, not today_attended
+            return current_streak, not today_attended
         
         except Exception as e:
-            # 예외 처리 로직 수정
             print(f"연속 출석일 계산 중 오류: {e}")
-            # 오류 발생 시 0, True를 반환하거나 다른 적절한 값으로 대체
             return 0, True
 
     @app_commands.command(name="출석체크", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
     async def attendance_check_v2(self, interaction: discord.Interaction):
         await interaction.response.defer()
         
-        # ✅ DB 사용 가능 여부 확인
+        user_id = str(interaction.user.id)
+        username = interaction.user.display_name
+        guild_id = str(interaction.guild.id)
+
         if not self.db_available:
             embed = discord.Embed(
                 title="❌ 시스템 오류",
@@ -121,13 +88,11 @@ class AttendanceMasterCog(commands.Cog):
                 color=discord.Color.red()
             )
             return await interaction.followup.send(embed=embed)
-        
-        user_id = str(interaction.user.id)
-        username = interaction.user.display_name
-        guild_id = str(interaction.guild.id)
+
+        db = get_guild_db_manager(guild_id)
         
         # 1. 사용자 등록 여부 확인
-        if not self.db.get_user(user_id):
+        if not db.get_user(user_id):
             embed = discord.Embed(
                 title="❌ 미등록 사용자",
                 description="먼저 `/등록` 명령어로 플레이어 등록을 해주세요!",
@@ -136,8 +101,8 @@ class AttendanceMasterCog(commands.Cog):
             return await interaction.followup.send(embed=embed)
         
         try:
-            # 설정 다시 로드 (관리자가 변경했을 수 있으므로)
-            self.settings = load_settings()
+            # 설정 로드 (관리자가 변경했을 수 있으므로)
+            settings = db.get_leaderboard_settings()
 
             # 2. 연속 출석일 및 오늘 출석 가능 여부 확인
             current_streak, can_attend_today = self.calculate_attendance_streak(guild_id, user_id)
@@ -157,26 +122,20 @@ class AttendanceMasterCog(commands.Cog):
             today_str = self.get_korean_date_string()
             
             # database_manager의 출석 기록 함수 호출 (간단한 기록만)
-            if hasattr(self.db, 'record_daily_attendance'):
-                self.db.record_daily_attendance(guild_id, user_id, today_str)
-            elif hasattr(self.db, 'record_attendance'):
-                # 기존 함수 사용 (결과는 무시하고 기록만 수행)
-                self.db.record_attendance(guild_id, user_id)
-            else:
-                # 직접 출석 테이블에 삽입
-                self.db.add_attendance_record(guild_id, user_id, today_str)
+            # The correct method is db.record_attendance(user_id)
+            db.record_attendance(user_id)
             
             # 5. 새로운 연속 출석일 계산 (오늘 포함)
             new_streak = current_streak + 1
             
             # 6. 보상 계산 및 지급 (연동된 설정 사용)
-            base_cash_reward = self.settings.get('attendance_cash', DEFAULT_SETTINGS['attendance_cash'])
-            base_xp_reward = self.settings.get('attendance_xp', DEFAULT_SETTINGS['attendance_xp'])
+            base_cash_reward = settings.get('attendance_cash', DEFAULT_LEADERBOARD_SETTINGS['attendance_cash'])
+            base_xp_reward = settings.get('attendance_xp', DEFAULT_LEADERBOARD_SETTINGS['attendance_xp'])
 
             # ✅ 리더보드 시스템의 설정값을 사용하여 연속 출석 보너스 계산
-            bonus_cash_per_day = self.settings.get('streak_cash_per_day', DEFAULT_SETTINGS['streak_cash_per_day'])
-            bonus_xp_per_day = self.settings.get('streak_xp_per_day', DEFAULT_SETTINGS['streak_xp_per_day'])
-            max_bonus_days = self.settings.get('max_streak_bonus_days', DEFAULT_SETTINGS['max_streak_bonus_days'])
+            bonus_cash_per_day = settings.get('streak_cash_per_day', DEFAULT_LEADERBOARD_SETTINGS['streak_cash_per_day'])
+            bonus_xp_per_day = settings.get('streak_xp_per_day', DEFAULT_LEADERBOARD_SETTINGS['streak_xp_per_day'])
+            max_bonus_days = settings.get('max_streak_bonus_days', DEFAULT_LEADERBOARD_SETTINGS['max_streak_bonus_days'])
             
             # 연속 출석 보너스 (최대 일수까지 증가)
             bonus_days = min(new_streak - 1, max_bonus_days)
@@ -191,16 +150,16 @@ class AttendanceMasterCog(commands.Cog):
 
             # 7일(주간) 특별 보너스 확인 및 추가
             if new_streak % 7 == 0:
-                weekly_cash = self.settings.get('weekly_cash_bonus', DEFAULT_SETTINGS['weekly_cash_bonus'])
-                weekly_xp = self.settings.get('weekly_xp_bonus', DEFAULT_SETTINGS['weekly_xp_bonus'])
+                weekly_cash = settings.get('weekly_cash_bonus', DEFAULT_LEADERBOARD_SETTINGS['weekly_cash_bonus'])
+                weekly_xp = settings.get('weekly_xp_bonus', DEFAULT_LEADERBOARD_SETTINGS['weekly_xp_bonus'])
                 special_bonus_cash += weekly_cash
                 special_bonus_xp += weekly_xp
                 special_message = f"🎁 7일 연속 보너스 지급! ({weekly_cash:,}원, {weekly_xp} XP)"
 
             # 30일(월간) 특별 보너스 확인 및 추가
             if new_streak % 30 == 0:
-                monthly_cash = self.settings.get('monthly_cash_bonus', DEFAULT_SETTINGS['monthly_cash_bonus'])
-                monthly_xp = self.settings.get('monthly_xp_bonus', DEFAULT_SETTINGS['monthly_xp_bonus'])
+                monthly_cash = settings.get('monthly_cash_bonus', DEFAULT_LEADERBOARD_SETTINGS['monthly_cash_bonus'])
+                monthly_xp = settings.get('monthly_xp_bonus', DEFAULT_LEADERBOARD_SETTINGS['monthly_xp_bonus'])
                 special_bonus_cash += monthly_cash
                 special_bonus_xp += monthly_xp
                 # 7일 보너스와 동시에 지급될 경우 메시지를 업데이트 (30일이 7일의 배수이므로)
@@ -218,14 +177,14 @@ class AttendanceMasterCog(commands.Cog):
             total_xp = base_xp_reward + bonus_xp + special_bonus_xp
             
             # 현금 및 XP 지급
-            self.db.add_user_cash(user_id, total_cash)
+            db.add_user_cash(user_id, total_cash)
             # 현금 지급 기록에 어떤 보상을 받았는지 명시
             transaction_detail = f"{new_streak}일 연속 출석 보상"
             if special_message:
                  transaction_detail += f" (+ 특별 보너스)"
             
-            self.db.add_transaction(user_id, "출석체크", total_cash, transaction_detail)
-            self.db.add_user_xp(guild_id, user_id, total_xp)
+            db.add_transaction(user_id, "출석체크", total_cash, transaction_detail)
+            db.add_user_xp(user_id, total_xp)
             
             # 7. 성공 메시지 전송
             embed = discord.Embed(
@@ -268,7 +227,9 @@ class AttendanceMasterCog(commands.Cog):
     async def attendance_status(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
 
-        # ✅ DB 사용 가능 여부 확인
+        user_id = str(interaction.user.id)
+        guild_id = str(interaction.guild.id)
+
         if not self.db_available:
             embed = discord.Embed(
                 title="❌ 시스템 오류",
@@ -276,11 +237,10 @@ class AttendanceMasterCog(commands.Cog):
                 color=discord.Color.red()
             )
             return await interaction.followup.send(embed=embed)
+
+        db = get_guild_db_manager(guild_id)
         
-        user_id = str(interaction.user.id)
-        guild_id = str(interaction.guild.id)
-        
-        if not self.db.get_user(user_id):
+        if not db.get_user(user_id):
             embed = discord.Embed(
                 title="❌ 미등록 사용자",
                 description="먼저 `/등록` 명령어로 플레이어 등록을 해주세요!",
@@ -327,6 +287,8 @@ class AttendanceMasterCog(commands.Cog):
         """서버 내 연속 출석일 랭킹 표시"""
         await interaction.response.defer()
 
+        guild_id = str(interaction.guild.id)
+
         if not self.db_available:
             embed = discord.Embed(
                 title="❌ 시스템 오류",
@@ -335,29 +297,19 @@ class AttendanceMasterCog(commands.Cog):
             )
             return await interaction.followup.send(embed=embed)
 
-        guild_id = str(interaction.guild.id)
+        db = get_guild_db_manager(guild_id)
         
         try:
             # 서버의 모든 사용자 출석 현황 조회
-            all_users = self.db.get_all_users_in_guild(guild_id) if hasattr(self.db, 'get_all_users_in_guild') else []
+            leaderboard = db.get_attendance_leaderboard(10)
             
-            user_streaks = []
-            for user_data in all_users:
-                user_id = user_data['user_id']
-                try:
-                    streak, _ = self.calculate_attendance_streak(guild_id, user_id)
-                    if streak > 0:  # 연속 출석일이 있는 사용자만
-                        user = self.bot.get_user(int(user_id))
-                        if user:
-                            user_streaks.append({
-                                'user': user,
-                                'streak': streak
-                            })
-                except:
-                    continue
-            
-            # 연속 출석일 기준으로 정렬
-            user_streaks.sort(key=lambda x: x['streak'], reverse=True)
+            if not leaderboard:
+                embed = discord.Embed(
+                    title="🏆 서버 출석 랭킹",
+                    description="아직 출석한 사용자가 없습니다.",
+                    color=discord.Color.gold()
+                )
+                return await interaction.followup.send(embed=embed)
             
             embed = discord.Embed(
                 title="🏆 서버 출석 랭킹",
@@ -365,16 +317,15 @@ class AttendanceMasterCog(commands.Cog):
                 color=discord.Color.gold()
             )
             
-            for i, data in enumerate(user_streaks[:10], 1):
+            for i, data in enumerate(leaderboard, 1):
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                username = data.get('display_name') or data.get('username') or "Unknown"
+                streak = data.get('current_streak', 0)
                 embed.add_field(
-                    name=f"{medal} {data['user'].display_name}",
-                    value=f"🔥 {data['streak']}일 연속",
+                    name=f"{medal} {username}",
+                    value=f"🔥 {streak}일 연속",
                     inline=False
                 )
-            
-            if not user_streaks:
-                embed.description = "아직 출석한 사용자가 없습니다."
             
             await interaction.followup.send(embed=embed)
             
