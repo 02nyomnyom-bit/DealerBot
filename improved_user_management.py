@@ -8,7 +8,7 @@ import asyncio
 
 # 데이터베이스 매니저 임포트
 try:
-    from database_manager import db_manager
+    from database_manager import get_guild_db_manager
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -36,7 +36,7 @@ class UserDeleteConfirmView(discord.ui.View):
         self.admin_user = admin_user
         self.target_id = str(target_user.id)
         self.target_name = target_user.display_name
-        self.db = db or db_manager  # db 인수를 받거나 기본값 사용
+        self.db = db or get_guild_db_manager(str(target_user.guild.id))  # db 인수를 받거나 기본값 사용
 
     @discord.ui.button(label="✅ 탈퇴 확정", style=discord.ButtonStyle.danger)
     async def confirm_delete(self, interaction: Interaction, button: discord.ui.Button):
@@ -50,37 +50,7 @@ class UserDeleteConfirmView(discord.ui.View):
         
         try:
             # 사용자 데이터 삭제
-            deleted_counts = {}
-            
-            # users 테이블에서 삭제
-            deleted_counts['users'] = self.db.execute_query(
-                'DELETE FROM users WHERE user_id = ?', 
-                (self.target_id,), 'count'
-            )
-            
-            # user_xp 테이블에서 삭제
-            deleted_counts['user_xp'] = self.db.execute_query(
-                'DELETE FROM user_xp WHERE user_id = ?', 
-                (self.target_id,), 'count'
-            )
-            
-            # attendance 테이블에서 삭제
-            deleted_counts['attendance'] = self.db.execute_query(
-                'DELETE FROM attendance WHERE user_id = ?', 
-                (self.target_id,), 'count'
-            )
-            
-            # enhancement 테이블에서 삭제
-            deleted_counts['enhancement'] = self.db.execute_query(
-                'DELETE FROM enhancement WHERE user_id = ?', 
-                (self.target_id,), 'count'
-            )
-            
-            # point_transactions 테이블에서 삭제
-            deleted_counts['transactions'] = self.db.execute_query(
-                'DELETE FROM point_transactions WHERE user_id = ?', 
-                (self.target_id,), 'count'
-            )
+            deleted_counts = self.db.delete_user(self.target_id)
             
             for item in self.children:
                 item.disabled = True
@@ -156,7 +126,7 @@ class UserManagementCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
-        self.db = db_manager if DATABASE_AVAILABLE else None
+        self.db = None # db_manager를 직접 사용하지 않고, 각 명령어에서 get_guild_db_manager를 통해 인스턴스를 얻습니다.
         if not DATABASE_AVAILABLE:
             print("⚠️ 데이터베이스 연결 실패 - 사용자 관리 기능이 제한됩니다.")
     
@@ -177,26 +147,27 @@ class UserManagementCog(commands.Cog):
         
         try:
             guild_id = str(interaction.guild.id)
+            db = get_guild_db_manager(guild_id)
             
             # 총 사용자 수
-            total_users_result = self.db.execute_query('SELECT COUNT(*) FROM users', (), 'one')
+            total_users_result = db.execute_query('SELECT COUNT(*) FROM users WHERE guild_id = ?', (guild_id,), 'one')
             # ✅ Row 객체를 딕셔너리로 변환하거나 인덱스로 접근
             total_users = dict(total_users_result)['COUNT(*)'] if total_users_result else 0
             
             # TOP 5 현금 보유자
-            top_cash_users_results = self.db.execute_query('''
+            top_cash_users_results = db.execute_query('''
                 SELECT user_id, username, display_name, cash 
                 FROM users 
+                WHERE guild_id = ?
                 ORDER BY cash DESC 
                 LIMIT 5
-            ''', (), 'all')
+            ''', (guild_id,), 'all')
             
             # TOP 5 XP 보유자 (길드별)
-            top_xp_users_results = self.db.execute_query('''
+            top_xp_users_results = db.execute_query('''
                 SELECT ux.user_id, u.username, u.display_name, ux.xp, ux.level
                 FROM user_xp ux
-                JOIN users u ON ux.user_id = u.user_id
-                WHERE ux.guild_id = ?
+                JOIN users u ON ux.user_id = u.user_id AND u.guild_id = ?
                 ORDER BY ux.xp DESC 
                 LIMIT 5
             ''', (guild_id,), 'all')
@@ -206,12 +177,13 @@ class UserManagementCog(commands.Cog):
             top_xp_users = [dict(row) for row in top_xp_users_results] if top_xp_users_results else []
             
             # 최근 가입자 (TOP 5)
-            recent_users_results = self.db.execute_query('''
+            recent_users_results = db.execute_query('''
                 SELECT user_id, username, display_name, created_at 
                 FROM users 
+                WHERE guild_id = ?
                 ORDER BY created_at DESC 
                 LIMIT 5
-            ''', (), 'all')
+            ''', (guild_id,), 'all')
             recent_users = [dict(row) for row in recent_users_results] if recent_users_results else []
             
             # 임베드 생성
@@ -292,18 +264,20 @@ class UserManagementCog(commands.Cog):
         
         try:
             guild_id = str(interaction.guild.id)
+            db = get_guild_db_manager(guild_id)
             
             # 페이지 설정 (1페이지당 10명)
             page_size = 10
             offset = (페이지 - 1) * page_size
             
             # 사용자 목록 조회 (생성일순)
-            users_results = self.db.execute_query('''
+            users_results = db.execute_query('''
                 SELECT user_id, username, display_name, cash, created_at 
                 FROM users 
+                WHERE guild_id = ?
                 ORDER BY created_at DESC 
                 LIMIT ? OFFSET ?
-            ''', (page_size, offset), 'all')
+            ''', (guild_id, page_size, offset), 'all')
             
             if not users_results:
                 return await interaction.followup.send("📋 해당 페이지에 사용자가 없습니다.")
@@ -312,7 +286,7 @@ class UserManagementCog(commands.Cog):
             users = [dict(row) for row in users_results]
             
             # 총 사용자 수와 총 페이지 수 계산
-            total_users_result = self.db.execute_query('SELECT COUNT(*) FROM users', (), 'one')
+            total_users_result = db.execute_query('SELECT COUNT(*) FROM users WHERE guild_id = ?', (guild_id,), 'one')
             total_users = dict(total_users_result)['COUNT(*)'] if total_users_result else 0
             total_pages = (total_users + 9) // 10  # 올림 계산
             
@@ -328,7 +302,7 @@ class UserManagementCog(commands.Cog):
                 user_id = user['user_id']
                 
                 # XP 데이터 조회
-                xp_data = self.db.get_user_xp(guild_id, user_id)
+                xp_data = db.get_user_xp(user_id)
                 xp = xp_data.get('xp', 0) if xp_data else 0
                 level = xp_data.get('level', 1) if xp_data else 1
                 
@@ -374,22 +348,23 @@ class UserManagementCog(commands.Cog):
         try:
             target_id = str(대상.id)
             guild_id = str(interaction.guild.id)
+            db = get_guild_db_manager(guild_id)
             
             # 기본 사용자 정보
-            user_data = self.db.get_user(target_id)
+            user_data = db.get_user(target_id)
             if not user_data:
                 return await interaction.followup.send(
                     f"❌ {대상.display_name}님은 등록되어 있지 않습니다."
                 )
             
             # XP 정보
-            xp_data = self.db.get_user_xp(guild_id, target_id)
+            xp_data = db.get_user_xp(target_id)
             
             # 출석 통계
-            attendance_stats = self.db.get_attendance_stats(target_id)
+            attendance_stats = db.get_attendance_stats(target_id)
             
             # 강화 정보
-            enhancement_data = self.db.execute_query(
+            enhancement_data = db.execute_query(
                 'SELECT * FROM enhancement WHERE user_id = ?',
                 (target_id,), 'one'
             )
@@ -472,9 +447,11 @@ class UserManagementCog(commands.Cog):
             return await interaction.response.send_message("🚫 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         target_id = str(사용자.id)
+        guild_id = str(interaction.guild.id)
+        db = get_guild_db_manager(guild_id)
         
         # 사용자 등록 확인
-        if not self.db.get_user(target_id):
+        if not db.get_user(target_id):
             return await interaction.response.send_message("❌ 해당 사용자가 등록되지 않았습니다.", ephemeral=True)
         
         # 자기 자신 초기화 방지
@@ -482,23 +459,21 @@ class UserManagementCog(commands.Cog):
             return await interaction.response.send_message("❌ 자기 자신의 데이터는 초기화할 수 없습니다.", ephemeral=True)
         
         try:
-            # 데이터 초기화 실행
-            guild_id = str(interaction.guild.id)
             
             # 1. 현금 초기화
-            self.db.update_user_cash(target_id, 10000)
+            db.update_user_cash(target_id, 10000)
             
             # 2. XP 초기화
-            self.db.execute_query('''
+            db.execute_query('''
                 UPDATE user_xp SET xp = 0, level = 1, updated_at = CURRENT_TIMESTAMP
-                WHERE guild_id = ? AND user_id = ?
-            ''', (guild_id, target_id))
+                WHERE user_id = ?
+            ''', (target_id,))
             
             # 3. 출석 기록 삭제
-            self.db.execute_query('DELETE FROM attendance WHERE user_id = ?', (target_id,))
+            db.execute_query('DELETE FROM attendance WHERE user_id = ?', (target_id,))
             
             # 4. 강화 데이터 초기화
-            self.db.execute_query('DELETE FROM enhancement WHERE user_id = ?', (target_id,))
+            db.execute_query('DELETE FROM enhancement WHERE user_id = ?', (target_id,))
             
             embed = discord.Embed(
                 title="✅ 데이터 초기화 완료",
@@ -507,15 +482,15 @@ class UserManagementCog(commands.Cog):
             )
             embed.add_field(
                 name="🔄 초기화된 항목",
-                value="• 💰 현금: 10,000원으로 재설정\n"
-                      "• ✨ XP/레벨: Lv.1 (0 XP)\n"
-                      "• 📅 출석 기록: 삭제\n"
+                value="• 💰 현금: 10,000원으로 재설정\n" 
+                      "• ✨ XP/레벨: Lv.1 (0 XP)\n" 
+                      "• 📅 출석 기록: 삭제\n" 
                       "• ⚡ 강화 데이터: 삭제",
                 inline=False
             )
             embed.add_field(
                 name="📋 보존된 항목",
-                value="• 💳 거래 기록 (감사 목적)\n"
+                value="• 💳 거래 기록 (감사 목적)\n" 
                       "• 👤 기본 사용자 정보",
                 inline=False
             )

@@ -551,14 +551,9 @@ class EnhancedBot(commands.Bot):
                 await self.tree.sync(guild=guild)
         
         # 백업 시스템 초기화
-        try:
-            from backup_cog import BackupSystem
-            self.backup_cog = BackupSystem()
-            self.logger.info("✅ 백업 시스템 초기화 완료")
-        except ImportError:
-            self.logger.warning("⚠️ 백업 시스템을 찾을 수 없습니다.")
-        except Exception as e:
-            self.logger.error(f"❌ 백업 시스템 초기화 실패: {e}")
+        # BackupSystem is now managed by BackupCog, loaded as an extension.
+        # The BackupCog's setup function will handle its initialization and auto-start.
+        pass
             
     async def on_ready(self):
         """봇 준비 완료 시 실행"""
@@ -595,12 +590,12 @@ class EnhancedBot(commands.Bot):
         #except Exception as e:
         #    self.logger.warning(f"⚠️ 종료 알림 추가 실패: {e}")
         
-        # 백업 시스템 중지
-        if self.backup_system:
-            try:
-                self.backup_system.stop_auto_backup()
-            except Exception as e:
-                self.logger.warning(f"⚠️ 백업 시스템 종료 실패: {e}")
+        # 백업 시스템 중지 (BackupCog에서 처리)
+        # if self.backup_system:
+        #     try:
+        #         self.backup_system.stop_auto_backup()
+        #     except Exception as e:
+        #         self.logger.warning(f"⚠️ 백업 시스템 종료 실패: {e}")
         
         await super().close()
         self.logger.info("✅ 봇 정상 종료")

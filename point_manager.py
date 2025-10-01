@@ -3,7 +3,7 @@ from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member, User
 from discord.ext import commands
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 import asyncio
 import json
 import os
@@ -92,19 +92,11 @@ except ImportError as e:
                        for uid, data in self.users.items() if data['cash'] > 0]
             return []
 
-# 데이터베이스 매니저 인스턴스 생성
-if DATABASE_AVAILABLE:
-    try:
-        db_manager = DatabaseManager()
-        print("✅ 실제 데이터베이스 매니저 초기화 완료")
-    except Exception as e:
-        print(f"❌ 데이터베이스 매니저 초기화 실패: {e}")
-        print(f"상세 오류: {traceback.format_exc()}")
-        print("⚠️ Mock 데이터베이스로 대체합니다.")
-        db_manager = MockDatabaseManager()
-        DATABASE_AVAILABLE = False
-else:
-    db_manager = MockDatabaseManager()
+# 데이터베이스 매니저 인스턴스 생성 (이제 각 길드별로 생성됩니다)
+# 전역 db_manager 인스턴스는 제거하고, PointManager 내에서 길드 ID를 기반으로 인스턴스를 관리합니다.
+
+# MockDatabaseManager는 여전히 필요할 수 있으므로 클래스 정의는 유지합니다.
+# DATABASE_AVAILABLE 플래그는 이제 PointManager 내부에서 관리됩니다.
 
 # 선물 설정 파일 경로
 GIFT_SETTINGS_FILE = "data/gift_settings.json"
@@ -156,14 +148,43 @@ class GiftSettings:
 class PointManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = db_manager
+        self.db_managers: Dict[str, DatabaseManager] = {} # Store guild-specific DB managers
         self.gift_settings = GiftSettings()
         self.user_cooldowns: Dict[str, datetime] = {}
         self.daily_gift_counts: Dict[str, Dict[str, int]] = {}
         
-        # 데이터베이스 상태 확인
-        print(f"📊 데이터베이스 상태: {'실제 DB' if DATABASE_AVAILABLE else 'Mock DB'}")
+        # Check if DatabaseManager was successfully imported
+        self.DATABASE_AVAILABLE = True
+        try:
+            # Attempt to use DatabaseManager to confirm it's functional
+            # This is just a check, actual instances are per-guild
+            _ = DatabaseManager(guild_id="temp_check") 
+        except Exception:
+            self.DATABASE_AVAILABLE = False
+        
+        print(f"📊 데이터베이스 상태: {'실제 DB' if self.DATABASE_AVAILABLE else 'Mock DB'}")
         print("✅ 통합 포인트 관리 시스템 + 고급 선물 시스템 초기화 완료")
+
+    def _get_db(self, guild_id: Optional[int]) -> Union[DatabaseManager, MockDatabaseManager]:
+        if guild_id is None:
+            print("⚠️ guild_id가 None입니다. MockDatabaseManager를 반환합니다.")
+            return MockDatabaseManager() # Fallback for DMs or unexpected None
+        
+        guild_id_str = str(guild_id)
+        if guild_id_str not in self.db_managers:
+            if self.DATABASE_AVAILABLE:
+                try:
+                    self.db_managers[guild_id_str] = DatabaseManager(guild_id=guild_id_str)
+                    print(f"✅ 길드 {guild_id_str}에 대한 DatabaseManager 인스턴스 생성 완료.")
+                except Exception as e:
+                    print(f"❌ 길드 {guild_id_str}에 대한 DatabaseManager 인스턴스 생성 실패: {e}")
+                    print(f"상세 오류:\n{traceback.format_exc()}")
+                    print(f"⚠️ 길드 {guild_id_str}에 대해 Mock 데이터베이스로 대체합니다.")
+                    self.db_managers[guild_id_str] = MockDatabaseManager()
+            else:
+                print(f"⚠️ DATABASE_AVAILABLE이 False입니다. 길드 {guild_id_str}에 대해 Mock 데이터베이스를 사용합니다.")
+                self.db_managers[guild_id_str] = MockDatabaseManager()
+        return self.db_managers[guild_id_str]
 
     def _check_daily_reset(self, user_id: str):
         """일일 리셋 체크"""
@@ -210,22 +231,22 @@ class PointManager(commands.Cog):
         print(f"🔍 등록 시도 시작: {display_name} (ID: {user_id})")
         
         try:
+            db = self._get_db(interaction.guild_id)
             # 기존 사용자 체크
-            existing_user = self.db.get_user(user_id)
+            existing_user = db.get_user(user_id)
             print(f"🔍 기존 사용자 확인: {existing_user}")
             
             if existing_user:
                 print(f"⚠️ 이미 등록된 사용자: {display_name}")
                 await interaction.response.send_message("⚠️ 이미 등록된 사용자입니다!", ephemeral=True)
                 return
-
+            
             # 사용자 생성 (초기 현금 10,000원)
             print(f"📝 새 사용자 생성 시도: {display_name}")
             # create_user는 성공 시 True, 실패 시 False 또는 None 반환
-            success = self.db.create_user(user_id, username, display_name, initial_cash=10000)
+            success = db.create_user(user_id, username, display_name, initial_cash=10000)
             
-
-            created_user = self.db.get_user(user_id)
+            created_user = db.get_user(user_id)
             if not created_user:
                 # MockDB에서 False를 반환했지만 실제로는 유저가 생성되지 않은 경우
                 print(f"❌ 사용자 생성 실패로 판단: created_user is None")
@@ -239,13 +260,12 @@ class PointManager(commands.Cog):
             print(f"✅ 사용자 생성 성공으로 판단: {created_user}")
             
             # 가입 보너스 거래 기록
-            transaction_success = self.db.add_transaction(user_id, "회원가입", 10000, "신규 회원가입 보너스")
+            transaction_success = db.add_transaction(user_id, "회원가입", 10000, "신규 회원가입 보너스")
             print(f"📝 거래 기록 결과: {transaction_success}")
             
             # 최종 현금 확인
-            final_cash = self.db.get_user_cash(user_id)
+            final_cash = db.get_user_cash(user_id)
             print(f"💰 최종 현금 확인: {final_cash}원")
-
             embed = discord.Embed(
                 title="🎉 환영합니다!",
                 description=f"{display_name}님이 Gamble에 성공적으로 등록되었습니다!",
@@ -291,7 +311,8 @@ class PointManager(commands.Cog):
         print(f"🔍 지갑 조회: {target_user.display_name} (ID: {user_id})")
         
         try:
-            user_data = self.db.get_user(user_id)
+            db = self._get_db(interaction.guild_id)
+            user_data = db.get_user(user_id)
             if not user_data:
                 if target_user == interaction.user:
                     await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
@@ -299,7 +320,7 @@ class PointManager(commands.Cog):
                     await interaction.response.send_message(f"❗ {target_user.display_name}님은 등록되지 않은 사용자입니다.", ephemeral=True)
                 return
 
-            cash = self.db.get_user_cash(user_id)
+            cash = db.get_user_cash(user_id)
             
             embed = discord.Embed(
                 title=f"💰 {target_user.display_name}님의 지갑",
@@ -360,14 +381,15 @@ class PointManager(commands.Cog):
             )
             return
         
+        db = self._get_db(interaction.guild_id)
         # 보내는 사람 등록 확인
-        if not self.db.get_user(sender_id):
+        if not db.get_user(sender_id):
             await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
             return
         
         # 받는 사람 등록 확인 (자동 등록)
-        if not self.db.get_user(receiver_id):
-            success = self.db.create_user(receiver_id, 받는사람.name, 받는사람.display_name, initial_cash=0)
+        if not db.get_user(receiver_id):
+            success = db.create_user(receiver_id, 받는사람.name, 받는사람.display_name, initial_cash=0)
             if not success:
                 await interaction.response.send_message("❌ 받는 사람의 계정 생성에 실패했습니다.", ephemeral=True)
                 return
@@ -392,7 +414,7 @@ class PointManager(commands.Cog):
             return
         
         # 잔액 확인
-        sender_cash = self.db.get_user_cash(sender_id)
+        sender_cash = db.get_user_cash(sender_id)
         fee = int(금액 * settings["fee_rate"])
         total_cost = 금액 + fee
         
@@ -407,12 +429,12 @@ class PointManager(commands.Cog):
         
         # 선물 실행
         try:
-            self.db.add_user_cash(sender_id, -total_cost)
-            self.db.add_user_cash(receiver_id, 금액)
+            db.add_user_cash(sender_id, -total_cost)
+            db.add_user_cash(receiver_id, 금액)
             
             # 거래 내역 기록
-            self.db.add_transaction(sender_id, "선물 보내기", -total_cost, f"{받는사람.display_name}에게 선물 (수수료 포함)")
-            self.db.add_transaction(receiver_id, "선물 받기", 금액, f"{interaction.user.display_name}님으로부터 선물")
+            db.add_transaction(sender_id, "선물 보내기", -total_cost, f"{받는사람.display_name}에게 선물 (수수료 포함)")
+            db.add_transaction(receiver_id, "선물 받기", 금액, f"{interaction.user.display_name}님으로부터 선물")
             
             # 쿨다운 및 일일 카운트 설정
             self._set_cooldown(sender_id)
@@ -450,19 +472,21 @@ class PointManager(commands.Cog):
     async def database_status(self, interaction: Interaction):
         """데이터베이스 연결 상태 확인"""
         
+        db = self._get_db(interaction.guild_id)
+        
         embed = discord.Embed(
             title="📊 데이터베이스 상태",
-            color=discord.Color.green() if DATABASE_AVAILABLE else discord.Color.red()
+            color=discord.Color.green() if self.DATABASE_AVAILABLE else discord.Color.red()
         )
         
         embed.add_field(
             name="연결 상태",
-            value=f"{'✅ 실제 데이터베이스 연결됨' if DATABASE_AVAILABLE else '⚠️ Mock 데이터베이스 사용 중'}",
+            value=f"{'✅ 실제 데이터베이스 연결됨' if self.DATABASE_AVAILABLE else '⚠️ Mock 데이터베이스 사용 중'}",
             inline=False
         )
         
         # Mock DB 사용 중일 경우 경고
-        if not DATABASE_AVAILABLE:
+        if not self.DATABASE_AVAILABLE:
             embed.add_field(
                 name="⚠️ 주의사항",
                 value="• 현재 임시 메모리 데이터베이스를 사용 중입니다\n• 봇 재시작 시 모든 데이터가 사라집니다\n• database_manager.py 파일을 확인해주세요\n• 실제 DB가 필요하면 DB 설정을 확인하세요",
@@ -470,7 +494,7 @@ class PointManager(commands.Cog):
             )
             
             # Mock DB의 현재 사용자 수 표시
-            mock_users = len(db_manager.users) if hasattr(db_manager, 'users') else 0
+            mock_users = len(db.users) if hasattr(db, 'users') else 0
             embed.add_field(
                 name="임시 DB 상태",
                 value=f"등록된 사용자: {mock_users}명",
@@ -478,9 +502,9 @@ class PointManager(commands.Cog):
             )
             
             # Mock DB의 사용자 목록 표시 (최대 5명)
-            if hasattr(db_manager, 'users') and db_manager.users:
+            if hasattr(db, 'users') and db.users:
                 user_list = []
-                for i, (uid, data) in enumerate(db_manager.users.items()):
+                for i, (uid, data) in enumerate(db.users.items()):
                     if i >= 5:
                         user_list.append("...")
                         break
@@ -505,8 +529,9 @@ class PointManager(commands.Cog):
     @app_commands.describe(페이지="확인할 페이지 (기본값: 1)")
     async def cash_ranking(self, interaction: Interaction, 페이지: int = 1):
         try:
+            db = self._get_db(interaction.guild_id)
             # 상위 100명 조회
-            results = self.db.execute_query('''
+            results = db.execute_query('''
                 SELECT user_id, username, display_name, cash 
                 FROM users 
                 WHERE cash > 0 
@@ -746,67 +771,112 @@ class PointManager(commands.Cog):
             print(f"❌ 선물 설정 변경 중 오류: {e}")
             await interaction.response.send_message(f"❌ 설정 변경 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
+
 # ==================== 호환성 함수들 ====================
 
-# 기존 시스템과의 호환성을 위한 전역 함수들
-def load_points():
+# 기존 시스템과의 호환성을 위한 전역 함수들 (bot과 guild_id를 인자로 받아 PointManager cog를 통해 DB 접근)
+async def load_points(bot, guild_id: int):
     """기존 시스템 호환 - 모든 사용자 포인트 로드"""
     try:
-        results = db_manager.execute_query('SELECT user_id, cash FROM users', (), 'all')
-        return {row['user_id']: row['cash'] for row in (results or [])}
+        point_manager_cog = bot.get_cog("PointManager")
+        if point_manager_cog:
+            db = point_manager_cog._get_db(guild_id)
+            results = db.execute_query('SELECT user_id, cash FROM users', (), 'all')
+            return {row['user_id']: row['cash'] for row in (results or [])}
+        else:
+            print("PointManager cog not found for load_points.")
+            return {}
     except Exception as e:
         print(f"load_points 오류: {e}")
         return {}
 
-def save_points(points_data):
+async def save_points(bot, guild_id: int, points_data):
     """기존 시스템 호환 - 포인트 데이터 저장"""
-    for user_id, cash in points_data.items():
-        try:
-            db_manager.update_user_cash(user_id, cash)
-        except Exception as e:
-            print(f"save_points 오류 (사용자 {user_id}): {e}")
+    try:
+        point_manager_cog = bot.get_cog("PointManager")
+        if point_manager_cog:
+            db = point_manager_cog._get_db(guild_id)
+            for user_id, cash in points_data.items():
+                try:
+                    db.update_user_cash(user_id, cash)
+                except Exception as e:
+                    print(f"save_points 오류 (사용자 {user_id}): {e}")
+        else:
+            print("PointManager cog not found for save_points.")
+    except Exception as e:
+        print(f"save_points 전역 오류: {e}")
 
-def add_point(user_id, amount):
+async def add_point(bot, guild_id: int, user_id, amount):
     """기존 시스템 호환 - 포인트 추가"""
     try:
-        return db_manager.add_user_cash(str(user_id), amount)
+        point_manager_cog = bot.get_cog("PointManager")
+        if point_manager_cog:
+            db = point_manager_cog._get_db(guild_id)
+            return db.add_user_cash(str(user_id), amount)
+        else:
+            print("PointManager cog not found for add_point.")
+            return 0
     except Exception as e:
         print(f"add_point 오류 (사용자 {user_id}): {e}")
         return 0
 
-def get_point(user_id):
+async def get_point(bot, guild_id: int, user_id):
     """기존 시스템 호환 - 포인트 조회"""
     try:
-        return db_manager.get_user_cash(str(user_id))
+        point_manager_cog = bot.get_cog("PointManager")
+        if point_manager_cog:
+            db = point_manager_cog._get_db(guild_id)
+            return db.get_user_cash(str(user_id))
+        else:
+            print("PointManager cog not found for get_point.")
+            return 0
     except Exception as e:
         print(f"get_point 오류 (사용자 {user_id}): {e}")
         return 0
 
-def is_registered(user_id):
+async def is_registered(bot, guild_id: int, user_id):
     """기존 시스템 호환 - 등록 여부 확인"""
     try:
-        return db_manager.get_user(str(user_id)) is not None
+        point_manager_cog = bot.get_cog("PointManager")
+        if point_manager_cog:
+            db = point_manager_cog._get_db(guild_id)
+            return db.get_user(str(user_id)) is not None
+        else:
+            print("PointManager cog not found for is_registered.")
+            return False
     except Exception as e:
         print(f"is_registered 오류 (사용자 {user_id}): {e}")
         return False
 
-def register_user(user_id, username='', display_name=''):
+async def register_user(bot, guild_id: int, user_id, username='', display_name=''):
     """기존 시스템 호환 - 사용자 등록"""
     try:
-        # 사용자 생성 (초기 현금 10,000원)
-        success = db_manager.create_user(str(user_id), username, display_name, initial_cash=10000)
-        if success:
-            db_manager.add_transaction(str(user_id), "회원가입", 10000, "신규 회원가입 보너스")
-        return success
+        point_manager_cog = bot.get_cog("PointManager")
+        if point_manager_cog:
+            db = point_manager_cog._get_db(guild_id)
+            # 사용자 생성 (초기 현금 10,000원)
+            success = db.create_user(str(user_id), username, display_name, initial_cash=10000)
+            if success:
+                db.add_transaction(str(user_id), "회원가입", 10000, "신규 회원가입 보너스")
+            return success
+        else:
+            print("PointManager cog not found for register_user.")
+            return False
     except Exception as e:
         print(f"register_user 오류 (사용자 {user_id}): {e}")
         return False
 
-def set_point(user_id, amount):
+async def set_point(bot, guild_id: int, user_id, amount):
     """기존 시스템 호환 - 포인트 설정"""
     try:
-        db_manager.update_user_cash(str(user_id), amount)
-        return True
+        point_manager_cog = bot.get_cog("PointManager")
+        if point_manager_cog:
+            db = point_manager_cog._get_db(guild_id)
+            db.update_user_cash(str(user_id), amount)
+            return True
+        else:
+            print("PointManager cog not found for set_point.")
+            return False
     except Exception as e:
         print(f"set_point 오류 (사용자 {user_id}): {e}")
         return False

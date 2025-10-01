@@ -1,4 +1,3 @@
-# exchange_system.py
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -9,8 +8,8 @@ import os
 import asyncio
 from typing import Optional, Dict, Any
 import logging
-from point_manager import PointManager
-from database_manager import DatabaseManager
+# Removed direct imports of PointManager and DatabaseManager classes as they are guild-specific
+# and will be retrieved per interaction.
 
 # ✅ 로깅 설정
 def setup_logging():
@@ -37,12 +36,13 @@ def setup_logging():
 logger = setup_logging()
 
 # 안전한 의존성 import
+# Changed to import get_guild_db_manager
 def safe_import_database():
     try:
-        from database_manager import db_manager
-        return db_manager, True
+        from database_manager import get_guild_db_manager
+        return get_guild_db_manager, True
     except ImportError as e:
-        logger.warning(f"⚠️ database_manager 임포트 실패: {e}") # print -> logging.warning
+        logger.warning(f"⚠️ database_manager 임포트 실패: {e}")
         return None, False
 
 def safe_import_point_manager():
@@ -50,11 +50,11 @@ def safe_import_point_manager():
         from point_manager import get_point, add_point, set_point, is_registered
         return get_point, add_point, set_point, is_registered, True
     except ImportError as e:
-        logger.warning(f"⚠️ point_manager 임포트 실패: {e}") # print -> logging.warning
+        logger.warning(f"⚠️ point_manager 임포트 실패: {e}")
         return None, None, None, None, False
 
 # 의존성 로드
-db_manager, DATABASE_AVAILABLE = safe_import_database()
+get_guild_db_manager_func, DATABASE_AVAILABLE = safe_import_database()
 get_point, add_point, set_point, is_registered, POINT_MANAGER_AVAILABLE = safe_import_point_manager()
 
 # 설정 파일 관리
@@ -64,12 +64,8 @@ EXCHANGE_HISTORY_FILE = os.path.join(DATA_DIR, "exchange_history.json")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# exchange_system.py 파일
-
 class ExchangeSystem:
-    def __init__(self, point_manager: PointManager, database_manager: DatabaseManager):
-        self.point_manager = point_manager
-        self.database_manager = database_manager
+    def __init__(self):
         self.exchange_history = {}
         self.settings_file = "data/exchange_settings.json"
         self.settings = self.load_settings()
@@ -112,7 +108,7 @@ class ExchangeSystem:
         """설정 파일 저장"""
         try:
             with open(self.settings_file, 'w', encoding='utf-8') as f:
-                json.dump(settings_data, f, indent=4, ensure_ascii=False)
+                json.dump(settings_data, f, indent=4)
         except Exception as e:
             logger.error(f"❌ 설정 파일 저장 중 오류 발생: {e}")
 
@@ -169,17 +165,16 @@ class ExchangeSystem:
         self.save_history(self.exchange_history)
 
 class ExchangeCog(commands.Cog):
-    def __init__(self, bot: commands.Bot, point_manager: PointManager, database_manager: DatabaseManager):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.point_manager = point_manager
-        self.database_manager = database_manager
-        self.exchange_system = ExchangeSystem(self.point_manager, self.database_manager)
+        self.exchange_system = ExchangeSystem()
         logger.info("✅ 통합 교환 시스템 v6 로드 완료")
         
-        if not DATABASE_AVAILABLE:
-            logger.error("❌ database_manager가 없어 교환 시스템이 정상 작동하지 않습니다.")
-        if not POINT_MANAGER_AVAILABLE:
-            logger.error("❌ point_manager가 없어 교환 시스템이 정상 작동하지 않습니다.")
+        # These checks are now done per interaction as managers are guild-specific
+        # if not DATABASE_AVAILABLE:
+        #     logger.error("❌ database_manager가 없어 교환 시스템이 정상 작동하지 않습니다.")
+        # if not POINT_MANAGER_AVAILABLE:
+        #     logger.error("❌ point_manager가 없어 교환 시스템이 정상 작동하지 않습니다.")
 
     # XP를 현금으로 교환
     @app_commands.command(name="현금교환", description="XP를 현금으로 교환합니다. 수수료가 부과됩니다.")
@@ -188,7 +183,7 @@ class ExchangeCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         user_id = str(interaction.user.id)
         
-        if not self.point_manager.is_registered(user_id):
+        if not await is_registered(self.bot, interaction.guild_id, user_id):
             return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 플레이어 등록을 해주세요!")
             
         if not DATABASE_AVAILABLE or not POINT_MANAGER_AVAILABLE:
@@ -203,35 +198,36 @@ class ExchangeCog(commands.Cog):
         if not self.exchange_system.check_cooldown(user_id):
             return await interaction.followup.send(f"❌ 쿨다운 중입니다. {self.exchange_system.settings['쿨다운_분']}분 후에 다시 시도해주세요.")
 
-        user_xp_data = db_manager.get_user_xp(interaction.guild.id, user_id)
+        db = get_guild_db_manager_func(str(interaction.guild.id))
+        user_xp_data = db.get_user_xp(user_id)
         current_xp = user_xp_data.get('xp', 0)
         
         if current_xp < xp_amount:
-            return await interaction.followup.send(f"❌ 보유 XP가 부족합니다. 현재 XP: {db_manager.format_xp(current_xp)}")
+            return await interaction.followup.send(f"❌ 보유 XP가 부족합니다. 현재 XP: {db.format_xp(current_xp)}")
             
         # XP 차감 및 현금 지급
         try:
             cash_gained = int(xp_amount * self.exchange_system.settings['XP_to_현금_비율'])
             
-            db_manager.add_user_xp(user_id, interaction.guild.id, -xp_amount)
-            new_cash = add_point(user_id, cash_gained)
+            db.add_user_xp(user_id, -xp_amount)
+            new_cash = await add_point(self.bot, interaction.guild.id, user_id, cash_gained)
 
             self.exchange_system.record_exchange(user_id, "xp_to_cash", xp_amount, cash_gained)
             self.exchange_system.update_cooldown(user_id)
             
             embed = discord.Embed(
                 title="✨ XP를 현금으로 교환 완료",
-                description=f"{db_manager.format_xp(xp_amount)}를 교환하여 **{db_manager.format_money(cash_gained)}**을(를) 획득했습니다!",
+                description=f"{db.format_xp(xp_amount)}를 교환하여 **{db.format_money(cash_gained)}**을(를) 획득했습니다!",
                 color=discord.Color.green()
             )
             embed.add_field(
                 name="💰 남은 현금",
-                value=f"**{db_manager.format_money(new_cash)}**",
+                value=f"**{db.format_money(new_cash)}**",
                 inline=True
             )
             embed.add_field(
                 name="📊 남은 XP",
-                value=f"**{db_manager.format_xp(db_manager.get_user_xp(interaction.guild.id, user_id)['xp'])}**",
+                value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**",
                 inline=True
             )
             embed.set_footer(text=f"현재 교환 비율: 1 XP = {self.exchange_system.settings['XP_to_현금_비율']:.2f}원 | 일일 {self.exchange_system.get_user_daily_exchanges(user_id)}회 사용")
@@ -247,7 +243,7 @@ class ExchangeCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         user_id = str(interaction.user.id)
         
-        if not is_registered(user_id):
+        if not await is_registered(self.bot, interaction.guild_id, user_id):
             return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 플레이어 등록을 해주세요!")
             
         if not DATABASE_AVAILABLE or not POINT_MANAGER_AVAILABLE:
@@ -262,33 +258,34 @@ class ExchangeCog(commands.Cog):
         if not self.exchange_system.check_cooldown(user_id):
             return await interaction.followup.send(f"❌ 쿨다운 중입니다. {self.exchange_system.settings['쿨다운_분']}분 후에 다시 시도해주세요.")
 
-        current_cash = get_point(user_id)
+        current_cash = await get_point(self.bot, interaction.guild_id, user_id)
+        db = get_guild_db_manager_func(str(interaction.guild.id))
         if current_cash < cash_amount:
-            return await interaction.followup.send(f"❌ 보유 현금이 부족합니다. 현재 현금: {db_manager.format_money(current_cash)}")
+            return await interaction.followup.send(f"❌ 보유 현금이 부족합니다. 현재 현금: {db.format_money(current_cash)}")
             
         # 현금 차감 및 XP 지급
         try:
             xp_gained = int(cash_amount * self.exchange_system.settings['현금_to_XP_비율'])
             
-            new_cash = add_point(user_id, -cash_amount)
-            db_manager.add_user_xp(user_id, interaction.guild.id, xp_gained)
+            new_cash = await add_point(self.bot, interaction.guild_id, user_id, -cash_amount)
+            db.add_user_xp(user_id, xp_gained)
             
             self.exchange_system.record_exchange(user_id, "cash_to_xp", cash_amount, xp_gained)
             self.exchange_system.update_cooldown(user_id)
             
             embed = discord.Embed(
                 title="💰 현금을 XP로 교환 완료",
-                description=f"{db_manager.format_money(cash_amount)}를 교환하여 **{db_manager.format_xp(xp_gained)}**을(를) 획득했습니다!",
+                description=f"{db.format_money(cash_amount)}를 교환하여 **{db.format_xp(xp_gained)}**을(를) 획득했습니다!",
                 color=discord.Color.green()
             )
             embed.add_field(
                 name="💰 남은 현금",
-                value=f"**{db_manager.format_money(new_cash)}**",
+                value=f"**{db.format_money(new_cash)}**",
                 inline=True
             )
             embed.add_field(
                 name="📊 남은 XP",
-                value=f"**{db_manager.format_xp(db_manager.get_user_xp(interaction.guild.id, user_id)['xp'])}**",
+                value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**",
                 inline=True
             )
             embed.set_footer(text=f"현재 교환 비율: 1원 = {self.exchange_system.settings['현금_to_XP_비율']:.2f} XP | 일일 {self.exchange_system.get_user_daily_exchanges(user_id)}회 사용")
@@ -426,6 +423,6 @@ async def setup(bot: commands.Bot):
 
     # Create an instance of the ExchangeCog class, passing the required managers.
     # The log error indicates that ExchangeCog's __init__ method expects these arguments directly.
-    cog = ExchangeCog(bot, point_manager_cog, point_manager_cog.db)
+    cog = ExchangeCog(bot)
     await bot.add_cog(cog)
     logger.info("✅ Exchange System (ExchangeCog) 로드 완료.")

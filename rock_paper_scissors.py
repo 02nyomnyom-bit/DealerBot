@@ -106,9 +106,10 @@ class SinglePlayView(View):
             return await interaction.response.send_message("❗ 본인만 선택할 수 있어요.", ephemeral=True)
 
         user_id = str(interaction.user.id)
+        guild_id = interaction.guild_id
         
         # 포인트 차감
-        point_manager.add_point(user_id, -self.betting_point)
+        await point_manager.add_point(self.bot, guild_id, user_id, -self.betting_point)
         
         # 봇 선택
         bot_choice = random.choice(["가위", "바위", "보"])
@@ -117,7 +118,7 @@ class SinglePlayView(View):
         # 결과에 따른 보상 및 통계 기록
         if result == "플레이어 1 승":
             reward = self.betting_point * 3
-            point_manager.add_point(user_id, reward)
+            await point_manager.add_point(self.bot, guild_id, user_id, reward)
             result_msg = "🎉 승리!"
             reward_msg = f"+{reward:,}원 획득"
             embed_color = discord.Color.green()
@@ -131,7 +132,7 @@ class SinglePlayView(View):
             payout = 0
         else:
             # 무승부 시 배팅 금액 반환
-            point_manager.add_point(user_id, self.betting_point)
+            await point_manager.add_point(self.bot, guild_id, user_id, self.betting_point)
             result_msg = "🤝 무승부!"
             reward_msg = "배팅 금액 반환"
             embed_color = discord.Color.gold()
@@ -146,7 +147,7 @@ class SinglePlayView(View):
             child.style = discord.ButtonStyle.secondary
 
         # 최종 잔액 조회
-        final_balance = point_manager.get_point(user_id)
+        final_balance = await point_manager.get_point(self.bot, guild_id, user_id)
 
         # 결과 임베드 생성
         embed = discord.Embed(
@@ -212,6 +213,8 @@ class MultiPlayP2View(View):
         self.bet = bet
         self.p2_user = None
         self.p2_target = p2_target
+        self.bot = None # Will be set by the cog
+        self.guild_id = None # Will be set by the cog
 
     async def on_timeout(self):
         active_games_by_user.discard(self.p1_user.id)
@@ -241,33 +244,34 @@ class MultiPlayP2View(View):
 
         user_id = str(user.id)
         p1_id = str(self.p1_user.id)
-
+        guild_id = interaction.guild_id
+        
         # 등록 및 잔액 확인
-        if not point_manager.is_registered(user_id):
+        if not await point_manager.is_registered(self.bot, guild_id, user_id):
             return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
-        if point_manager.get_point(user_id) < self.bet:
+        if await point_manager.get_point(self.bot, guild_id, user_id) < self.bet:
             return await interaction.response.send_message("❗ 잔액이 부족합니다.", ephemeral=True)
 
         self.p2_user = user
         
         # 배팅 차감
-        point_manager.add_point(p1_id, -self.bet)
-        point_manager.add_point(user_id, -self.bet)
+        await point_manager.add_point(self.bot, guild_id, p1_id, -self.bet)
+        await point_manager.add_point(self.bot, guild_id, user_id, -self.bet)
 
         result = determine_winner(self.p1_choice, choice)
 
         # 결과 처리 및 통계 기록
         if result == "플레이어 1 승":
-            point_manager.add_point(p1_id, self.bet)
-            point_manager.add_point(user_id, -self.bet)
+            await point_manager.add_point(self.bot, guild_id, p1_id, self.bet)
+            await point_manager.add_point(self.bot, guild_id, user_id, -self.bet)
             result_msg = f"🏅 {self.p1_user.mention} 승! +{self.bet}원"
             # ✅ 통계 기록 (추가)
             record_rps_game(p1_id, self.p1_user.display_name, self.bet, self.bet, True)
             record_rps_game(user_id, user.display_name, self.bet, 0, False)
         elif result == "플레이어 2 승":
-            point_manager.add_point(user_id, self.bet)
-            point_manager.add_point(p1_id, -self.bet)
+            await point_manager.add_point(self.bot, guild_id, user_id, self.bet)
+            await point_manager.add_point(self.bot, guild_id, p1_id, -self.bet)
             result_msg = f"🏅 {self.p2_user.mention} 승! +{self.bet}원"
             # ✅ 통계 기록 (추가)
             record_rps_game(p1_id, self.p1_user.display_name, self.bet, 0, False)
@@ -314,12 +318,12 @@ class RockPaperScissors(commands.Cog):
                 return await interaction.response.send_message("❗ 싱글 모드는 1~1,000원 사이여야 합니다.", ephemeral=True)
 
             user_id = str(interaction.user.id)
-            if not point_manager.is_registered(user_id):
-                point_manager.register_user(user_id)
+            if not await point_manager.is_registered(self.bot, interaction.guild_id, user_id):
+                await point_manager.register_user(self.bot, interaction.guild_id, user_id, interaction.user.name, interaction.user.display_name)
 
-            if point_manager.get_point(user_id) < 배팅:
+            if await point_manager.get_point(self.bot, interaction.guild_id, user_id) < 배팅:
                 return await interaction.response.send_message(
-                    f"❌ 현재 잔액이 부족하여 게임을 시작할 수 없습니다.\n💰 현재 잔액: {point_manager.get_point(user_id)}원",
+                    f"❌ 현재 잔액이 부족하여 게임을 시작할 수 없습니다.\n💰 현재 잔액: {await point_manager.get_point(self.bot, interaction.guild_id, user_id)}원",
                     ephemeral=True
                 )
 

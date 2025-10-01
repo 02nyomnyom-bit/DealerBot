@@ -123,8 +123,9 @@ class HorseRacing:
         return results
 
 class ManualSignupView(discord.ui.View):
-    def __init__(self, max_participants: int, organizer: discord.User):
+    def __init__(self, bot: commands.Bot, max_participants: int, organizer: discord.User):
         super().__init__(timeout=SIGNUP_TIME + 10)
+        self.bot = bot
         self.max_participants = max_participants
         self.organizer = organizer
         self.participants = []
@@ -140,7 +141,7 @@ class ManualSignupView(discord.ui.View):
         user_name = interaction.user.display_name
         
         # 등록된 사용자인지 확인 (통일된 확인 방식)
-        if not point_manager.is_registered(user_id):
+        if not await point_manager.is_registered(self.bot, interaction.guild_id, user_id):
             return await interaction.response.send_message(
                 "❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요!", 
                 ephemeral=True
