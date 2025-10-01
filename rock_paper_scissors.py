@@ -25,22 +25,19 @@ except ImportError:
     
     # Mock functions
     class MockPointManager:
-    # 🚨 수정: guild_id 인자 추가
         @staticmethod
         def is_registered(guild_id, user_id):
             return True
-    
-        # 🚨 수정: guild_id 인자 추가
+
         @staticmethod
         def get_point(guild_id, user_id):
             return 10000
     
-        # 🚨 수정: guild_id 인자 추가
+
         @staticmethod
         def add_point(guild_id, user_id, amount):
             pass
-    
-        # 🚨 수정: guild_id 인자 추가
+
         @staticmethod
         def register_user(guild_id, user_id):
             pass
@@ -285,7 +282,7 @@ class MultiPlayP2View(View):
             record_rps_game(user_id, user.display_name, self.bet, self.bet, True)
         else:
             result_msg = "🤝 무승부! 포인트 변동 없음."
-            
+
             # ✅ 통계 기록 (추가)
             record_rps_game(p1_id, self.p1_user.display_name, self.bet, self.bet, False)
             record_rps_game(user_id, user.display_name, self.bet, self.bet, False)

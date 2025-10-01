@@ -28,22 +28,18 @@ except ImportError:
 
     class MockPointManager:
         @staticmethod
-        # 🚨 수정: guild_id 인자 추가
         def is_registered(guild_id, user_id):
             return True
     
         @staticmethod
-        # 🚨 수정: guild_id 인자 추가
         def get_point(guild_id, user_id):
             return 10000
     
         @staticmethod
-        # 🚨 수정: guild_id 인자 추가
-        def add_point(guild_id, user_id, amount):
-            pass
+        def is_registered(guild_id, user_id):
+            return True
     
         @staticmethod
-        # 🚨 수정: guild_id 인자 추가
         def register_user(guild_id, user_id):
             pass
 

@@ -105,7 +105,7 @@ class YabawiGameView(View):
                     )
                 
                 if POINT_MANAGER_AVAILABLE:
-                    point_manager.add_point(self.user_id, -self.base_bet)
+                    await point_manager.add_point(self.bot, interaction.guild_id, self.user_id, -self.base_bet)
                 self.initial_bet_deducted = True
 
             self.challenge_count += 1
@@ -145,7 +145,7 @@ class YabawiGameView(View):
 
                 if self.wins >= MAX_CHALLENGES:
                     if POINT_MANAGER_AVAILABLE:
-                        point_manager.add_point(self.user_id, self.current_pot)
+                        await point_manager.add_point(self.bot, interaction.guild_id, self.user_id, self.current_pot)
                     
                     # ✅ 통계 기록 (성공 - 최대 도전 완료)
                     record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, self.current_pot, True)
@@ -171,7 +171,7 @@ class YabawiGameView(View):
                 if self.wins > 0:
                     consolation = self.base_bet * (2 ** (self.wins - 1))
                     if POINT_MANAGER_AVAILABLE:
-                        point_manager.add_point(self.user_id, consolation)
+                        await point_manager.add_point(self.bot, interaction.guild_id, self.user_id, consolation)
 
                 # ✅ 통계 기록 (실패)
                 final_payout = consolation if consolation > 0 else 0
@@ -224,7 +224,7 @@ class StopButton(discord.ui.Button):
                 return await interaction.response.send_message("❗ 이미 끝난 게임이에요.", ephemeral=True)
 
             if POINT_MANAGER_AVAILABLE:
-                point_manager.add_point(self.view_ref.user_id, self.view_ref.current_pot)
+                await point_manager.add_point(self.view_ref.bot, interaction.guild_id, self.view_ref.user_id, self.view_ref.current_pot)
 
             # ✅ 통계 기록 (중단 - 성공으로 간주)
             record_yabawi_game(self.view_ref.user_id, self.view_ref.user.display_name, 
