@@ -167,7 +167,7 @@ class DatabaseManager:
             xp INTEGER DEFAULT 0,
             level INTEGER DEFAULT 1,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id)
+            UNIQUE(user_id, guild_id)
             """
         )
         self.create_table(

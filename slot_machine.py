@@ -44,8 +44,10 @@ SLOT_WEIGHTS = {"🍀": 1, "🍋": 3, "🍒": 5, "🔔": 8, "❌": 10}
 TWO_MATCH_MULTIPLIER = 0.1
 
 class SlotMachineView(discord.ui.View):
-    def __init__(self, user: discord.User, bet: int):
+    def __init__(self, bot: commands.Bot, guild_id: int, user: discord.User, bet: int):
         super().__init__(timeout=60)
+        self.bot = bot
+        self.guild_id = guild_id
         self.user = user
         self.bet = bet
         self.button_clicked = False
@@ -63,10 +65,10 @@ class SlotMachineView(discord.ui.View):
 
             self.button_clicked = True
 
-            if not point_manager.is_registered(uid):
+            if not await point_manager.is_registered(self.bot, self.guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
 
-            current_balance = point_manager.get_point(uid)
+            current_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
             if current_balance < self.bet:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {self.bet:,}원",
@@ -74,7 +76,7 @@ class SlotMachineView(discord.ui.View):
                 )
 
             if POINT_MANAGER_AVAILABLE:
-                point_manager.add_point(uid, -self.bet)
+                await point_manager.add_point(self.bot, self.guild_id, uid, -self.bet)
 
             await interaction.response.send_message("🎰 슬롯 머신 가동 중...", view=self)
             self.message = await interaction.original_response()
@@ -109,7 +111,7 @@ class SlotMachineView(discord.ui.View):
                 if multiplier > 0:
                     reward = int(self.bet * multiplier)
                     if POINT_MANAGER_AVAILABLE:
-                        point_manager.add_point(uid, reward)
+                        await point_manager.add_point(self.bot, self.guild_id, uid, reward)
 
                     if most_common_symbol == "🍀":
                         result_text = f"🎉 💰 JACKPOT! 🍀 x3 💰"
@@ -132,7 +134,7 @@ class SlotMachineView(discord.ui.View):
                 else:
                     refund = int(self.bet * TWO_MATCH_MULTIPLIER)
                     if POINT_MANAGER_AVAILABLE:
-                        point_manager.add_point(uid, refund)
+                        await point_manager.add_point(self.bot, self.guild_id, uid, refund)
                     result_text = f"✨ 2개 일치! {most_common_symbol} x2"
                     outcome = f"+{refund:,}원 소보상"
                     result_color = discord.Color.yellow()
@@ -146,7 +148,7 @@ class SlotMachineView(discord.ui.View):
             button.label = "게임 완료"
             button.style = discord.ButtonStyle.secondary
 
-            final_balance = point_manager.get_point(uid)
+            final_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
 
             embed = discord.Embed(
                 title="🎰 슬롯머신 게임 결과",
@@ -167,7 +169,7 @@ class SlotMachineView(discord.ui.View):
             print(f"슬롯머신 게임 오류: {e}")
             # ✅ 배팅 금액 복구
             if POINT_MANAGER_AVAILABLE:
-                point_manager.add_point(uid, self.bet)
+                await point_manager.add_point(self.bot, self.guild_id, uid, self.bet)
             try:
                 await interaction.followup.send("❌ 게임 처리 중 오류가 발생했습니다. 배팅 금액은 복구되었습니다.", ephemeral=True)
             except:
@@ -201,14 +203,15 @@ class SlotMachineCog(commands.Cog):
     async def slot_command(self, interaction: discord.Interaction, 배팅: int = 10):
         try:
             uid = str(interaction.user.id)
+            guild_id = interaction.guild_id
 
-            if not point_manager.is_registered(uid):
+            if not await point_manager.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
 
             if 배팅 < 1 or 배팅 > 3000:
                 return await interaction.response.send_message("⚠️ 배팅 금액은 1~3,000원 사이여야 합니다.", ephemeral=True)
 
-            current_balance = point_manager.get_point(uid)
+            current_balance = await point_manager.get_point(self.bot, guild_id, uid)
             if current_balance < 배팅:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {배팅:,}원",
@@ -240,7 +243,7 @@ class SlotMachineCog(commands.Cog):
 
             await interaction.response.send_message(
                 embed=embed,
-                view=SlotMachineView(interaction.user, 배팅)
+                view=SlotMachineView(self.bot, guild_id, interaction.user, 배팅)
             )
 
         except Exception as e:

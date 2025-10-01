@@ -44,8 +44,10 @@ DICE_EMOJIS = {
 
 # ✅ 싱글 홀짝 게임 View
 class OddEvenSingleView(View):
-    def __init__(self, user: discord.User, bet: int):
+    def __init__(self, bot: commands.Bot, guild_id: int, user: discord.User, bet: int):
         super().__init__(timeout=60)
+        self.bot = bot
+        self.guild_id = guild_id
         self.user = user
         self.bet = bet
         self.choice_made = False
@@ -71,10 +73,10 @@ class OddEvenSingleView(View):
             uid = str(self.user.id)
 
             # 검증 (게임 시작 시점에 재확인)
-            if not point_manager.is_registered(uid):
+            if not await point_manager.is_registered(self.bot, self.guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
             
-            current_balance = point_manager.get_point(uid)
+            current_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
             if current_balance < self.bet:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {self.bet:,}원", 
@@ -83,7 +85,7 @@ class OddEvenSingleView(View):
 
             # 배팅 금액 차감 (게임 시작 시점)
             if POINT_MANAGER_AVAILABLE:
-                point_manager.add_point(uid, -self.bet)
+                await point_manager.add_point(self.bot, self.guild_id, uid, -self.bet)
 
             # 게임 진행
             await interaction.response.send_message(
@@ -112,7 +114,7 @@ class OddEvenSingleView(View):
                 # 승리: 배팅 금액 * 2 지급 (이미 차감된 금액 + 승리 보상)
                 reward = self.bet * 2
                 if POINT_MANAGER_AVAILABLE:
-                    point_manager.add_point(uid, reward)
+                    await point_manager.add_point(self.bot, self.guild_id, uid, reward)
                 outcome = f"🎉 정답! +{reward:,}원 획득"
                 result_color = "🟢"
                 embed_color = discord.Color.green()
@@ -128,7 +130,7 @@ class OddEvenSingleView(View):
                 child.style = discord.ButtonStyle.secondary
 
             # 최종 잔액 조회
-            final_balance = point_manager.get_point(uid)
+            final_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
 
             # 결과 임베드 생성
             embed = discord.Embed(
@@ -173,8 +175,10 @@ class OddEvenSingleView(View):
 
 # ✅ 멀티 홀짝 게임 View
 class OddEvenMultiView(View):
-    def __init__(self, player1: discord.User, bet: int, opponent: Optional[discord.User] = None):
+    def __init__(self, bot: commands.Bot, guild_id: int, player1: discord.User, bet: int, opponent: Optional[discord.User] = None):
         super().__init__(timeout=120)
+        self.bot = bot
+        self.guild_id = guild_id
         self.player1 = player1
         self.bet = bet
         self.opponent = opponent
@@ -198,10 +202,10 @@ class OddEvenMultiView(View):
             uid = str(user.id)
 
             # 기본 검증
-            if not point_manager.is_registered(uid):
+            if not await point_manager.is_registered(self.bot, self.guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
-            current_balance = point_manager.get_point(uid)
+            current_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
             if current_balance < self.bet:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {self.bet:,}원", 
@@ -225,7 +229,7 @@ class OddEvenMultiView(View):
             # 배팅 금액 차감 (한 번만)
             if uid not in self.paid_users:
                 if POINT_MANAGER_AVAILABLE:
-                    point_manager.add_point(uid, -self.bet)
+                    await point_manager.add_point(self.bot, self.guild_id, uid, -self.bet)
                 self.paid_users.add(uid)
 
             # 선택 저장
@@ -326,7 +330,7 @@ class OddEvenMultiView(View):
             if len(winners) == 1:  # 한 명만 맞춤
                 winner_uid = str(winners[0]["user"].id)
                 if POINT_MANAGER_AVAILABLE:
-                    point_manager.add_point(winner_uid, self.bet * 2)  # 본인 배팅 + 상대방 배팅
+                    await point_manager.add_point(self.bot, self.guild_id, winner_uid, self.bet * 2)  # 본인 배팅 + 상대방 배팅
                 result_text = f"🎉 {winners[0]['user'].mention} 승리!"
                 result_color = discord.Color.green()
             else:  # 무승부 (둘 다 맞추거나 둘 다 틀림)
@@ -390,7 +394,7 @@ class OddEvenMultiView(View):
             # 타임아웃 시 배팅 금액 반환
             if POINT_MANAGER_AVAILABLE:
                 for user_id in self.paid_users:
-                    point_manager.add_point(user_id, self.bet)
+                    await point_manager.add_point(self.bot, self.guild_id, user_id, self.bet)
             
             for item in self.children:
                 item.disabled = True
@@ -427,15 +431,16 @@ class OddEvenGameCog(commands.Cog):
     ):
         try:
             uid = str(interaction.user.id)
+            guild_id = interaction.guild_id
 
             # 기본 검증
-            if not point_manager.is_registered(uid):
+            if not await point_manager.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
             if 배팅 < 1 or 배팅 > 1000:
                 return await interaction.response.send_message("❗ 배팅은 1~1,000원 사이여야 합니다.", ephemeral=True)
 
-            current_balance = point_manager.get_point(uid)
+            current_balance = await point_manager.get_point(self.bot, guild_id, uid)
             if current_balance < 배팅:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {배팅:,}원", 
@@ -456,7 +461,7 @@ class OddEvenGameCog(commands.Cog):
 
                 await interaction.response.send_message(
                     embed=embed,
-                    view=OddEvenSingleView(interaction.user, 배팅)
+                    view=OddEvenSingleView(self.bot, guild_id, interaction.user, 배팅)
                 )
 
             # 멀티 모드
@@ -467,10 +472,10 @@ class OddEvenGameCog(commands.Cog):
                         return await interaction.response.send_message("❌ 자기 자신과는 게임할 수 없습니다.", ephemeral=True)
                     if 상대방.bot:
                         return await interaction.response.send_message("❌ 봇과는 멀티 게임을 할 수 없습니다.", ephemeral=True)
-                    if not point_manager.is_registered(str(상대방.id)):
+                    if not await point_manager.is_registered(self.bot, guild_id, str(상대방.id)):
                         return await interaction.response.send_message(f"❌ {상대방.mention}님이 플레이어 등록되어 있지 않습니다.", ephemeral=True)
                     
-                    opponent_balance = point_manager.get_point(str(상대방.id))
+                    opponent_balance = await point_manager.get_point(self.bot, guild_id, str(상대방.id))
                     if opponent_balance < 배팅:
                         return await interaction.response.send_message(f"❌ {상대방.mention}님의 잔액이 부족합니다. (보유: {opponent_balance:,}원)", ephemeral=True)
 
@@ -493,7 +498,7 @@ class OddEvenGameCog(commands.Cog):
 
                 await interaction.response.send_message(
                     embed=embed,
-                    view=OddEvenMultiView(interaction.user, 배팅, opponent=상대방)
+                    view=OddEvenMultiView(self.bot, guild_id, interaction.user, 배팅, opponent=상대방)
                 )
 
         except Exception as e:

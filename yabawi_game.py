@@ -61,11 +61,12 @@ MAX_CHALLENGES = 5
 active_games_by_user = set()
 
 class YabawiGameView(View):
-    def __init__(self, user: discord.User, base_bet: int):
+    def __init__(self, user: discord.User, base_bet: int, guild_id: int):
         super().__init__(timeout=120)
         self.user = user
         self.user_id = str(user.id)
         self.base_bet = base_bet
+        self.guild_id = guild_id
         self.wins = 0
         self.current_pot = base_bet
         self.challenge_count = 0
@@ -97,7 +98,7 @@ class YabawiGameView(View):
 
             # 첫 게임 시작 시 배팅 금액 차감
             if not self.initial_bet_deducted:
-                current_balance = point_manager.get_point(self.user_id)
+                current_balance = await point_manager.get_point(self.message.client, self.guild_id, self.user_id)
                 if current_balance < self.base_bet:
                     return await interaction.response.send_message(
                         f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {self.base_bet:,}원", 
@@ -105,7 +106,7 @@ class YabawiGameView(View):
                     )
                 
                 if POINT_MANAGER_AVAILABLE:
-                    point_manager.add_point(self.user_id, -self.base_bet)
+                    await point_manager.add_point(self.message.client, self.guild_id, self.user_id, -self.base_bet)
                 self.initial_bet_deducted = True
 
             self.challenge_count += 1
@@ -145,7 +146,7 @@ class YabawiGameView(View):
 
                 if self.wins >= MAX_CHALLENGES:
                     if POINT_MANAGER_AVAILABLE:
-                        point_manager.add_point(self.user_id, self.current_pot)
+                        await point_manager.add_point(self.message.client, self.guild_id, self.user_id, self.current_pot)
                     
                     # ✅ 통계 기록 (성공 - 최대 도전 완료)
                     record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, self.current_pot, True)
@@ -156,7 +157,7 @@ class YabawiGameView(View):
                     embed.title = "🏁 야바위 게임 - 최대 도전 성공!"
                     embed.description = "모든 도전을 성공했습니다! 최종 보상을 획득했습니다!"
                     embed.add_field(name="💎 최종 보상", value=f"{self.current_pot:,}원", inline=False)
-                    embed.add_field(name="💰 현재 잔액", value=f"{point_manager.get_point(self.user_id):,}원", inline=True)
+                    embed.add_field(name="💰 현재 잔액", value=f"{await point_manager.get_point(self.message.client, self.guild_id, self.user_id):,}원", inline=True)
                     
                     await interaction.response.edit_message(embed=embed, view=self)
                 else:
@@ -302,7 +303,7 @@ class YabawiGameCog(commands.Cog):
             user_id = str(interaction.user.id)
 
             # 등록 확인
-            if not point_manager.is_registered(user_id):
+            if not await point_manager.is_registered(self.bot, interaction.guild_id, user_id):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
 
             # 배팅 금액 검증
@@ -322,7 +323,7 @@ class YabawiGameCog(commands.Cog):
                 return await interaction.response.send_message("❗ 이미 진행 중인 야바위 게임이 있습니다.", ephemeral=True)
 
             active_games_by_user.add(user_id)
-            view = YabawiGameView(interaction.user, 배팅)
+            view = YabawiGameView(interaction.user, 배팅, interaction.guild_id)
 
             # 셔플 메시지 먼저 출력
             await interaction.response.send_message("🔄 컵을 섞는 중입니다...")
