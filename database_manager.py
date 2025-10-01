@@ -434,8 +434,10 @@ class DatabaseManager:
             return {'xp': 0, 'level': 1}
         try:
             result = self.execute_query(
+                # ⭐ 수정: 쿼리에서 AND guild_id = ? 부분을 제거합니다.
                 "SELECT xp, level FROM user_xp WHERE user_id = ?",
-                (user_id,),
+                # ⭐ 수정: 쿼리에서 guild_id를 제거했으므로, 매개변수에서도 guild_id를 제거합니다.
+                (user_id,), 
                 'one'
             )
             return dict(result) if result else {'xp': 0, 'level': 1}
