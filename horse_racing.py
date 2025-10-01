@@ -18,13 +18,13 @@ except ImportError:
     # point_manager 모의 함수들
     class MockPointManager:
         @staticmethod
-        def is_registered(user_id):
+        async def is_registered(bot, guild_id, user_id):
             return True
         @staticmethod
-        def add_point(user_id, amount):
+        async def add_point(bot, guild_id, user_id, amount):
             pass
         @staticmethod
-        def get_point(user_id):
+        async def get_point(bot, guild_id, user_id):
             return 10000
     
     point_manager = MockPointManager()
@@ -138,10 +138,11 @@ class ManualSignupView(discord.ui.View):
             return await interaction.response.send_message("❌ 신청 시간이 종료되었습니다.", ephemeral=True)
         
         user_id = str(interaction.user.id)
+        guild_id = str(interaction.guild.id)
         user_name = interaction.user.display_name
         
         # 등록된 사용자인지 확인 (통일된 확인 방식)
-        if not await point_manager.is_registered(self.bot, interaction.guild_id, user_id):
+        if not await point_manager.is_registered(self.bot, guild_id, user_id):
             return await interaction.response.send_message(
                 "❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요!", 
                 ephemeral=True
@@ -165,7 +166,7 @@ class ManualSignupView(discord.ui.View):
             removed_participant = self.participants.pop()  # 방금 추가된 사람을 제거
             
             await interaction.response.send_message(
-                f"❌ 참가 인원이 가득 차서 신청이 취소되었습니다. ({self.max_participants}명 마감)\n"
+                f"❌ 참가 인원이 가득 차서 신청이 취소되었습니다. ({self.max_participants}명 마감)\n" 
                 f"현재 참가자: {', '.join([p['name'] for p in self.participants])}", 
                 ephemeral=True
             )
@@ -596,7 +597,7 @@ class HorseRacingCog(commands.Cog):
                     return await interaction.response.send_message("❌ 올바른 숫자를 입력해주세요. 예: `/경마 수동 4`", ephemeral=True)
                 
                 # 참가자 모집 뷰 생성
-                view = ManualSignupView(max_participants, interaction.user)
+                view = ManualSignupView(self.bot, max_participants, interaction.user)
                 
                 embed = discord.Embed(
                     title="🐎 경마 참가자 모집",

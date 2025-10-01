@@ -20,19 +20,19 @@ except ImportError:
         user_points = {}
 
         @staticmethod
-        def add_point(user_id, amount):
-            MockPointManager.user_points[user_id] = MockPointManager.get_point(user_id) + amount
+        async def add_point(bot, guild_id, user_id, amount):
+            MockPointManager.user_points[user_id] = await MockPointManager.get_point(bot, guild_id, user_id) + amount
 
         @staticmethod
-        def get_point(user_id):
+        async def get_point(bot, guild_id, user_id):
             return MockPointManager.user_points.get(user_id, 10000)
 
         @staticmethod
-        def is_registered(user_id):
+        async def is_registered(bot, guild_id, user_id):
             return True
 
         @staticmethod
-        def register_user(user_id):
+        async def register_user(bot, guild_id, user_id):
             MockPointManager.user_points[user_id] = 10000
 
     point_manager = MockPointManager()
@@ -47,7 +47,7 @@ class SlotMachineView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild_id: int, user: discord.User, bet: int):
         super().__init__(timeout=60)
         self.bot = bot
-        self.guild_id = guild_id
+        self.guild_id = str(guild_id)
         self.user = user
         self.bet = bet
         self.button_clicked = False
@@ -61,7 +61,7 @@ class SlotMachineView(discord.ui.View):
                 return await interaction.response.send_message("❗ 본인만 슬롯을 돌릴 수 있어요!", ephemeral=True)
 
             if self.button_clicked:
-                return await interaction.followup.send("⚠️ 이미 슬롯을 돌렸습니다.", ephemeral=True)  # ✅ 수정
+                return await interaction.response.send_message("⚠️ 이미 슬롯을 돌렸습니다.", ephemeral=True, delete_after=5)
 
             self.button_clicked = True
 
@@ -78,16 +78,15 @@ class SlotMachineView(discord.ui.View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, self.guild_id, uid, -self.bet)
 
-            await interaction.response.send_message("🎰 슬롯 머신 가동 중...", view=self)
-            self.message = await interaction.original_response()
+            await interaction.response.defer()
+            if self.message is None:
+                self.message = await interaction.original_response()
 
             weighted_symbols = list(SLOT_WEIGHTS.keys())
             weights = list(SLOT_WEIGHTS.values())
 
-            # ✅ 최종 결과 미리 생성
             result = random.choices(weighted_symbols, weights=weights, k=3)
 
-            # 애니메이션 효과 (4번은 랜덤, 마지막은 진짜 결과)
             for i in range(5):
                 spin = result if i == 4 else random.choices(weighted_symbols, weights=weights, k=3)
                 try:
@@ -100,9 +99,8 @@ class SlotMachineView(discord.ui.View):
                     await self.message.edit(embed=embed, view=self)
                     await asyncio.sleep(0.4)
                 except Exception as e:
-                    print(f"메시지 편집 오류 (회전 {i+1}): {e}")  # ✅ 로그 추가
+                    print(f"메시지 편집 오류 (회전 {i+1}): {e}")
 
-            # 결과 분석
             symbol_counts = Counter(result)
             most_common_symbol, count = symbol_counts.most_common(1)[0]
 
@@ -162,12 +160,11 @@ class SlotMachineView(discord.ui.View):
             try:
                 await self.message.edit(content=None, embed=embed, view=self)
             except Exception as e:
-                print(f"최종 메시지 수정 오류: {e}")  # ✅ 추가
+                print(f"최종 메시지 수정 오류: {e}")
                 await interaction.followup.send("❌ 결과를 표시하는 중 오류가 발생했습니다.", ephemeral=True)
 
         except Exception as e:
             print(f"슬롯머신 게임 오류: {e}")
-            # ✅ 배팅 금액 복구
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, self.guild_id, uid, self.bet)
             try:
@@ -203,7 +200,7 @@ class SlotMachineCog(commands.Cog):
     async def slot_command(self, interaction: discord.Interaction, 배팅: int = 10):
         try:
             uid = str(interaction.user.id)
-            guild_id = interaction.guild_id
+            guild_id = str(interaction.guild.id)
 
             if not await point_manager.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
