@@ -25,16 +25,16 @@ except ImportError:
     
     class MockPointManager:
         @staticmethod
-        def is_registered(user_id):
+        def is_registered(guild_id, user_id):
             return True
         @staticmethod
-        def get_point(user_id):
+        def get_point(guild_id, user_id):
             return 10000
         @staticmethod
-        def add_point(user_id, amount):
+        def add_point(guild_id, user_id, amount):
             pass
         @staticmethod
-        def register_user(user_id):
+        def register_user(guild_id, user_id):
             pass
     
     point_manager = MockPointManager()
@@ -61,10 +61,11 @@ MAX_CHALLENGES = 5
 active_games_by_user = set()
 
 class YabawiGameView(View):
-    def __init__(self, user: discord.User, base_bet: int):
+    def __init__(self, user: discord.User, base_bet: int, guild_id: str): # 🟢 수정: guild_id 인자 추가
         super().__init__(timeout=120)
         self.user = user
         self.user_id = str(user.id)
+        self.guild_id = guild_id
         self.base_bet = base_bet
         self.wins = 0
         self.current_pot = base_bet
@@ -97,7 +98,7 @@ class YabawiGameView(View):
 
             # 첫 게임 시작 시 배팅 금액 차감
             if not self.initial_bet_deducted:
-                current_balance = point_manager.get_point(self.user_id)
+                current_balance = point_manager.get_point(self.guild_id, self.user_id)
                 if current_balance < self.base_bet:
                     return await interaction.response.send_message(
                         f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {self.base_bet:,}원", 
@@ -105,7 +106,7 @@ class YabawiGameView(View):
                     )
                 
                 if POINT_MANAGER_AVAILABLE:
-                    await point_manager.add_point(self.bot, interaction.guild_id, self.user_id, -self.base_bet)
+                    await point_manager.add_point(self.guild_id, self.user_id, -self.base_bet) 
                 self.initial_bet_deducted = True
 
             self.challenge_count += 1
@@ -145,7 +146,7 @@ class YabawiGameView(View):
 
                 if self.wins >= MAX_CHALLENGES:
                     if POINT_MANAGER_AVAILABLE:
-                        await point_manager.add_point(self.bot, interaction.guild_id, self.user_id, self.current_pot)
+                        await point_manager.add_point(self.guild_id, self.user_id, self.current_pot)
                     
                     # ✅ 통계 기록 (성공 - 최대 도전 완료)
                     record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, self.current_pot, True)
@@ -156,8 +157,7 @@ class YabawiGameView(View):
                     embed.title = "🏁 야바위 게임 - 최대 도전 성공!"
                     embed.description = "모든 도전을 성공했습니다! 최종 보상을 획득했습니다!"
                     embed.add_field(name="💎 최종 보상", value=f"{self.current_pot:,}원", inline=False)
-                    embed.add_field(name="💰 현재 잔액", value=f"{point_manager.get_point(self.user_id):,}원", inline=True)
-                    
+                    embed.add_field(name="💰 현재 잔액", value=f"{point_manager.get_point(self.guild_id, self.user_id):,}원", inline=True) # 🟢 수정: guild_id 사용
                     await interaction.response.edit_message(embed=embed, view=self)
                 else:
                     self.add_item(ContinueButton(self))
@@ -171,7 +171,7 @@ class YabawiGameView(View):
                 if self.wins > 0:
                     consolation = self.base_bet * (2 ** (self.wins - 1))
                     if POINT_MANAGER_AVAILABLE:
-                        await point_manager.add_point(self.bot, interaction.guild_id, self.user_id, consolation)
+                        await point_manager.add_point(self.guild_id, self.user_id, consolation)
 
                 # ✅ 통계 기록 (실패)
                 final_payout = consolation if consolation > 0 else 0
@@ -189,7 +189,7 @@ class YabawiGameView(View):
                 embed.add_field(name="🎯 결과", value=cups_display, inline=False)
                 embed.add_field(name="🏆 연승", value=f"{self.wins}회", inline=True)
                 embed.add_field(name="🎁 위로 보상", value=f"{consolation:,}원" if consolation else "없음", inline=True)
-                embed.add_field(name="💰 현재 잔액", value=f"{point_manager.get_point(self.user_id):,}원", inline=True)
+                embed.add_field(name="💰 현재 잔액", value=f"{point_manager.get_point(self.guild_id, self.user_id):,}원", inline=True) # 🟢 수정: guild_id 사용
                 
                 await interaction.response.edit_message(embed=embed, view=self)
 
@@ -224,7 +224,8 @@ class StopButton(discord.ui.Button):
                 return await interaction.response.send_message("❗ 이미 끝난 게임이에요.", ephemeral=True)
 
             if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.view_ref.bot, interaction.guild_id, self.view_ref.user_id, self.view_ref.current_pot)
+                await point_manager.add_point(self.view_ref.guild_id, self.view_ref.user_id, self.view_ref.current_pot) 
+
 
             # ✅ 통계 기록 (중단 - 성공으로 간주)
             record_yabawi_game(self.view_ref.user_id, self.view_ref.user.display_name, 
@@ -241,8 +242,8 @@ class StopButton(discord.ui.Button):
             )
             embed.add_field(name="🏆 연승", value=f"{self.view_ref.wins}회", inline=True)
             embed.add_field(name="💎 수령 금액", value=f"{self.view_ref.current_pot:,}원", inline=True)
-            embed.add_field(name="💰 현재 잔액", value=f"{point_manager.get_point(self.view_ref.user_id):,}원", inline=True)
-
+            embed.add_field(name="💰 현재 잔액", value=f"{point_manager.get_point(self.view_ref.guild_id, self.view_ref.user_id):,}원", inline=True)
+            
             await interaction.response.edit_message(embed=embed, view=self.view_ref)
             
         except Exception as e:
@@ -300,9 +301,10 @@ class YabawiGameCog(commands.Cog):
     async def yabawi_game(self, interaction: discord.Interaction, 배팅: int = 10):
         try:
             user_id = str(interaction.user.id)
+            guild_id = str(interaction.guild_id) 
 
             # 등록 확인
-            if not point_manager.is_registered(user_id):
+            if not point_manager.is_registered(guild_id, user_id): # 🟢 수정: guild_id 전달
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
 
             # 배팅 금액 검증
@@ -310,7 +312,7 @@ class YabawiGameCog(commands.Cog):
                 return await interaction.response.send_message("❗ 배팅 금액은 1~500원 사이여야 합니다.", ephemeral=True)
 
             # 잔액 확인
-            current_balance = point_manager.get_point(user_id)
+            current_balance = point_manager.get_point(guild_id, user_id)
             if current_balance < 배팅:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {배팅:,}원",
@@ -322,7 +324,7 @@ class YabawiGameCog(commands.Cog):
                 return await interaction.response.send_message("❗ 이미 진행 중인 야바위 게임이 있습니다.", ephemeral=True)
 
             active_games_by_user.add(user_id)
-            view = YabawiGameView(interaction.user, 배팅)
+            view = YabawiGameView(interaction.user, 배팅, guild_id) 
 
             # 셔플 메시지 먼저 출력
             await interaction.response.send_message("🔄 컵을 섞는 중입니다...")

@@ -28,7 +28,7 @@ except ImportError:
 
     class MockPointManager:
         @staticmethod
-        def is_registered(guild_id, user_id):
+        def is_registered(guild_id, user_id): 
             return True
     
         @staticmethod
@@ -36,7 +36,7 @@ except ImportError:
             return 10000
     
         @staticmethod
-        def is_registered(guild_id, user_id):
+        def add_point(guild_id, user_id, amount):
             return True
     
         @staticmethod
@@ -159,7 +159,6 @@ class MultiDiceView(View):
     async def join_game(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = interaction.user
         uid = str(user.id)
-        # ✅ 추가: guild_id 가져오기
         gid = str(interaction.guild_id)
 
         # 기본 검증

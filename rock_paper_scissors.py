@@ -324,15 +324,11 @@ class RockPaperScissors(commands.Cog):
             # ... 생략 ...
 
             user_id = str(interaction.user.id)
-            # 🚨 수정: guild_id 인자 추가
             if not point_manager.is_registered(guild_id, user_id):
-                # 🚨 수정: guild_id 인자 추가
                 point_manager.register_user(guild_id, user_id)
 
-            # 🚨 수정: guild_id 인자 추가
             if point_manager.get_point(guild_id, user_id) < 배팅:
                 return await interaction.response.send_message(
-                    # 🚨 수정: guild_id 인자 추가
                     f"❌ 현재 잔액이 부족하여 게임을 시작할 수 없습니다.\n💰 현재 잔액: {point_manager.get_point(guild_id, user_id)}원",
                     ephemeral=True
                 )
