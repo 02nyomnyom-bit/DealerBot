@@ -625,13 +625,15 @@ class PointManager(commands.Cog):
     async def leave(self, interaction: Interaction):
         user_id = str(interaction.user.id)
         
-        if not self.db.get_user(user_id):
+        db = self._get_db(interaction.guild_id)
+        
+        if not db.get_user(user_id):
             await interaction.response.send_message("❌ 등록되지 않은 사용자입니다.", ephemeral=True)
             return
         
         try:
-            cash = self.db.get_user_cash(user_id)
-            view = self.LeaveConfirmView(user_id, self.db)
+            cash = db.get_user_cash(user_id)
+            view = self.LeaveConfirmView(user_id, db)
             
             embed = discord.Embed(
                 title="⚠️ 탈퇴 확인",
@@ -650,18 +652,22 @@ class PointManager(commands.Cog):
     @app_commands.command(name="현금지급", description="사용자에게 현금을 지급합니다 (관리자 전용)")
     @app_commands.describe(사용자="현금을 받을 사용자", 금액="지급할 현금")
     async def give_cash(self, interaction: Interaction, 사용자: Member, 금액: int):
+
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
             return
         
+        # 🟢 추가: 길드별 DB 인스턴스를 가져옵니다.
+        db = self._get_db(interaction.guild_id)
+        
         user_id = str(사용자.id)
-        if not self.db.get_user(user_id):
+        if not db.get_user(user_id):
             await interaction.response.send_message("❌ 등록되지 않은 사용자입니다.", ephemeral=True)
             return
         
         try:
-            self.db.add_user_cash(user_id, 금액)
-            self.db.add_transaction(user_id, "관리자 지급", 금액, f"{interaction.user.display_name}이 지급")
+            db.add_user_cash(user_id, 금액)
+            db.add_transaction(user_id, "관리자 지급", 금액, f"{interaction.user.display_name}이 지급")
             
             embed = discord.Embed(
                 title="💰 현금 지급 완료",
@@ -671,24 +677,29 @@ class PointManager(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             
         except Exception as e:
+
+
             print(f"❌ 현금 지급 중 오류: {e}")
             await interaction.response.send_message(f"❌ 현금 지급 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="현금차감", description="사용자의 현금을 차감합니다 (관리자 전용)")
     @app_commands.describe(사용자="현금을 차감할 사용자", 금액="차감할 현금")
     async def deduct_cash(self, interaction: Interaction, 사용자: Member, 금액: int):
+
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
             return
         
+        db = self._get_db(interaction.guild_id)
+        
         user_id = str(사용자.id)
-        if not self.db.get_user(user_id):
+        if not db.get_user(user_id): 
             await interaction.response.send_message("❌ 등록되지 않은 사용자입니다.", ephemeral=True)
             return
         
         try:
-            self.db.add_user_cash(user_id, -금액)
-            self.db.add_transaction(user_id, "관리자 차감", -금액, f"{interaction.user.display_name}이 차감")
+            db.add_user_cash(user_id, -금액)
+            db.add_transaction(user_id, "관리자 차감", -금액, f"{interaction.user.display_name}이 차감")
             
             embed = discord.Embed(
                 title="💸 현금 차감 완료",
