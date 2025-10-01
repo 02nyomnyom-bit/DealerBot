@@ -205,7 +205,7 @@ class SlotMachineCog(commands.Cog):
             if not await point_manager.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
 
-            if 배팅 < 1 or 배팅 > 3000:
+            if 배팅 < 1 or 배팅 > 5000:
                 return await interaction.response.send_message("⚠️ 배팅 금액은 1~3,000원 사이여야 합니다.", ephemeral=True)
 
             current_balance = await point_manager.get_point(self.bot, guild_id, uid)

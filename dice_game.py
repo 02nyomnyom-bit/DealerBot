@@ -148,53 +148,64 @@ class MultiDiceView(View):
         self.game_started = False
         self.message = None
 
-    @discord.ui.button(label="🎲 게임 참여하기", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🎲 게임 참여/주사위 굴리기", style=discord.ButtonStyle.success) # 버튼 라벨 수정
     async def join_game(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = interaction.user
         uid = str(user.id)
         gid = str(interaction.guild_id)
 
+        # 1. 포인트 등록/잔액 확인
         if not await point_manager.is_registered(self.bot, gid, uid):
             return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
         if await point_manager.get_point(self.bot, gid, uid) < self.bet:
             return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
+        # 2. 플레이어 검증 및 설정
         if self.opponent:
             if user not in [self.player1, self.opponent]:
-                return await interaction.response.send_message("❌ 이 게임에 참여할 수 없습니다.", ephemeral=True)
+                return await interaction.response.send_message("❌ 이 게임에 참여할 수 없습니다. 지정된 플레이어만 참여 가능합니다.", ephemeral=True)
+            self.player2 = self.opponent # 지정 상대방이 참여하면 player2로 설정
         else:
             if user == self.player1:
-                return await interaction.response.send_message("❌ 자기 자신과는 게임할 수 없습니다.", ephemeral=True)
-            if self.player2 and user != self.player2:
-                return await interaction.response.send_message("❌ 이미 다른 플레이어가 참여했습니다.", ephemeral=True)
+                # 게임 시작 전: 첫 번째 플레이어는 단순히 대기 메시지
+                if not self.game_started:
+                    return await interaction.response.send_message("🎲 다른 플레이어가 참여하면 게임이 시작됩니다.", ephemeral=True)
+                # 게임 시작 후: 주사위 굴리기 허용
+                self.player2 = self.player2 if self.player2 else None # self.player2가 설정되어 있어야 함
 
-        if user.id in self.rolled_users:
-            return await interaction.response.send_message("⚠️ 이미 주사위를 굴렸습니다.", ephemeral=True)
-
-        if user != self.player1 and not self.player2:
-            self.player2 = user
+            elif not self.player2: # 자유 참여 & 아직 player2 없음
+                self.player2 = user
             
+            elif user != self.player2: # 자유 참여 & 이미 player2 있음
+                return await interaction.response.send_message("❌ 이미 다른 플레이어가 참여했습니다.", ephemeral=True)
+        
+        # 3. 게임 시작 로직
         if not self.game_started and self.player1 and self.player2:
             self.game_started = True
-            button.label = "🎲 주사위 굴리기"
             button.style = discord.ButtonStyle.primary
+            button.label = "🎲 주사위 굴리기" # 게임 시작 후 버튼 라벨 변경
             
+            # 메시지 업데이트 (응답 유형 변경: 이미 original_response가 있으므로 edit)
             await interaction.response.edit_message(
                 content=(
-                    f"🎮 **멀티 주사위 게임**\n"
+                    f"🎮 **멀티 주사위 게임이 시작되었습니다!**\n"
                     f"💰 배팅: {self.bet:,}원\n\n"
                     f"👤 **플레이어1**: {self.player1.mention}\n"
                     f"👤 **플레이어2**: {self.player2.mention}\n\n"
-                    f"🎲 각자 주사위를 굴려주세요!"
+                    f"🎲 각자 버튼을 눌러 주사위를 굴려주세요!"
                 ),
                 view=self
             )
-            self.message = await interaction.original_response()
-        elif self.game_started:
+            # self.message는 이미 초기 /주사위 명령에서 설정됨.
+        
+        # 4. 주사위 굴리기 로직 (게임이 시작된 경우)
+        elif self.game_started and user in [self.player1, self.player2]: # P1, P2 모두 굴릴 수 있도록 수정
             await self.roll_dice_logic(interaction, user)
-        else: # player1이 join 버튼을 누른 경우
-             await interaction.response.send_message("🎲 다른 플레이어가 참여하면 게임이 시작됩니다.", ephemeral=True)
+        
+        else:
+            # 예상치 못한 상황 방지용
+            return await interaction.response.send_message("⚠️ 게임 상태 오류. 잠시 후 다시 시도해 주세요.", ephemeral=True)
 
 
     async def roll_dice_logic(self, interaction: discord.Interaction, user: discord.User):
@@ -208,23 +219,38 @@ class MultiDiceView(View):
             self.player1_roll = roll
         elif user == self.player2:
             self.player2_roll = roll
+        else:
+            # 이 경우는 발생하면 안되지만 안전 장치
+            return await interaction.response.send_message("❌ 게임 플레이어가 아닙니다.", ephemeral=True)
 
+        # 1. 첫 번째 플레이어 굴림 후 메시지 (공개로 수정)
         if len(self.rolled_users) == 1:
-            await interaction.response.send_message(
-                f"🎲 {user.mention}님이 주사위를 굴렸습니다: {DICE_EMOJIS[roll]} ({roll})\n"
-                f"상대방이 주사위를 굴리기를 기다리는 중...",
-                ephemeral=True
+            # 기존 메시지를 수정하여 누가 굴렸는지 알림
+            await interaction.response.edit_message(
+                content=(
+                    f"🎮 **멀티 주사위 게임 진행 중**\n"
+                    f"💰 배팅: {self.bet:,}원\n\n"
+                    f"👤 **{self.player1.display_name}**: {'굴림 완료' if self.player1_roll else '대기중...'}\n"
+                    f"👤 **{self.player2.display_name}**: {'굴림 완료' if self.player2_roll else '대기중...'}\n\n"
+                    f"✨ **알림**: {user.mention}님이 주사위를 굴렸습니다. 상대방을 기다리는 중..."
+                ),
+                view=self
             )
             return
 
-        await interaction.response.defer()
+        # 2. 두 번째 플레이어 굴림 후 최종 결과 처리
+        await interaction.response.defer() # 응답 대기 (이후 edit/followup 사용)
 
         gid = str(interaction.guild_id)
 
         p1_id = str(self.player1.id)
         p2_id = str(self.player2.id)
+        
+        # 포인트 차감 (두 번째 굴림 시점에 최종 차감)
+        # Note: join_game에서 잔액 확인을 했으므로, 여기서 차감/분배합니다.
         await point_manager.add_point(self.bot, gid, p1_id, -self.bet)
         await point_manager.add_point(self.bot, gid, p2_id, -self.bet)
+
 
         if self.player1_roll > self.player2_roll:
             await point_manager.add_point(self.bot, gid, p1_id, self.bet * 2)
@@ -239,6 +265,7 @@ class MultiDiceView(View):
             record_dice_game(p1_id, self.player1.display_name, self.bet, 0, False)
             record_dice_game(p2_id, self.player2.display_name, self.bet, self.bet * 2, True)
         else:
+            # 무승부 시 배팅 금액 돌려주기 (차감 후 원금만 다시 추가)
             await point_manager.add_point(self.bot, gid, p1_id, self.bet)
             await point_manager.add_point(self.bot, gid, p2_id, self.bet)
             result_emoji = "🤝"
@@ -249,10 +276,11 @@ class MultiDiceView(View):
         for item in self.children:
             item.disabled = True
 
+        # 최종 결과를 기존 메시지에 공개적으로 수정 (공개로 수정됨)
         try:
             if self.message:
                 await self.message.edit(content=(
-                    f"{result_emoji} **멀티 주사위 게임 결과** {result_emoji}\n\n"
+                    f"{result_emoji} **멀티 주사위 게임 최종 결과** {result_emoji}\n\n"
                     f"🎯 **{self.player1.display_name}**: {DICE_EMOJIS[self.player1_roll]} ({self.player1_roll})\n"
                     f"🎯 **{self.player2.display_name}**: {DICE_EMOJIS[self.player2_roll]} ({self.player2_roll})\n\n"
                     f"🏆 **결과**: {result_text}\n"
@@ -261,16 +289,18 @@ class MultiDiceView(View):
                     f"💰 **{self.player2.display_name} 잔액**: {await point_manager.get_point(self.bot, gid, p2_id):,}원"
                 ), view=self)
             else:
+                # message가 설정되지 않은 경우 (예외 상황 대비)
                 await interaction.followup.send(content=(
-                    f"{result_emoji} **멀티 주사위 게임 결과** {result_emoji}\n\n"
+                    f"{result_emoji} **멀티 주사위 게임 최종 결과** {result_emoji}\n\n"
                     f"🎯 **{self.player1.display_name}**: {DICE_EMOJIS[self.player1_roll]} ({self.player1_roll})\n"
                     f"🎯 **{self.player2.display_name}**: {DICE_EMOJIS[self.player2_roll]} ({self.player2_roll})\n\n"
                     f"🏆 **결과**: {result_text}\n"
                     f"💰 **배팅 금액**: {self.bet:,}원\n\n"
                     f"💰 **{self.player1.display_name} 잔액**: {await point_manager.get_point(self.bot, gid, p1_id):,}원\n"
                     f"💰 **{self.player2.display_name} 잔액**: {await point_manager.get_point(self.bot, gid, p2_id):,}원"
-                ))
-        except:
+                ), ephemeral=False) # 결과는 공개
+        except Exception as e:
+            print(f"결과 메시지 전송 실패: {e}")
             pass
         
         self.stop()
@@ -351,7 +381,7 @@ class DiceGameCog(commands.Cog):
                     f"**배팅**: {배팅:,}원\n"
                     f"**플레이어1**: {interaction.user.mention}\n"
                     f"**플레이어2**: {상대방.mention if 상대방 else '참여자 대기 중...'}\n\n"
-                    f"{('지정된 상대방이 참여해주세요!' if 상대방 else '누구나 참여 가능합니다!')}"
+                    f"{('지정된 상대방이 버튼을 눌러 참여해주세요!' if 상대방 else '누구나 버튼을 눌러 참여 가능합니다!')}"
                 ),
                 color=discord.Color.green()
             )

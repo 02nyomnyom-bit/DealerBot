@@ -218,7 +218,8 @@ class OddEvenMultiView(View):
                 if user not in [self.player1, self.opponent]:
                     return await interaction.response.send_message("❌ 이 게임에 참여할 수 없습니다.", ephemeral=True)
             else:  # 오픈 게임
-                if len(self.choices) >= 2 and uid not in self.choices:
+                # P1은 이미 참여했으므로 P2만 남음
+                if uid != str(self.player1.id) and self.player2 and uid != str(self.player2.id):
                     return await interaction.response.send_message("❌ 이미 다른 플레이어가 참여했습니다.", ephemeral=True)
 
             if uid in self.choices:
@@ -227,6 +228,8 @@ class OddEvenMultiView(View):
             # 배팅 금액 차감 (한 번만)
             if uid not in self.paid_users:
                 if POINT_MANAGER_AVAILABLE:
+                    # Note: 잔액 확인은 했으므로 실제 차감은 결과 처리 시에 하는 것이 일반적이나,
+                    # 현재 코드는 여기서 차감하고 타임아웃 시 반환하는 구조이므로 유지.
                     await point_manager.add_point(self.bot, self.guild_id, uid, -self.bet)
                 self.paid_users.add(uid)
 
@@ -235,38 +238,85 @@ class OddEvenMultiView(View):
                 "user": user,
                 "choice": choice
             }
-
+            
+            # P2 설정 (오픈 게임 시)
             if user != self.player1 and not self.player2:
                 self.player2 = user
 
+            # ✅ [수정] 플레이어에게는 임시 응답을 보내 참여가 완료되었음을 알리고,
+            # 원본 메시지를 수정하여 모든 사람에게 참여 현황을 공개합니다.
             await interaction.response.send_message(
-                f"✅ {user.mention}님이 게임에 참여했습니다!\n🎯 선택: {ODD_EVEN_EMOJI[choice]} **{choice}**", ephemeral=True
+                f"✅ {user.mention}님이 게임에 참여했습니다!\n🎯 선택: {ODD_EVEN_EMOJI[choice]} **{choice}** (선택 완료)", ephemeral=False
             )
+            
+            # --- [추가: 원본 메시지(self.message) 업데이트] ---
+            if self.message:
+                
+                # 플레이어 목록 업데이트
+                players_status = ""
+                # Player 1
+                p1_id = str(self.player1.id)
+                p1_status = "✅ 선택 완료" if p1_id in self.choices else "⏳ 대기 중"
+                p1_choice = ODD_EVEN_EMOJI[self.choices[p1_id]["choice"]] if p1_id in self.choices else ""
+                players_status += f"**{self.player1.display_name}**: {p1_choice} {p1_status}\n"
 
-            # 게임 상태 업데이트
-            if not self.game_started and len(self.choices) == 1:
-                self.game_started = True
+                # Player 2
+                if self.player2:
+                    p2_id = str(self.player2.id)
+                    p2_status = "✅ 선택 완료" if p2_id in self.choices else "⏳ 대기 중"
+                    p2_choice = ODD_EVEN_EMOJI[self.choices[p2_id]["choice"]] if p2_id in self.choices else ""
+                    players_status += f"**{self.player2.display_name}**: {p2_choice} {p2_status}\n"
+                else:
+                     players_status += "**플레이어2**: 참여자 대기 중...\n"
+
+
+                embed = self.message.embeds[0] # 기존 임베드 가져오기
                 
-                embed = discord.Embed(
-                    title="🎲 홀짝 멀티 게임",
-                    description="첫 번째 플레이어가 참여했습니다!\n상대방의 참여를 기다리는 중...",
-                    color=discord.Color.orange()
+                # 필드 업데이트 (플레이어2 필드는 동적으로 업데이트)
+                # 필드 인덱스를 정확히 찾아 업데이트
+                
+                # '👤 플레이어2' 필드 업데이트
+                p2_index = -1
+                for i, field in enumerate(embed.fields):
+                    if field.name == '👤 플레이어2':
+                        p2_index = i
+                        break
+                
+                if p2_index != -1:
+                    embed.set_field_at(
+                        index=p2_index,
+                        name="👤 플레이어2",
+                        value=self.player2.mention if self.player2 else "참여자 대기 중",
+                        inline=True
+                    )
+                
+                # 새로운 필드로 '참여 현황'을 추가하거나, 기존 필드를 활용할 수 있으나,
+                # 여기서는 메시지 내용에 업데이트 내용을 포함하도록 합니다.
+                
+                # 임베드 내용 업데이트
+                new_description = (
+                    "플레이어들의 선택이 완료되기를 기다리는 중...\n\n"
+                    f"{players_status}"
                 )
-                embed.add_field(name="💰 배팅 금액", value=f"{self.bet:,}원", inline=True)
-                embed.add_field(name="👤 참여자", value=f"{len(self.choices)}/2명", inline=True)
-                embed.set_footer(text="상대방도 홀 또는 짝을 선택해주세요!")
+                embed.description = new_description
                 
-                self.message = await interaction.original_response()
+                # 푸터 메시지 변경
+                if len(self.choices) == 1:
+                    wait_user = self.player2.display_name if self.player2 else "상대방"
+                    embed.set_footer(text=f"{wait_user}님의 홀 또는 짝 선택을 기다리는 중...")
+                
                 await self.message.edit(embed=embed, view=self)
+            # --- [추가 끝] ---
 
             # 두 명 모두 선택했으면 결과 처리
-            elif len(self.choices) == 2:
+            if len(self.choices) == 2:
+                # show_results에서 defer를 사용하므로 여기서 defer하지 않습니다.
                 await self.show_results(interaction)
 
         except Exception as e:
             print(f"멀티 홀짝 선택 처리 오류: {e}")
             try:
-                await interaction.response.send_message("❌ 선택 처리 중 오류가 발생했습니다.", ephemeral=True)
+                await interaction.followup.send("❌ 선택 처리 중 오류가 발생했습니다.", ephemeral=True)
             except:
                 pass
 
@@ -285,11 +335,15 @@ class OddEvenMultiView(View):
                 color=discord.Color.yellow()
             )
             
+            # 여기서 interaction.original_response()가 이미 초기 메시지를 가져왔다고 가정하고 edit합니다.
             if self.message:
                 await self.message.edit(embed=embed, view=self)
             else:
+                 # 만약 self.message가 설정되지 않았다면, 현재 interaction에 응답합니다.
+                 # 이 부분은 process_choice에서 이미 처리했으므로 거의 발생하지 않습니다.
+                await interaction.followup.send(embed=embed, view=self) 
                 self.message = await interaction.original_response()
-                await self.message.edit(embed=embed, view=self)
+
 
             # 애니메이션 효과
             for i in range(5):
@@ -325,18 +379,21 @@ class OddEvenMultiView(View):
                 losers.append(user2_data)
 
             # 포인트 지급
+            # Note: 이미 process_choice에서 배팅 금액을 차감했으므로,
+            # 승자는 배팅 금액 * 2를 돌려받고, 패자는 0원, 무승부는 배팅 금액을 돌려받습니다.
+            
             if len(winners) == 1:  # 한 명만 맞춤
                 winner_uid = str(winners[0]["user"].id)
                 if POINT_MANAGER_AVAILABLE:
                     await point_manager.add_point(self.bot, self.guild_id, winner_uid, self.bet * 2)  # 본인 배팅 + 상대방 배팅
-                result_text = f"🎉 {winners[0]['user'].mention} 승리!"
+                result_text = f"🎉 {winners[0]['user'].mention} 승리! {self.bet * 2:,}원 획득"
                 result_color = discord.Color.green()
             else:  # 무승부 (둘 다 맞추거나 둘 다 틀림)
                 # 배팅 금액 반환
                 for uid in self.paid_users:
                     if POINT_MANAGER_AVAILABLE:
-                        await point_manager.add_point(self.bot, self.guild_id, uid, self.bet)
-                result_text = "🤝 무승부!"
+                        await point_manager.add_point(self.bot, self.guild_id, uid, self.bet) # 차감된 배팅 금액 반환
+                result_text = "🤝 무승부! 배팅 금액 반환"
                 result_color = discord.Color.gold()
 
             # 최종 결과 임베드
@@ -364,9 +421,9 @@ class OddEvenMultiView(View):
             embed.add_field(name="💰 배팅 금액", value=f"{self.bet:,}원", inline=True)
             
             if len(winners) == 1:
-                embed.add_field(name="🏆 획득 금액", value=f"{self.bet * 2:,}원", inline=True)
+                embed.add_field(name="🏆 최종 획득", value=f"{self.bet * 2:,}원", inline=True)
             else:
-                embed.add_field(name="🔄 반환 금액", value=f"{self.bet:,}원 (각자)", inline=True)
+                embed.add_field(name="🔄 포인트 변동", value="0원", inline=True)
             
             # 현재 잔액 표시
             balance1 = await point_manager.get_point(self.bot, self.guild_id, uids[0])
@@ -383,7 +440,8 @@ class OddEvenMultiView(View):
         except Exception as e:
             print(f"홀짝 게임 결과 처리 오류: {e}")
             try:
-                await interaction.channel.send("❌ 결과 처리 중 오류가 발생했습니다.")
+                # 결과는 공개되어야 하므로 채널에 직접 전송 시도
+                await interaction.channel.send("❌ 홀짝 게임 결과 처리 중 오류가 발생했습니다.")
             except:
                 pass
 
@@ -392,6 +450,7 @@ class OddEvenMultiView(View):
             # 타임아웃 시 배팅 금액 반환
             if POINT_MANAGER_AVAILABLE:
                 for user_id in self.paid_users:
+                    # process_choice에서 차감된 금액을 반환
                     await point_manager.add_point(self.bot, self.guild_id, user_id, self.bet)
             
             for item in self.children:
@@ -402,7 +461,7 @@ class OddEvenMultiView(View):
             if self.message:
                 embed = discord.Embed(
                     title="⏰ 게임 시간 만료",
-                    description="게임이 시간 초과로 종료되었습니다.\n배팅 금액이 반환되었습니다.",
+                    description="게임이 시간 초과로 종료되었습니다.\n참여한 플레이어의 배팅 금액이 반환되었습니다.",
                     color=discord.Color.orange()
                 )
                 await self.message.edit(embed=embed, view=self)
