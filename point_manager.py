@@ -608,15 +608,7 @@ class PointManager(commands.Cog):
             )
             await interaction.response.edit_message(embed=embed, view=None)
 
-        @commands.Cog.listener()
-        async def on_member_remove(self, member: discord.Member):
-            user_id = str(member.id)
-            if self.db.get_user(user_id):
-                try:
-                    self.db.delete_user(user_id)
-                    print(f"✅ 회원 탈퇴 처리: {member.display_name} (ID: {user_id})")
-                except Exception as e:
-                    print(f"❌ 자동 탈퇴 처리 중 오류: {member.display_name} - {e}")
+
 
         async def on_timeout(self):
             self.stop()
@@ -646,6 +638,23 @@ class PointManager(commands.Cog):
         except Exception as e:
             print(f"❌ 탈퇴 처리 중 오류: {e}")
             await interaction.response.send_message(f"❌ 탈퇴 처리 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        # 길드 ID가 없는 DM에서는 처리하지 않음
+        if member.guild is None:
+            return
+
+        user_id = str(member.id)
+        guild_id = str(member.guild.id)
+        db = self._get_db(guild_id) # Get the correct guild-specific DB manager
+
+        if db.get_user(user_id):
+            try:
+                db.delete_user(user_id)
+                print(f"✅ 회원 탈퇴 처리: {member.display_name} (ID: {user_id}) (Guild: {guild_id})")
+            except Exception as e:
+                print(f"❌ 자동 탈퇴 처리 중 오류: {member.display_name} - {e} (Guild: {guild_id})")
 
 # ==================== 관리자 명령어들 ====================
 
