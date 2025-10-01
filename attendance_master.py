@@ -104,6 +104,10 @@ class AttendanceMasterCog(commands.Cog):
             # 설정 로드 (관리자가 변경했을 수 있으므로)
             settings = db.get_leaderboard_settings()
 
+            # 기본 설정과 관리자 설정을 병합하여 최종 유효 설정 생성
+            effective_settings = DEFAULT_LEADERBOARD_SETTINGS.copy()
+            effective_settings.update(settings)
+
             # 2. 연속 출석일 및 오늘 출석 가능 여부 확인
             current_streak, can_attend_today = self.calculate_attendance_streak(guild_id, user_id)
             
@@ -129,13 +133,13 @@ class AttendanceMasterCog(commands.Cog):
             new_streak = current_streak + 1
             
             # 6. 보상 계산 및 지급 (연동된 설정 사용)
-            base_cash_reward = settings.get('attendance_cash', DEFAULT_LEADERBOARD_SETTINGS['attendance_cash'])
-            base_xp_reward = settings.get('attendance_xp', DEFAULT_LEADERBOARD_SETTINGS['attendance_xp'])
+            base_cash_reward = effective_settings['attendance_cash']
+            base_xp_reward = effective_settings['attendance_xp']
 
             # ✅ 리더보드 시스템의 설정값을 사용하여 연속 출석 보너스 계산
-            bonus_cash_per_day = settings.get('streak_cash_per_day', DEFAULT_LEADERBOARD_SETTINGS['streak_cash_per_day'])
-            bonus_xp_per_day = settings.get('streak_xp_per_day', DEFAULT_LEADERBOARD_SETTINGS['streak_xp_per_day'])
-            max_bonus_days = settings.get('max_streak_bonus_days', DEFAULT_LEADERBOARD_SETTINGS['max_streak_bonus_days'])
+            bonus_cash_per_day = effective_settings['streak_cash_per_day']
+            bonus_xp_per_day = effective_settings['streak_xp_per_day']
+            max_bonus_days = effective_settings['max_streak_bonus_days']
             
             # 연속 출석 보너스 (최대 일수까지 증가)
             bonus_days = min(new_streak - 1, max_bonus_days)
@@ -150,16 +154,16 @@ class AttendanceMasterCog(commands.Cog):
 
             # 7일(주간) 특별 보너스 확인 및 추가
             if new_streak % 7 == 0:
-                weekly_cash = settings.get('weekly_cash_bonus', DEFAULT_LEADERBOARD_SETTINGS['weekly_cash_bonus'])
-                weekly_xp = settings.get('weekly_xp_bonus', DEFAULT_LEADERBOARD_SETTINGS['weekly_xp_bonus'])
+                weekly_cash = effective_settings['weekly_cash_bonus']
+                weekly_xp = effective_settings['weekly_xp_bonus']
                 special_bonus_cash += weekly_cash
                 special_bonus_xp += weekly_xp
                 special_message = f"🎁 7일 연속 보너스 지급! ({weekly_cash:,}원, {weekly_xp} XP)"
 
             # 30일(월간) 특별 보너스 확인 및 추가
             if new_streak % 30 == 0:
-                monthly_cash = settings.get('monthly_cash_bonus', DEFAULT_LEADERBOARD_SETTINGS['monthly_cash_bonus'])
-                monthly_xp = settings.get('monthly_xp_bonus', DEFAULT_LEADERBOARD_SETTINGS['monthly_xp_bonus'])
+                monthly_cash = effective_settings['monthly_cash_bonus']
+                monthly_xp = effective_settings['monthly_xp_bonus']
                 special_bonus_cash += monthly_cash
                 special_bonus_xp += monthly_xp
                 # 7일 보너스와 동시에 지급될 경우 메시지를 업데이트 (30일이 7일의 배수이므로)
