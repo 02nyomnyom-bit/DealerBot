@@ -240,6 +240,23 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE users ADD COLUMN cash INTEGER DEFAULT 0")
                     logger.info("✅ users 테이블에 'cash' 컬럼 추가 완료.")
 
+                # user_xp 테이블에 guild_id 컬럼이 없으면 추가
+                cursor.execute("PRAGMA table_info(user_xp)")
+                user_xp_columns = [col[1] for col in cursor.fetchall()]
+                if 'guild_id' not in user_xp_columns:
+                    cursor.execute("ALTER TABLE user_xp ADD COLUMN guild_id TEXT")
+                    logger.info("✅ user_xp 테이블에 'guild_id' 컬럼 추가 완료.")
+                    # 기존 레코드에 guild_id 채워넣기 (현재 DatabaseManager 인스턴스의 guild_id 사용)
+                    cursor.execute("UPDATE user_xp SET guild_id = ? WHERE guild_id IS NULL", (self.guild_id,))
+                    logger.info(f"✅ 기존 user_xp 레코드에 guild_id '{self.guild_id}' 채워넣기 완료.")
+                    # UNIQUE 제약 조건 다시 생성 (기존 데이터가 없거나 충돌이 없을 경우)
+                    # 이 부분은 기존 데이터에 따라 실패할 수 있으므로 주의
+                    try:
+                        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_xp_unique ON user_xp (user_id, guild_id)")
+                        logger.info("✅ user_xp 테이블에 UNIQUE(user_id, guild_id) 제약 조건 추가 완료.")
+                    except sqlite3.IntegrityError:
+                        logger.warning("⚠️ user_xp 테이블에 기존 중복 데이터가 있어 UNIQUE 제약 조건 추가 실패. 수동 확인 필요.")
+                
                 conn.commit()
                 logger.info("✅ 모든 테이블 생성 및 스키마 검증 완료.")
             except sqlite3.Error as e:
