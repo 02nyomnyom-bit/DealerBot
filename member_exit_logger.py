@@ -8,36 +8,10 @@ import json  # ✅ json 모듈 추가
 from typing import Optional, Dict, Any, List
 from database_manager import DatabaseManager
 
-class MemberExitLogger(commands.Cog): 
+class MemberExitLogger(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = DatabaseManager()
-        # 테이블 생성 확인
-        self.db.create_table(
-            "exit_logs",
-            """
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            username TEXT,
-            display_name TEXT,
-            joined_at TEXT,
-            left_at TEXT NOT NULL,
-            server_time TEXT,
-            avatar_url TEXT,
-            is_bot INTEGER,
-            roles TEXT
-            """
-        )
-        # ✅ 새로운 설정 테이블 추가
-        self.db.create_table(
-            "log_settings",
-            """
-            guild_id TEXT PRIMARY KEY,
-            channel_id TEXT NOT NULL,
-            enabled INTEGER NOT NULL
-            """
-        )
+        # 길드별 DB 인스턴스를 관리하는 대신, 각 메소드에서 필요할 때 생성합니다.
         print("✅ 통합 멤버 퇴장 로그 시스템 코그 초기화 완료")
 
     async def get_member_server_time(self, member: Member):
@@ -66,8 +40,10 @@ class MemberExitLogger(commands.Cog):
     async def on_member_remove(self, member: Member):
         """멤버가 서버를 떠났을 때 로그 기록 및 메시지 전송"""
         
+        db = DatabaseManager(str(member.guild.id))
+        
         # ✅ 설정이 활성화되어 있는지 확인
-        setting = self.db.execute_query("SELECT * FROM log_settings WHERE guild_id = ?", (str(member.guild.id),), 'one')
+        setting = db.execute_query("SELECT * FROM log_settings WHERE guild_id = ?", (str(member.guild.id),), 'one')
         
         # 멤버 정보 수집
         server_time_str = await self.get_member_server_time(member)
@@ -100,7 +76,7 @@ class MemberExitLogger(commands.Cog):
             INSERT INTO exit_logs (guild_id, user_id, username, display_name, joined_at, left_at, server_time, avatar_url, is_bot, roles)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        self.db.execute_query(query, list(user_data.values()))
+        db.execute_query(query, list(user_data.values()))
         print(f"👋 {user_data['display_name']}님 퇴장 로그 기록 완료.")
 
         # ✅ 설정이 활성화되어 있으면 채널에 메시지 전송
@@ -178,12 +154,13 @@ class MemberExitLogger(commands.Cog):
                 ephemeral=True
             )
         
+        db = DatabaseManager(str(interaction.guild.id))
         # ✅ 데이터베이스에 설정 저장
         query = """
             INSERT OR REPLACE INTO log_settings (guild_id, channel_id, enabled)
             VALUES (?, ?, ?)
         """
-        self.db.execute_query(query, (str(interaction.guild.id), str(채널.id), 1))
+        db.execute_query(query, (str(interaction.guild.id), str(채널.id), 1))
         
         embed = discord.Embed(
             title="✅ 퇴장 로그 설정 완료",
@@ -202,9 +179,10 @@ class MemberExitLogger(commands.Cog):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("🚫 관리자만 사용할 수 있습니다.", ephemeral=True)
         
+        db = DatabaseManager(str(interaction.guild.id))
         # ✅ 데이터베이스에서 설정 비활성화
         query = "UPDATE log_settings SET enabled = 0 WHERE guild_id = ?"
-        self.db.execute_query(query, (str(interaction.guild.id),))
+        db.execute_query(query, (str(interaction.guild.id),))
         
         embed = discord.Embed(
             title="✅ 퇴장 로그 비활성화 완료",
@@ -218,7 +196,8 @@ class MemberExitLogger(commands.Cog):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("🚫 관리자만 사용할 수 있습니다.", ephemeral=True)
         
-        setting = self.db.execute_query("SELECT * FROM log_settings WHERE guild_id = ?", (str(interaction.guild.id),), 'one')
+        db = DatabaseManager(str(interaction.guild.id))
+        setting = db.execute_query("SELECT * FROM log_settings WHERE guild_id = ?", (str(interaction.guild.id),), 'one')
         
         embed = discord.Embed(
             title="📊 퇴장 로그 시스템 상태",
@@ -261,13 +240,14 @@ class MemberExitLogger(commands.Cog):
             
         cutoff_date = (datetime.datetime.now() - datetime.timedelta(days=일수)).isoformat()
         
+        db = DatabaseManager(str(interaction.guild.id))
         # ✅ 데이터베이스에서 최근 로그 조회
         query = """
             SELECT * FROM exit_logs
             WHERE guild_id = ? AND left_at >= ?
             ORDER BY left_at DESC
         """
-        recent_logs = self.db.execute_query(query, (str(interaction.guild.id), cutoff_date), 'all')
+        recent_logs = db.execute_query(query, (str(interaction.guild.id), cutoff_date), 'all')
         
         embed = discord.Embed(
             title=f"📋 {interaction.guild.name} 서버 퇴장 로그",

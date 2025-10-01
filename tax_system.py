@@ -26,14 +26,14 @@ except ImportError:
 # ✅ 안전한 의존성 import
 def safe_import_database():
     try:
-        from database_manager import DatabaseManager
-        return DatabaseManager(), True
+        from database_manager import get_guild_db_manager
+        return get_guild_db_manager, True
     except ImportError:
         print("⚠️ DatabaseManager 임포트 실패")
         return None, False
 
 # 데이터베이스 로드
-db_manager, DATABASE_AVAILABLE = safe_import_database()
+get_guild_db_manager_func, DATABASE_AVAILABLE = safe_import_database()
 
 # ✅ 데이터 디렉토리 및 파일 경로
 DATA_DIR = "data"
@@ -190,7 +190,6 @@ class TaxSystemCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.tax_manager = tax_manager
-        self.db = db_manager
     
     @app_commands.command(name="세금설정", description="특정 역할에 대한 세금 XP를 설정합니다 (관리자 전용)")
     @app_commands.describe(역할="세금을 부과할 역할", xp="빼앗을 XP 양")
@@ -287,13 +286,14 @@ class TaxSystemCog(commands.Cog):
             )
         
         # 데이터베이스 연결 확인
-        if not DATABASE_AVAILABLE or not self.db:
+        if not DATABASE_AVAILABLE:
             return await interaction.response.send_message(
                 "❌ 데이터베이스를 사용할 수 없습니다.", 
                 ephemeral=True
             )
         
         guild_id = str(interaction.guild.id)
+        db = get_guild_db_manager_func(guild_id)
         role_id = str(역할.id)
         
         # 세금 설정 확인
@@ -334,13 +334,13 @@ class TaxSystemCog(commands.Cog):
                 user_id = str(member.id)
                 
                 # 사용자 등록 확인
-                if not self.db.get_user(user_id):
+                if not db.get_user(user_id):
                     failed_count += 1
                     failed_details.append(f"{member.display_name} (미등록)")
                     continue
                 
                 # 현재 XP 확인
-                current_xp_data = self.db.get_user_xp(guild_id, user_id)
+                current_xp_data = db.get_user_xp(user_id)
                 if not current_xp_data:
                     failed_count += 1
                     failed_details.append(f"{member.display_name} (XP 데이터 없음)")
@@ -360,7 +360,7 @@ class TaxSystemCog(commands.Cog):
                 old_level = current_xp_data['level']
                 
                 # XP 차감 (마이너스 값으로 추가)
-                result = self.db.add_user_xp(guild_id, user_id, -actual_tax)
+                result = db.add_user_xp(user_id, -actual_tax)
                 
                 success_count += 1
                 total_collected += actual_tax

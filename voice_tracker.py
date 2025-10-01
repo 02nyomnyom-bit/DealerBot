@@ -10,7 +10,7 @@ from discord import app_commands, Member
 from discord.ext import commands, tasks
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
-from database_manager import DatabaseManager
+from database_manager import get_guild_db_manager
 from xp_leaderboard import check_and_send_levelup_notification
 from xp_leaderboard import load_xp_settings
 
@@ -26,16 +26,17 @@ VOICE_XP_PER_MINUTE = xp_settings.get("voice_xp", 10)
 
 # ✅ 초기화 확인 뷰
 class VoiceResetConfirmView(discord.ui.View):
-    def __init__(self, cog, user_id: str = None, target_user = None):
+    def __init__(self, cog, guild_id: str, user_id: str = None, target_user: Member = None):
         super().__init__(timeout=30)
         self.cog = cog
+        self.guild_id = guild_id
         self.user_id = user_id
         self.target_user = target_user
 
     @discord.ui.button(label="✅ 확인", style=discord.ButtonStyle.danger)
     async def confirm_reset(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            success = self.cog.reset_voice_data_db(self.user_id)
+            success = self.cog.reset_voice_data_db(self.guild_id, self.user_id)
             
             if success:
                 if self.target_user:
@@ -49,11 +50,11 @@ class VoiceResetConfirmView(discord.ui.View):
             logger.error(f"초기화 확인 버튼 오류: {e}")
             await interaction.response.send_message("❌ 알 수 없는 오류가 발생했습니다.", ephemeral=True)
 
+
 # ==================== 메인 COG 클래스 ====================
 class VoiceTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = DatabaseManager()
         self.xp_cog = XPLeaderboardCog(bot) # XPLeaderboardCog 인스턴스 생성
         self.active_sessions: Dict[str, Dict] = {}
 
@@ -242,10 +243,11 @@ class VoiceTracker(commands.Cog):
     async def voice_time_command(self, interaction: discord.Interaction, 사용자: Optional[Member] = None):
         target_member = 사용자 or interaction.user
         user_id = str(target_member.id)
+        guild_id = str(interaction.guild.id)
             
         await interaction.response.defer(ephemeral=False)
 
-        total_seconds = await self.get_user_total_voice_time(user_id)
+        total_seconds = await self.get_user_total_voice_time(guild_id, user_id)
             
         formatted_time = self.format_duration(total_seconds)
             
@@ -265,13 +267,14 @@ class VoiceTracker(commands.Cog):
         """보이스 랭크 확인 명령어 (공개)"""
         await interaction.response.defer()
         user_id = str(사용자.id)
+        guild_id = str(interaction.guild.id)
         
         try:
             # 일일, 일주일, 한달, 전체 통계 조회
-            daily_stats = self.get_voice_statistics_db(user_id, 1)
-            weekly_stats = self.get_voice_statistics_db(user_id, 7)
-            monthly_stats = self.get_voice_statistics_db(user_id, 30)
-            total_stats = self.get_voice_statistics_db(user_id)
+            daily_stats = self.get_voice_statistics_db(guild_id, user_id, 1)
+            weekly_stats = self.get_voice_statistics_db(guild_id, user_id, 7)
+            monthly_stats = self.get_voice_statistics_db(guild_id, user_id, 30)
+            total_stats = self.get_voice_statistics_db(guild_id, user_id)
             
             if not total_stats:
                 embed = discord.Embed(
@@ -350,7 +353,8 @@ class VoiceTracker(commands.Cog):
         await interaction.response.defer()
         try:
             period_days = int(기간.value)
-            top_users = self.get_top_voice_users_db(10)
+            guild_id = str(interaction.guild.id)
+            top_users = self.get_top_voice_users_db(guild_id, 10)
             
             embed = discord.Embed(
                 title="📊 기간별 통화 통계",
@@ -490,19 +494,20 @@ class VoiceTracker(commands.Cog):
         return " ".join(parts) if parts else "1분 미만"
 
     # ✅ 음성 기록 초기화 기능
-    def reset_voice_data_db(self, user_id: str = None) -> bool:
+    def reset_voice_data_db(self, guild_id: str, user_id: str = None) -> bool:
         """
         데이터베이스의 음성 기록을 초기화합니다.
         user_id가 None이면 모든 기록 초기화.
         """
+        db = get_guild_db_manager(guild_id)
         try:
             if user_id:
                 query = "DELETE FROM voice_time WHERE user_id = ?"
-                self.db.execute_query(query, (user_id,))
+                db.execute_query(query, (user_id,))
                 logger.info(f"✅ 사용자 {user_id}의 음성 기록 초기화 완료.")
             else:
                 query = "DELETE FROM voice_time"
-                self.db.execute_query(query)
+                db.execute_query(query)
                 logger.info("✅ 모든 음성 기록 초기화 완료.")
             return True
         except Exception as e:
@@ -510,72 +515,78 @@ class VoiceTracker(commands.Cog):
             return False
 
     # 데이터베이스 관련 메서드들 추가
-    async def get_user_total_voice_time(self, user_id: str) -> int:
+    async def get_user_total_voice_time(self, guild_id: str, user_id: str) -> int:
         """사용자의 총 음성 시간을 반환합니다."""
+        db = get_guild_db_manager(guild_id)
         try:
-            query = "SELECT SUM(duration) FROM voice_time WHERE user_id = ?"
-            result = self.db.fetch_one(query, (user_id,))
-            return result[0] if result and result[0] else 0
+            query = "SELECT total_time FROM voice_time WHERE user_id = ?"
+            result = db.execute_query(query, (user_id,), 'one')
+            return result['total_time'] if result and result['total_time'] else 0
         except Exception as e:
             logger.error(f"음성 시간 조회 실패: {e}")
             return 0
 
-    def get_voice_statistics_db(self, user_id: str, days: int = None) -> dict:
+    def get_voice_statistics_db(self, guild_id: str, user_id: str, days: int = None) -> dict:
         """사용자의 음성 통계를 반환합니다."""
+        db = get_guild_db_manager(guild_id)
         try:
             if days:
                 query = """
                 SELECT 
-                    SUM(duration) as period_time,
+                    SUM(duration_minutes) as period_time,
                     COUNT(*) as session_count
-                FROM voice_time 
-                WHERE user_id = ? AND timestamp >= datetime('now', '-{} days')
+                FROM voice_time_log 
+                WHERE user_id = ? AND join_time >= datetime('now', '-{} days')
                 """.format(days)
-                result = self.db.fetch_one(query, (user_id,))
-                if result and result[0]:
+                result = db.execute_query(query, (user_id,), 'one')
+                if result and result['period_time']:
                     return {
-                        'period_time': result[0],
-                        'session_count': result[1]
+                        'period_time': result['period_time'] * 60, # 분을 초로 변환
+                        'session_count': result['session_count']
                     }
             else:
                 query = """
                 SELECT 
-                    SUM(duration) as total_time,
-                    COUNT(*) as session_count,
-                    AVG(duration) as average_session
+                    total_time as total_time,
+                    (SELECT COUNT(*) FROM voice_time_log WHERE user_id = ?) as session_count,
+                    (SELECT AVG(duration_minutes) FROM voice_time_log WHERE user_id = ?) as average_session
                 FROM voice_time 
                 WHERE user_id = ?
                 """
-                result = self.db.fetch_one(query, (user_id,))
-                if result and result[0]:
+                result = db.execute_query(query, (user_id, user_id, user_id), 'one')
+                if result and result['total_time']:
                     return {
-                        'total_time': result[0],
-                        'session_count': result[1],
-                        'average_session': result[2] or 0
+                        'total_time': result['total_time'] * 60, # 분을 초로 변환
+                        'session_count': result['session_count'],
+                        'average_session': (result['average_session'] or 0) * 60 # 분을 초로 변환
                     }
             return None
         except Exception as e:
             logger.error(f"음성 통계 조회 실패: {e}")
             return None
 
-    def get_top_voice_users_db(self, limit: int = 10) -> List[dict]:
+    def get_top_voice_users_db(self, guild_id: str, limit: int = 10) -> List[dict]:
         """상위 음성 사용자 목록을 반환합니다."""
+        db = get_guild_db_manager(guild_id)
         try:
             query = """
             SELECT 
                 user_id,
-                SUM(duration) as total_time
+                total_time
             FROM voice_time 
-            GROUP BY user_id 
             ORDER BY total_time DESC 
             LIMIT ?
             """
-            results = self.db.fetch_all(query, (limit,))
+            results = db.execute_query(query, (limit,), 'all')
             
             top_users = []
+            if not results:
+                return top_users
+
             for result in results:
-                user_id, total_time = result
-                # 사용자 이름 가져오기
+                user_id = result['user_id']
+                total_time = result['total_time'] * 60 # 분을 초로 변환
+                
                 user = self.bot.get_user(int(user_id))
                 username = user.display_name if user else f"Unknown User ({user_id})"
                 
