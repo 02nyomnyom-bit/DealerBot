@@ -184,7 +184,7 @@ class XPLeaderboardCog(commands.Cog):
         guild_id = str(interaction.guild.id)
         
         # 🔒 등록 확인
-        if not is_user_registered(user_id):
+        if not is_user_registered(user_id, guild_id):
             embed = discord.Embed(
                 title="❌ 등록되지 않은 사용자",
                 description="아직 봇에 등록되지 않았습니다. 활동을 시작하면 자동으로 등록됩니다!",
@@ -1614,7 +1614,7 @@ async def setup(bot: commands.Bot):
         guild_id = str(message.guild.id)
         
         # 🔒 등록 확인 - 등록되지 않은 사용자는 XP를 받지 않음
-        if not is_user_registered(user_id):
+        if not is_user_registered(user_id, guild_id):
             return
         
         # 쿨다운 확인
