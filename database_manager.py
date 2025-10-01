@@ -769,41 +769,66 @@ class DatabaseManager:
     
     # ==================== 설정 관리 ====================
     def get_leaderboard_settings(self) -> Dict:
-        """리더보드 설정 조회"""
+        """리더보드 설정 조회. 설정이 없으면 기본값으로 생성하고 반환합니다."""
         if not self.guild_id:
             logger.error("❌ get_leaderboard_settings: guild_id가 설정되지 않았습니다.")
-            return DEFAULT_LEADERBOARD_SETTINGS # 길드 ID가 없으면 기본 설정 반환
+            return DEFAULT_LEADERBOARD_SETTINGS.copy()
         
         result = self.execute_query('SELECT * FROM leaderboard_settings WHERE guild_id = ?', (self.guild_id,), 'one')
         
         if result:
-            return dict(result)
+            # DB에 저장된 설정이 있으면 기본값과 병합하여 반환 (새로운 설정 항목 누락 방지)
+            settings = DEFAULT_LEADERBOARD_SETTINGS.copy()
+            settings.update(dict(result))
+            return settings
         else:
-            # 설정이 없으면 기본값으로 삽입 후 반환
-            self.update_leaderboard_settings(DEFAULT_LEADERBOARD_SETTINGS)
-            return DEFAULT_LEADERBOARD_SETTINGS
+            # 설정이 없으면 기본값으로 DB에 삽입 후 반환
+            logger.info(f"길드 {self.guild_id}에 대한 리더보드 설정이 없어 기본값으로 생성합니다.")
+            
+            settings_to_write = DEFAULT_LEADERBOARD_SETTINGS.copy()
+            settings_to_write['guild_id'] = self.guild_id
+            
+            columns = list(settings_to_write.keys())
+            placeholders = ', '.join(['?'] * len(columns))
+            params = list(settings_to_write.values())
+            
+            # INSERT OR REPLACE를 사용하여 레코드 생성
+            query = f'''
+                INSERT OR REPLACE INTO leaderboard_settings ({', '.join(columns)}, updated_at)
+                VALUES ({placeholders}, CURRENT_TIMESTAMP)
+            '''
+            self.execute_query(query, tuple(params))
+            return DEFAULT_LEADERBOARD_SETTINGS.copy()
     
-    def update_leaderboard_settings(self, settings: Dict):
-        """리더보드 설정 업데이트"""
+    def update_leaderboard_settings(self, settings_update: Dict):
+        """리더보드 설정 업데이트. 부분 업데이트를 지원합니다."""
         if not self.guild_id:
             logger.error("❌ update_leaderboard_settings: guild_id가 설정되지 않았습니다.")
             return None
         
-        # guild_id를 settings 딕셔너리에 추가
-        settings_with_guild_id = settings.copy()
-        settings_with_guild_id['guild_id'] = self.guild_id
+        # 1. 현재 설정을 불러옵니다 (get_leaderboard_settings가 없으면 생성까지 완료해줌).
+        current_settings = self.get_leaderboard_settings()
+        
+        # 2. 새로운 설정으로 업데이트합니다.
+        current_settings.update(settings_update)
+        
+        # 3. guild_id를 포함하여 전체 설정을 DB에 씁니다.
+        settings_to_write = current_settings.copy()
+        settings_to_write['guild_id'] = self.guild_id
 
-        columns = list(settings_with_guild_id.keys())
+        # DB에서 관리하는 타임스탬프 필드는 제거
+        settings_to_write.pop('created_at', None)
+        settings_to_write.pop('updated_at', None)
+
+        columns = list(settings_to_write.keys())
         placeholders = ', '.join(['?'] * len(columns))
-        set_clauses = [f"{col} = ?" for col in columns]
-        params = list(settings_with_guild_id.values())
+        params = list(settings_to_write.values())
         
         # INSERT OR REPLACE를 사용하여 기존 레코드가 있으면 업데이트, 없으면 삽입
         query = f'''
             INSERT OR REPLACE INTO leaderboard_settings ({', '.join(columns)}, updated_at)
             VALUES ({placeholders}, CURRENT_TIMESTAMP)
         '''
-        # params에 updated_at이 없으므로 추가
         self.execute_query(query, tuple(params))
         logger.info(f"✅ 길드 {self.guild_id}의 리더보드 설정 업데이트 완료.")
 
