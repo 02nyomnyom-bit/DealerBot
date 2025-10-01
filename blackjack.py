@@ -182,7 +182,7 @@ class BlackjackGame:
     def determine_winner(self):
         """승부 판정"""
         player_value = self.calculate_hand_value(self.player_cards)
-        dealer_value = self.calculate_hand_value(self.dealer_cards)
+        dealer_value = self.game.calculate_hand_value(self.game.dealer_cards)
         
         player_bj = self.is_blackjack(self.player_cards)
         dealer_bj = self.is_blackjack(self.dealer_cards)
@@ -353,10 +353,12 @@ class BlackjackView(View):
         
         # 포인트 지급
         if POINT_MANAGER_AVAILABLE:
-            point_manager.add_point(uid, reward)
+            # interaction이 None일 수 있으므로, guild_id를 안전하게 가져오기
+            guild_id = interaction.guild_id if interaction else None
+            await point_manager.add_point(self.bot, guild_id, uid, reward)
         
         # 최종 잔액 조회
-        final_balance = point_manager.get_point(uid) if POINT_MANAGER_AVAILABLE else 10000
+        final_balance = await point_manager.get_point(self.bot, guild_id, uid) if POINT_MANAGER_AVAILABLE else 10000
         
         # 최종 결과 임베드
         embed = self.create_game_embed(final=True)
@@ -433,7 +435,10 @@ class BlackjackView(View):
                 # 통계 기록 및 포인트 지급
                 record_blackjack_game(uid, self.user.display_name, self.bet, reward, is_win)
                 if POINT_MANAGER_AVAILABLE:
-                    point_manager.add_point(uid, reward)
+                    # interaction이 None일 수 있으므로, guild_id를 안전하게 가져오기
+                    # on_timeout에서는 interaction 객체가 없으므로, self.message.guild.id를 사용
+                    guild_id = self.message.guild.id if self.message and self.message.guild else None
+                    await point_manager.add_point(self.bot, guild_id, uid, reward)
             
             # 모든 버튼 비활성화
             for item in self.children:
@@ -464,14 +469,14 @@ class BlackjackCog(commands.Cog):
             uid = str(interaction.user.id)
 
             # 등록 확인
-            if not point_manager.is_registered(uid):
+            if not await point_manager.is_registered(self.bot, interaction.guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
 
             # 배팅 금액 검증
             if 배팅 < 1 or 배팅 > 2000:
                 return await interaction.response.send_message("❗ 배팅은 1~2,000원 사이여야 합니다.", ephemeral=True)
 
-            current_balance = point_manager.get_point(uid)
+            current_balance = await point_manager.get_point(self.bot, interaction.guild_id, uid)
             if current_balance < 배팅:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {배팅:,}원", 
@@ -480,7 +485,7 @@ class BlackjackCog(commands.Cog):
 
             # 배팅 금액 차감
             if POINT_MANAGER_AVAILABLE:
-                point_manager.add_point(uid, -배팅)
+                await point_manager.add_point(self.bot, interaction.guild_id, uid, -배팅)
 
             # 게임 시작
             embed = discord.Embed(
@@ -524,13 +529,13 @@ class BlackjackCog(commands.Cog):
                 reward = int(배팅 * 2.5)
                 record_blackjack_game(uid, interaction.user.display_name, 배팅, reward, True)
                 if POINT_MANAGER_AVAILABLE:
-                    point_manager.add_point(uid, reward)
+                    await point_manager.add_point(self.bot, interaction.guild_id, uid, reward)
                 
                 # 최종 결과 표시
                 final_embed = view.create_game_embed(final=True)
                 final_embed.add_field(name="🏆 결과", value="🎉 블랙잭! 축하합니다!", inline=True)
                 final_embed.add_field(name="💰 획득", value=f"+{reward:,}원 (2.5배!)", inline=True)
-                final_balance = point_manager.get_point(uid) if POINT_MANAGER_AVAILABLE else 10000
+                final_balance = await point_manager.get_point(self.bot, interaction.guild_id, uid) if POINT_MANAGER_AVAILABLE else 10000
                 final_embed.add_field(name="💳 현재 잔액", value=f"{final_balance:,}원", inline=True)
                 
                 # 버튼 비활성화
