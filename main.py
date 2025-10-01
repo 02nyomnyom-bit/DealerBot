@@ -543,34 +543,44 @@ class EnhancedBot(commands.Bot):
         # 💡 개선: 확장 모듈 로딩을 setup_hook에서 한 번만 수행
         await self.load_extensions()
 
-        # 특정 길드에만 슬래시 명령어 동기화
-        for guild_id in Config.MAIN_GUILD_IDS:
-            guild = self.get_guild(guild_id)
-            if guild:
-                self.tree.copy_global_to(guild=guild)
-                await self.tree.sync(guild=guild)
-        
-        # 백업 시스템 초기화
-        # BackupSystem is now managed by BackupCog, loaded as an extension.
-        # The BackupCog's setup function will handle its initialization and auto-start.
+        # 특정 길드에만 슬래시 명령어 동기화 (빠른 반영을 위해)
+        if Config.MAIN_GUILD_IDS:
+            self.logger.info(f"🔧 설정된 {len(Config.MAIN_GUILD_IDS)}개의 서버에 명령어 동기화를 시도합니다...")
+            for guild_id in Config.MAIN_GUILD_IDS:
+                try:
+                    guild = discord.Object(id=guild_id)
+                    self.tree.copy_global_to(guild=guild)
+                    await self.tree.sync(guild=guild)
+                    self.logger.info(f"  ✅ 서버 ID {guild_id}에 명령어 동기화 완료.")
+                except Exception as e:
+                    self.logger.error(f"  ❌ 서버 ID {guild_id}에 명령어 동기화 실패: {e}")
+
+        # 백업 시스템 초기화는 BackupCog에서 처리
         pass
             
     async def on_ready(self):
         """봇 준비 완료 시 실행"""
-        # ... (기존 on_ready 함수 내용)
-        
-        # 💡 개선: on_ready에서는 동기화만 진행
-        try:
-            # 슬래시 명령어 동기화
-            synced = await self.tree.sync()
-            self.logger.info(f"🔄 슬래시 명령어 동기화 완료: {len(synced)}개")
-            print(f"🔄 슬래시 명령어: {len(synced)}개 동기화")
-        except Exception as e:
-            self.logger.error(f"❌ 슬래시 명령어 동기화 실패: {e}")
-        
+        self.logger.info(f"✅ {self.user} (으)로 로그인 성공!")
+        self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
+
+        # setup_hook에서 특정 길드 동기화를 하지 않은 경우, 여기서 모든 길드에 동기화
+        if not Config.MAIN_GUILD_IDS:
+            self.logger.info("🤔 특정 길드 설정이 없어, 연결된 모든 서버에 명령어를 동기화합니다...")
+            synced_count = 0
+            for guild in self.guilds:
+                try:
+                    self.tree.copy_global_to(guild=guild)
+                    await self.tree.sync(guild=guild)
+                    synced_count += 1
+                except Exception as e:
+                    self.logger.error(f"❌ '{guild.name}' 서버에 명령어 동기화 실패: {e}")
+            self.logger.info(f"🔄 {synced_count}개의 서버에 명령어 동기화 완료.")
+        else:
+            self.logger.info("✅ 특정 길드에 대한 명령어 동기화는 setup_hook에서 처리되었습니다.")
+
         print("=" * 50)
         print("🎉 딜러양 v6 완전히 준비 완료!")
-        print("✨ 새로운 기능: 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템")
+        print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
     
     async def close(self):
