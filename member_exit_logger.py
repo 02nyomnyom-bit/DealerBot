@@ -6,12 +6,12 @@ from discord import app_commands, Member
 import datetime
 import json  # ✅ json 모듈 추가
 from typing import Optional, Dict, Any, List
-from database_manager import db_manager
+from database_manager import DatabaseManager
 
-class MemberExitLogger(commands.Cog):
+class MemberExitLogger(commands.Cog): 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = db_manager
+        self.db = DatabaseManager()
         # 테이블 생성 확인
         self.db.create_table(
             "exit_logs",

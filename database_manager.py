@@ -843,8 +843,8 @@ def is_registered(guild_id: str, user_id: str) -> bool:
     db = get_guild_db_manager(guild_id)
     return db.get_user(user_id) is not None
 
-# 싱글톤 인스턴스 생성은 이제 길드별로 이루어져야 하므로 제거하거나 수정해야 합니다.
-# db_manager = DatabaseManager() # 이 라인은 이제 문제가 될 수 있습니다.
+# 전역 db_manager 인스턴스 생성 (선택 사항, 필요에 따라 사용)
+db_manager = DatabaseManager()
 
 if __name__ == "__main__":
     # 테스트를 위해 임시 길드 ID 사용

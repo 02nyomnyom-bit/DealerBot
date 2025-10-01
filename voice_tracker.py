@@ -10,7 +10,7 @@ from discord import app_commands, Member
 from discord.ext import commands, tasks
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
-from database_manager import db_manager
+from database_manager import DatabaseManager
 from xp_leaderboard import check_and_send_levelup_notification
 from xp_leaderboard import load_xp_settings
 
@@ -53,7 +53,7 @@ class VoiceResetConfirmView(discord.ui.View):
 class VoiceTracker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db = db_manager
+        self.db = DatabaseManager()
         self.xp_cog = XPLeaderboardCog(bot) # XPLeaderboardCog 인스턴스 생성
         self.active_sessions: Dict[str, Dict] = {}
 
