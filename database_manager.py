@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import os
 import logging
+import threading
 from typing import Dict, List, Optional, Literal, Union
 import math
 from datetime import datetime, date, timedelta
@@ -55,33 +56,40 @@ def setup_logging():
 logger = setup_logging()
 
 class DatabaseManager:
-    def __init__(self, guild_id: Optional[str] = None):
+    def __init__(self, guild_id: str):
         self.guild_id = guild_id
         self.db_path = self._get_db_path(guild_id)
+        self.thread_local = threading.local()
+        
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._init_db()
-        self._create_tables()
-
-    def _get_db_path(self, guild_id: Optional[str]) -> str:
-        """길드 ID에 따라 데이터베이스 파일 경로를 결정합니다."""
-        if guild_id:
-            guild_db_dir = Path("data/guilds")
-            guild_db_dir.mkdir(parents=True, exist_ok=True)
-            return str(guild_db_dir / f"{guild_id}.db")
-        else:
-            # 길드 ID가 없는 경우, 기본 데이터베이스를 사용하거나 오류를 발생시킬 수 있습니다.
-            # 여기서는 기본 데이터베이스를 사용하도록 합니다.
-            return "data/dotori_bot.db"
-
-    def _init_db(self):
-        """데이터베이스 연결 및 설정 초기화"""
-        try:
-            conn = sqlite3.connect(self.db_path)
+        
+        # 데이터베이스 초기화 및 테이블 생성
+        with self.get_connection() as conn:
             conn.execute('PRAGMA foreign_keys = ON')
-            conn.close()
-            logger.info(f"✅ 데이터베이스 초기화 완료: {self.db_path}")
-        except sqlite3.Error as e:
-            logger.error(f"❌ 데이터베이스 초기화 중 오류 발생: {e}")
+        
+        self._create_tables()
+        logger.info(f"✅ 데이터베이스 매니저 초기화 완료: {self.db_path}")
+
+    def _get_db_path(self, guild_id: str) -> str:
+        """길드 ID에 따라 데이터베이스 파일 경로를 결정합니다."""
+        guild_db_dir = Path("data/guilds")
+        guild_db_dir.mkdir(parents=True, exist_ok=True)
+        return str(guild_db_dir / f"{guild_id}.db")
+
+    def get_connection(self) -> sqlite3.Connection:
+        """
+        ✅ 스레드 안전성을 위한 스레드-로컬 데이터베이스 연결을 가져옵니다.
+        연결이 없으면 새로 생성하고, 있으면 기존 연결을 반환합니다.
+        """
+        if not hasattr(self.thread_local, 'conn') or self.thread_local.conn is None:
+            try:
+                self.thread_local.conn = sqlite3.connect(self.db_path)
+                self.thread_local.conn.row_factory = sqlite3.Row
+                logger.debug(f"새로운 DB 연결 생성: {self.db_path} (스레드: {threading.get_ident()})")
+            except sqlite3.Error as e:
+                logger.error(f"❌ DB 연결 실패: {e}", exc_info=True)
+                raise  # 연결 실패 시 예외를 다시 발생시켜 호출자에게 알림
+        return self.thread_local.conn
     
     def create_table(self, table_name: str, schema: str):
         """
@@ -155,6 +163,7 @@ class DatabaseManager:
             """
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
             xp INTEGER DEFAULT 0,
             level INTEGER DEFAULT 1,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -448,11 +457,12 @@ class DatabaseManager:
         if not self.guild_id:
             logger.error("❌ add_user_xp: guild_id가 설정되지 않았습니다.")
             return None
+    
+        # 쿼리에서 user_id, guild_id를 모두 사용하도록 수정
         return self.execute_query(
-            "INSERT INTO user_xp (user_id, xp) VALUES (?, ?) "
-            "ON CONFLICT(user_id) DO UPDATE SET xp = xp + ?, updated_at = CURRENT_TIMESTAMP "
-            "WHERE user_id = ?",
-            (user_id, xp_gain, xp_gain, user_id), 'none'
+            "INSERT INTO user_xp (user_id, guild_id, xp, level) VALUES (?, ?, ?, 1) "
+           "ON CONFLICT(user_id, guild_id) DO UPDATE SET xp = xp + ?, updated_at = CURRENT_TIMESTAMP",
+            (user_id, self.guild_id, xp_gain, xp_gain), 'none'
         )
 
     def calculate_level_from_xp(self, xp: int) -> int:
@@ -842,9 +852,6 @@ def get_point(guild_id: str, user_id: str) -> Optional[int]:
 def is_registered(guild_id: str, user_id: str) -> bool:
     db = get_guild_db_manager(guild_id)
     return db.get_user(user_id) is not None
-
-# 전역 db_manager 인스턴스 생성 (선택 사항, 필요에 따라 사용)
-db_manager = DatabaseManager()
 
 if __name__ == "__main__":
     # 테스트를 위해 임시 길드 ID 사용
