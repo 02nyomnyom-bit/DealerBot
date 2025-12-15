@@ -188,7 +188,7 @@ class VoiceTracker(commands.Cog):
                             # 1. 레벨업 알림 전송 
                             await check_and_send_levelup_notification(self.bot, member, guild, old_level, new_level)
                             
-                            # 2. 역할 지급 로직 (이 부분이 핵심!)
+                            # 2. 역할 지급 로직 
                             if ROLE_REWARD_AVAILABLE:
                                 try:
                                     await role_reward_manager.check_and_assign_level_role(member, new_level, old_level)
@@ -196,10 +196,28 @@ class VoiceTracker(commands.Cog):
                                 except Exception as e:
                                     logger.error(f"❌ 역할 지급 중 오류 발생: {e}", exc_info=True)
 
+                        # ==========================================================
+                        # 🎯 누락된 통화 시간 DB 기록 로직 추가
+                        # ==========================================================
+                        try:
+                            db = get_guild_db_manager(guild_id)
+                            # add_voice_activity는 voice_time_log에 상세 기록을 남기고, 
+                            # voice_time의 total_time을 업데이트합니다.
+                            # 루프가 1분마다 실행되므로 duration은 1분입니다.
+                            db.add_voice_activity(user_id, duration=1) 
+                            logger.info(f"✅ {member.name}의 통화 시간 1분 기록 완료! (voice_time, voice_time_log 업데이트)")
+                        except Exception as db_e:
+                            logger.error(f"❌ 통화 시간 DB 기록 실패: {db_e}", exc_info=True)
+                        # ==========================================================
+                        
                         session["last_active_time"] = now
                         
                     else:
                         logger.warning(f"❌ XP 지급 실패: user_id={user_id}, guild_id={guild_id}")
+            
+            except Exception as e:
+                logger.error(f"❌ 음성 XP 지급 처리 중 오류 발생: {e}", exc_info=True)
+                continue
             
             except Exception as e:
                 logger.error(f"❌ 음성 XP 지급 처리 중 오류 발생: {e}", exc_info=True)

@@ -96,7 +96,7 @@ def get_level_tier_info(level: int) -> Dict:
         }
     elif level <= 10:
         # 기본 등급
-        tier_names = ["초급", "중급", "고급", "특급", "명품", "최고급", "프리미엄", "디럭스", "에이스", "신급"]
+        tier_names = ["9등급", "8등급", "7등급", "6등급", "5등급", "4등급", "3등급", "디럭스", "2등급", "1등급"]
         return {
             "name": f"{tier_names[level-1]} {level}",
             "color": 0x00FF00,
@@ -104,68 +104,68 @@ def get_level_tier_info(level: int) -> Dict:
             "tier": "기본"
         }
     elif level <= 50:
+        # 아이언 등급
+        return {
+            "name": f"아이언 {level}",
+            "color": 0x0080FF,
+            "emoji": "🔵",
+            "tier": "아이언"
+        }
+    elif level <= 100:
+        # 브론즈 등급
+        return {
+            "name": f"브론즈 {level}",
+            "color": 0x8000FF,
+            "emoji": "🟣",
+            "tier": "브론즈"
+        }
+    elif level <= 200:
+        # 실버 등급
+        return {
+            "name": f"실버 {level}",
+            "color": 0xFF8000,
+            "emoji": "🟠",
+            "tier": "실버"
+        }
+    elif level <= 300:
+        # 골드 등급
+        return {
+            "name": f"골드 {level}",
+            "color": 0xFF0080,
+            "emoji": "🔴",
+            "tier": "골드"
+        }
+    elif level <= 400:
+        # 플래티넘 등급
+        return {
+            "name": f"플래티넘 {level}",
+            "color": 0x80FF00,
+            "emoji": "🟡",
+            "tier": "플래티넘"
+        }
+    elif level <= 450:
         # 마스터 등급
         return {
             "name": f"마스터 {level}",
-            "color": 0x0080FF,
-            "emoji": "🔵",
-            "tier": "마스터"
-        }
-    elif level <= 100:
-        # 헤로익 등급
-        return {
-            "name": f"헤로익 {level}",
-            "color": 0x8000FF,
-            "emoji": "🟣",
-            "tier": "헤로익"
-        }
-    elif level <= 200:
-        # 에픽 등급
-        return {
-            "name": f"에픽 {level}",
-            "color": 0xFF8000,
-            "emoji": "🟠",
-            "tier": "에픽"
-        }
-    elif level <= 300:
-        # 레어 등급
-        return {
-            "name": f"레어 {level}",
-            "color": 0xFF0080,
-            "emoji": "🔴",
-            "tier": "레어"
-        }
-    elif level <= 400:
-        # 유니크 등급
-        return {
-            "name": f"유니크 {level}",
-            "color": 0x80FF00,
-            "emoji": "🟡",
-            "tier": "유니크"
-        }
-    elif level <= 450:
-        # 미식 등급
-        return {
-            "name": f"미식 {level}",
             "color": 0xFF69B4,
             "emoji": "🍯",
-            "tier": "미식"
+            "tier": "마스터"
         }
     elif level <= 499:
-        # 초월 등급
+        # 그랜드마스터 등급
         return {
-            "name": f"초월 {level}",
+            "name": f"그랜드마스터 {level}",
             "color": 0x8A2BE2,
             "emoji": "🌌",
-            "tier": "초월"
+            "tier": "그랜드마스터"
         }
     else:
-        # 절대신 등급 (500레벨)
+        # 챌린저 등급 (500레벨)
         return {
-            "name": "절대신 500",
+            "name": "챌린저 500",
             "color": 0xFFFFFF,
             "emoji": "👑",
-            "tier": "절대신"
+            "tier": "챌린저"
         }
 
 # ✅ 강화 데이터 관리 클래스 (완전 독립)
@@ -281,6 +281,7 @@ class EnhancementDataManager:
                 "level": 0,
                 "total_attempts": 0,
                 "success_count": 0,
+                "downgrade_count": 0, # ✅ 추가: 강등 횟수 추적
                 "created_at": datetime.now().isoformat(),
                 "last_attempt": None,
                 "consecutive_fails": 0
@@ -294,6 +295,10 @@ class EnhancementDataManager:
             
             self.data["server_stats"]["total_users"] = len(unique_users)
         
+        # 데이터 로드 시 누락된 필드 보정 (기존 데이터 호환성 유지)
+        if "downgrade_count" not in self.data["items"][item_key]:
+            self.data["items"][item_key]["downgrade_count"] = 0
+            
         return self.data["items"][item_key]
 
     def attempt_enhancement(self, item_name: str, owner_id: str, owner_name: str) -> Tuple[bool, int, int, float, float, str, int, int]:
@@ -323,16 +328,11 @@ class EnhancementDataManager:
                 consec_fail = 0
                 item_data["consecutive_fails"] = 0
 
-            # 특별 보정 조건
+            # 특별 보정 조건 (연속 실패 5회 시 성공 보장으로 수정)
             force_result = None
             if consec_fail >= 5:
-                # 연속 5회 실패 시 성공/강등 중 하나 보장
-                total = success_rate + downgrade_rate
-                rand_val = random.uniform(0, total)
-                if rand_val <= success_rate:
-                    force_result = "success"
-                else:
-                    force_result = "downgrade"
+                # [수정] 연속 5회 실패 시 성공 보장 (강화 정보 텍스트 일치)
+                force_result = "success"
             
             # 강화 시도 결과 계산
             if force_result:
@@ -381,6 +381,7 @@ class EnhancementDataManager:
                 item_data["level"] = max(0, current_level - level_change)
                 level_change = -level_change  # 음수로 표시
                 item_data["consecutive_fails"] = int(item_data.get("consecutive_fails", 0)) + 1
+                item_data["downgrade_count"] = int(item_data.get("downgrade_count", 0)) + 1 # ✅ 추가: 강등 횟수 증가
                 
                 # ✅ 통계 기록 (실패)
                 record_enhancement_attempt(owner_id, owner_name, False)
@@ -554,8 +555,9 @@ class EnhancementSystemCog(commands.Cog):
                     color=tier_info["color"]
                 )
                 
+                # [수정] 성공 시 혼란을 주는 '절망' 필드 제거
                 embed.add_field(
-                    name="😨 절망" if level_change <= 2 else emotion,
+                    name=emotion,
                     value=f"**{아이템명}**",
                     inline=False
                 )
@@ -576,7 +578,7 @@ class EnhancementSystemCog(commands.Cog):
                 ]
                 embed.add_field(
                     name="🎉 성공!",
-                    value=f"{random.choice(success_msgs)}\n📈 렌딩으로 **{level_change}레벨** 상승",
+                    value=f"{random.choice(success_msgs)}\n📈 랜덤 수치로 **{level_change}레벨** 상승", # ✅ '렌딩'을 '랜덤 수치'로 수정
                     inline=False
                 )
                 
@@ -647,21 +649,20 @@ class EnhancementSystemCog(commands.Cog):
                     inline=False
                 )
             
-            # 아이템 통계 정보
+            # 아이템 통계 정보 (세분화)
             total_attempts = item_data.get("total_attempts", 0)
             success_count = item_data.get("success_count", 0)
-            fail_count = total_attempts - success_count
-            item_success_rate = (success_count / total_attempts * 100) if total_attempts > 0 else 0
+            downgrade_count = item_data.get("downgrade_count", 0) # ✅ 강등 횟수 가져오기
+            no_change_fail_count = total_attempts - success_count - downgrade_count # 순수 현상 유지 실패 횟수
             
-            # 다운그레이드 횟수 계산 (실패 중에서 강등된 것들)
-            downgrade_count = 0  # 단순화를 위해 0으로 설정
+            # item_success_rate = (success_count / total_attempts * 100) if total_attempts > 0 else 0
             
             embed.add_field(
                 name="📊 아이템 통계",
                 value=f"🎯 총 시도: **{total_attempts}회**\n" +
-                      f"✅ 성공: **{success_count}회**\n" +
-                      f"❌ 실패: **{fail_count}회**\n" +
-                      f"📉 강등: **{downgrade_count}회**",
+                      f"✅ 성공 (레벨 상승): **{success_count}회**\n" +
+                      f"💀 강등 (레벨 하락): **{downgrade_count}회**\n" +
+                      f"❌ 실패 (현상 유지): **{no_change_fail_count}회**", # ✅ 세분화된 통계
                 inline=True
             )
             
@@ -684,7 +685,7 @@ class EnhancementSystemCog(commands.Cog):
                     name="🛡️ 연속 실패 보호",
                     value=f"🔥 연속 **{consecutive_fails}회** 실패!\n" +
                           f"💡 **{5 - consecutive_fails}회** 더 실패하면\n" +
-                          f"🎯 다음 강화는 **성공/강등 보장**!",
+                          f"🎯 다음 강화는 **성공 보장**!",
                     inline=False
                 )
             
@@ -820,7 +821,7 @@ class EnhancementSystemCog(commands.Cog):
         
         embed.add_field(
             name="🏆 등급 시스템",
-            value="• **기본** (1-10): 초급~신급\n• **마스터** (11-50)\n• **헤로익** (51-100)\n• **에픽** (101-200)\n• **레어** (201-300)\n• **유니크** (301-400)\n• **미식** (401-450)\n• **초월** (451-499)\n• **절대신** (500): 최고 등급",
+            value="• **기본** (1-10): 9등급~1등급\n• **아이언** (11-50)\n• **브론즈** (51-100)\n• **실버** (101-200)\n• **골드** (201-300)\n• **플래티넘** (301-400)\n• **마스터** (401-450)\n• **그랜드마스터** (451-499)\n• **챌린저** (500): 최고 등급",
             inline=False
         )
         

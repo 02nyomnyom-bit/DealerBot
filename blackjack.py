@@ -461,7 +461,7 @@ class BlackjackCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="블랙잭", description="🃏 블랙잭 게임을 플레이합니다.")
-    @app_commands.describe(배팅="배팅할 현금 (기본값: 10원, 최대 2,000원)")
+    @app_commands.describe(배팅="배팅할 현금 (기본값: 10원, 최대 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 10):
         try:
             uid = str(interaction.user.id)
@@ -472,8 +472,8 @@ class BlackjackCog(commands.Cog):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
 
             # 배팅 금액 검증
-            if 배팅 < 1 or 배팅 > 2000:
-                return await interaction.response.send_message("❗ 배팅은 1~2,000원 사이여야 합니다.", ephemeral=True)
+            if 배팅 < 10 or 배팅 > 6000:
+                return await interaction.response.send_message("❗ 배팅은 10~6,000원 사이여야 합니다.", ephemeral=True)
 
             current_balance = await point_manager.get_point(self.bot, guild_id, uid)
             if current_balance < 배팅:

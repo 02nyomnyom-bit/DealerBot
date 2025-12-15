@@ -596,81 +596,95 @@ class DatabaseManager:
             return [row['attendance_date'] for row in records]
         return []
     
-    def record_attendance(self, user_id: str) -> Dict:
+    def record_attendance(self, user_id: str, kst_date: date) -> Dict: # 👈 kst_date 인자 추가
         """출석 체크 (연속 출석 일수 자동 계산)"""
         if not self.guild_id:
             logger.error("❌ record_attendance: guild_id가 설정되지 않았습니다.")
             return {'success': False, 'message': 'guild_id가 설정되지 않았습니다.', 'streak': 0}
-        today = date.today()
+        today = kst_date 
         yesterday = today - timedelta(days=1)
         
         existing = self.execute_query('''
             SELECT * FROM attendance 
             WHERE user_id = ? AND attendance_date = ?
-        ''', (user_id, today), 'one')
-        
+        ''', (user_id, today.strftime('%Y-%m-%d')), 'one') # 👈 date 객체를 DB에 맞는 문자열로 변환하여 사용
+    
         if existing:
             return {'success': False, 'message': '이미 오늘 출석했습니다', 'streak': dict(existing)['streak_count']}
-        
+    
         yesterday_record = self.execute_query('''
             SELECT streak_count FROM attendance 
             WHERE user_id = ? AND attendance_date = ?
-        ''', (user_id, yesterday), 'one')
-        
+        ''', (user_id, yesterday.strftime('%Y-%m-%d')), 'one') # 👈 yesterday도 문자열로 변환
+    
         streak_count = yesterday_record['streak_count'] + 1 if yesterday_record else 1
-        
+    
         self.execute_query('''
             INSERT INTO attendance (user_id, attendance_date, streak_count)
             VALUES (?, ?, ?)
-        ''', (user_id, today, streak_count))
-        
+        ''', (user_id, today.strftime('%Y-%m-%d'), streak_count))
+    
         return {'success': True, 'message': '출석 완료', 'streak': streak_count, 'date': today.strftime('%Y-%m-%d')}
 
-    def get_user_attendance_streak(self, user_id: str) -> int:
+    def get_user_attendance_streak(self, user_id: str, kst_date: date) -> int: # 👈 kst_date 인자 추가
         """사용자의 현재 연속 출석 일수 조회"""
         if not self.guild_id:
             logger.error("❌ get_user_attendance_streak: guild_id가 설정되지 않았습니다.")
             return 0
-        today = date.today()
+        
+        today = kst_date
+        today_str = today.strftime('%Y-%m-%d')
+        yesterday = today - timedelta(days=1)
+        yesterday_str = yesterday.strftime('%Y-%m-%d')
     
+        # 오늘 출석했는지 확인
         result = self.execute_query('''
             SELECT streak_count FROM attendance
             WHERE user_id = ? AND attendance_date = ?
-        ''', (user_id, today), 'one')
+        ''', (user_id, today_str), 'one')
     
         if result:
+            # 오늘 출석한 경우, DB에 기록된 streak_count 반환
             return result['streak_count']
     
-        yesterday = today - timedelta(days=1)
+        # 오늘 출석하지 않은 경우, 어제 기록 확인 (연속성을 계산하기 위해)
         yesterday_result = self.execute_query('''
             SELECT streak_count FROM attendance
             WHERE user_id = ? AND attendance_date = ?
-        ''', (user_id, yesterday), 'one')
+        ''', (user_id, yesterday_str), 'one')
     
+        # 어제 출석했으면 어제의 연속 기록을 반환 (오늘 출석하기 전이므로)
         return yesterday_result['streak_count'] if yesterday_result else 0
 
-    def has_attended_today(self, user_id: str) -> bool:
+    def has_attended_today(self, user_id: str, kst_date: date) -> bool: # 👈 kst_date 인자 추가
         """사용자가 오늘 이미 출석했는지 확인"""
         if not self.guild_id:
             logger.error("❌ has_attended_today: guild_id가 설정되지 않았습니다.")
             return False
-        today = date.today()
+        
+        today_str = kst_date.strftime('%Y-%m-%d')
+    
         result = self.execute_query('''
             SELECT 1 FROM attendance
             WHERE user_id = ? AND attendance_date = ?
         '''
-        , (user_id, today), 'one')
+        , (user_id, today_str), 'one')
         return result is not None
 
-    def get_attendance_leaderboard(self, limit: int = 10) -> List[Dict]:
+    def get_attendance_leaderboard(self, limit: int = 10, kst_date: Optional[date] = None) -> List[Dict]: # 👈 kst_date 인자 추가
         """연속 출석일 리더보드 조회"""
         if not self.guild_id:
             logger.error("❌ get_attendance_leaderboard: guild_id가 설정되지 않았습니다.")
             return []
-        
-        # 오늘 날짜를 기준으로 연속 출석일이 유효한 사용자만 필터링
-        today = date.today().strftime('%Y-%m-%d')
-        
+    
+        # 기본값으로 서버 로컬 시간 대신, KST 날짜를 사용하거나 받아서 사용
+        if kst_date is None:
+            logger.error("❌ get_attendance_leaderboard: KST 날짜 정보가 누락되었습니다.")
+            return []
+    
+        # KST 날짜를 기준으로 출석한 기록 필터링
+        today_str = kst_date.strftime('%Y-%m-%d')
+    
         query = f"""
             SELECT
                 u.user_id,
@@ -680,12 +694,12 @@ class DatabaseManager:
             FROM users u
             JOIN attendance a ON u.user_id = a.user_id
             WHERE u.guild_id = ?
-            AND a.attendance_date = ? -- 오늘 날짜로 출석한 기록만 고려
+            AND a.attendance_date = ? -- KST 기준 오늘 날짜로 출석한 기록만 고려
             ORDER BY current_streak DESC
             LIMIT ?
         """
-        results = self.execute_query(query, (self.guild_id, today, limit), 'all')
-        
+        results = self.execute_query(query, (self.guild_id, today_str, limit), 'all')
+    
         return [dict(row) for row in results] if results else []
         
     # ==================== 강화 시스템 ====================

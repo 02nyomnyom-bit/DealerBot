@@ -327,7 +327,7 @@ class DiceGameCog(commands.Cog):
     @app_commands.command(name="주사위", description="주사위 게임을 플레이합니다.")
     @app_commands.describe(
         모드="싱글(봇과 대결) 또는 멀티(다른 유저와 대결)",
-        배팅="배팅할 현금 (기본값: 10원, 싱글 모드 최대 1,000원)",
+        배팅="배팅할 현금 (기본값: 10원, 싱글 모드 최대 5,000원)",
         상대방="멀티 모드에서 특정 상대방 지정 (선택사항)"
     )
     async def dice_game(
@@ -343,15 +343,15 @@ class DiceGameCog(commands.Cog):
         if not await point_manager.is_registered(self.bot, gid, uid):
             return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
-        if 배팅 < 1:
-            return await interaction.response.send_message("❗ 배팅 금액은 1원 이상이어야 합니다.", ephemeral=True)
+        if 배팅 < 10:
+            return await interaction.response.send_message("❗ 배팅 금액은 10원 이상이어야 합니다.", ephemeral=True)
 
         if await point_manager.get_point(self.bot, gid, uid) < 배팅:
             return await interaction.response.send_message("❌ 잔액이 부족합니다!", ephemeral=True)
 
         if 모드 == "싱글":
-            if 배팅 > 1000:
-                return await interaction.response.send_message("❗ 싱글 모드는 최대 1,000원까지 배팅 가능합니다.", ephemeral=True)
+            if 배팅 > 5000:
+                return await interaction.response.send_message("❗ 싱글 모드는 최대 5,000원까지 배팅 가능합니다.", ephemeral=True)
 
             embed = discord.Embed(
                 title="🎲 싱글 주사위 게임",

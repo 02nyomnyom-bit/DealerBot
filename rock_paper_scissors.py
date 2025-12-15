@@ -296,7 +296,7 @@ class RockPaperScissors(commands.Cog):
     @app_commands.command(name="가위바위보", description="가위바위보 게임 시작")
     @app_commands.describe(
         모드="싱글 또는 멀티 선택",
-        배팅="배팅할 현금 (1~1,000원), 미입력시 10원이 나갑니다.",
+        배팅="배팅할 현금 (10~5,000원), 미입력시 10원이 나갑니다.",
         상대방="(선택 사항) 상대 플레이어를 지정하세요."
     )
     async def rps_command(self, interaction: discord.Interaction, 모드: Literal["싱글", "멀티"], 배팅: int = 10, 상대방: Optional[discord.User] = None):

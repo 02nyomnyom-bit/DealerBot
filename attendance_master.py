@@ -61,11 +61,16 @@ class AttendanceMasterCog(commands.Cog):
         try:
             db = get_guild_db_manager(guild_id)
             
+            # 👈 추가: KST 날짜 객체를 준비합니다.
+            today_kst_date = self.get_korean_date_object()
+
             # 데이터베이스에서 현재 연속 출석일 가져오기
-            current_streak = db.get_user_attendance_streak(user_id)
+            # 👇 수정: kst_date 인자 전달
+            current_streak = db.get_user_attendance_streak(user_id, today_kst_date) 
             
             # 오늘 출석했는지 확인
-            today_attended = db.has_attended_today(user_id)
+            # 👇 수정: kst_date 인자 전달
+            today_attended = db.has_attended_today(user_id, today_kst_date)
             
             return current_streak, not today_attended
         
@@ -125,12 +130,22 @@ class AttendanceMasterCog(commands.Cog):
             # 4. 출석 기록 저장
             today_str = self.get_korean_date_string()
             
-            # database_manager의 출석 기록 함수 호출 (간단한 기록만)
-            # The correct method is db.record_attendance(user_id)
-            db.record_attendance(user_id)
+            # 👈 추가: KST 날짜 객체를 준비합니다.
+            today_date = self.get_korean_date_object()
             
+            # database_manager의 출석 기록 함수 호출
+            # 👇 수정: today_date 인자 전달
+            record_result = db.record_attendance(user_id, today_date)
+
             # 5. 새로운 연속 출석일 계산 (오늘 포함)
-            new_streak = current_streak + 1
+            # db.record_attendance 결과에서 새로운 연속 출석일을 가져오는 것이 더 정확합니다.
+            # new_streak = current_streak + 1 # 이 로직 대신 아래처럼 수정합니다.
+            if not record_result['success']:
+                # 이미 출석한 경우, record_attendance 함수는 여기서 이미 처리되었어야 합니다.
+                # 그러나 혹시 모를 에러 방지를 위해 record_attendance 함수의 리턴 값을 사용합니다.
+                new_streak = record_result.get('streak', current_streak)
+            else:
+                new_streak = record_result['streak']
             
             # 6. 보상 계산 및 지급 (연동된 설정 사용)
             base_cash_reward = effective_settings['attendance_cash']
@@ -304,8 +319,12 @@ class AttendanceMasterCog(commands.Cog):
         db = get_guild_db_manager(guild_id)
         
         try:
+            # 👈 추가: KST 날짜 객체를 준비합니다.
+            kst_date = self.get_korean_date_object()
+
             # 서버의 모든 사용자 출석 현황 조회
-            leaderboard = db.get_attendance_leaderboard(10)
+            # 👇 수정: kst_date 인자 전달
+            leaderboard = db.get_attendance_leaderboard(10, kst_date)
             
             if not leaderboard:
                 embed = discord.Embed(

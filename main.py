@@ -203,7 +203,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'dice_game',                 # 주사위 게임
         'yabawi_game',               # 야바위 게임
         "rock_paper_scissors",       # 가위바위보
-        'odd_even_game',             # 홀짝
+        'odd_even_game',             # 홀짝 
         'ladder_game',               # 사다리타기
     ]
     

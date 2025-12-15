@@ -476,7 +476,7 @@ class OddEvenGameCog(commands.Cog):
     @app_commands.command(name="홀짝", description="홀짝 게임을 플레이합니다.")
     @app_commands.describe(
         모드="싱글(봇과 대결) 또는 멀티(다른 유저와 대결)",
-        배팅="배팅할 현금 (기본값: 10원, 최대 1,000원)",
+        배팅="배팅할 현금 (기본값: 10원, 최대 5,000원)",
         상대방="멀티 모드에서 특정 상대방 지정 (선택사항)"
     )
     async def odd_even_game(
@@ -494,8 +494,8 @@ class OddEvenGameCog(commands.Cog):
             if not await point_manager.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록`을 해주세요.", ephemeral=True)
 
-            if 배팅 < 1 or 배팅 > 1000:
-                return await interaction.response.send_message("❗ 배팅은 1~1,000원 사이여야 합니다.", ephemeral=True)
+            if 배팅 < 10 or 배팅 > 5000:
+                return await interaction.response.send_message("❗ 배팅은 10~5,000원 사이여야 합니다.", ephemeral=True)
 
             current_balance = await point_manager.get_point(self.bot, guild_id, uid)
             if current_balance < 배팅:
