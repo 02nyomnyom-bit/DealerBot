@@ -200,8 +200,19 @@ class MultiPlayP1View(View):
             return await interaction.response.send_message("❗ 본인만 선택할 수 있어요.", ephemeral=True)
 
         self.choice = choice
-        await interaction.response.send_message("✅ 선택 완료! 상대방을 기다립니다.", ephemeral=True)
-        self.stop()
+
+        # **여기서 원본 메시지를 수정하여 P1의 선택을 숨깁니다.**
+        # 모든 버튼을 비활성화하고 P1의 선택이 완료되었음을 알립니다.
+        for child in self.children:
+            child.disabled = True
+
+        await interaction.response.edit_message(
+            content=f"✅ {self.user.mention}님의 선택이 완료되었습니다. 상대방을 기다립니다.",
+            view=self # 버튼이 비활성화된 상태로 남음
+        )
+
+        # self.stop() 대신 return하여 wait()가 종료되도록 함. (interaction.response.edit_message가 먼저 와야 함)
+        self.stop() # wait() 종료
 
 class MultiPlayP2View(View):
     def __init__(self, bot, p1_user, p1_choice, bet, p2_target=None):

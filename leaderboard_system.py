@@ -276,7 +276,7 @@ class IntegratedLeaderboardCog(commands.Cog):
 
     # ===== 관리자 명령어들 =====
 
-    @app_commands.command(name="리더보드관리", description="리더보드 시스템 통합 관리 (관리자 전용)")
+    @app_commands.command(name="리더보드관리", description="리더보드 시스템 통합 관리 (환전/통계) (관리자 전용)")
     async def leaderboard_management(self, interaction: discord.Interaction):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
@@ -292,65 +292,12 @@ class IntegratedLeaderboardCog(commands.Cog):
         settings = db.get_leaderboard_settings()
         
         embed = discord.Embed(
-            title="🎛️ 리더보드 시스템 통합 관리",
-            description="리더보드, 출석, 환전 시스템을 통합 관리합니다.",
+            title="🎛️ 리더보드 시스템 통합 관리 (환전/통계)",
+            description="환전 설정 및 주요 시스템 통계를 확인합니다. 출석 보상 설정은 `/리더보드설정` 명령어를 이용해주세요.",
             color=discord.Color.blue()
         )
         
-        # 현재 설정 표시
-        embed.add_field(
-            name="💰 출석 현금 보상",
-            value=f"{format_money(settings.get('attendance_cash', DEFAULT_SETTINGS['attendance_cash']))}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="✨ 출석 XP 보상",
-            value=f"{format_xp(settings.get('attendance_xp', DEFAULT_SETTINGS['attendance_xp']))}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🔥 연속 현금 보너스/일",
-            value=f"{format_money(settings.get('streak_cash_per_day', DEFAULT_SETTINGS['streak_cash_per_day']))}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="✨ 연속 XP 보너스/일",
-            value=f"{format_xp(settings.get('streak_xp_per_day', DEFAULT_SETTINGS['streak_xp_per_day']))}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🗓️ 최대 연속 보너스 일수",
-            value=f"{settings.get('max_streak_bonus_days', DEFAULT_SETTINGS['max_streak_bonus_days'])}일",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🎁 7일 현금 보너스",
-            value=f"{format_money(settings.get('weekly_cash_bonus', DEFAULT_SETTINGS['weekly_cash_bonus']))}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="✨ 7일 XP 보너스",
-            value=f"{format_xp(settings.get('weekly_xp_bonus', DEFAULT_SETTINGS['weekly_xp_bonus']))}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🏆 30일 현금 보너스",
-            value=f"{format_money(settings.get('monthly_cash_bonus', DEFAULT_SETTINGS['monthly_cash_bonus']))}",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="⭐ 30일 XP 보너스",
-            value=f"{format_xp(settings.get('monthly_xp_bonus', DEFAULT_SETTINGS['monthly_xp_bonus']))}",
-            inline=True
-        )
+        # 환전 관련 설정만 남깁니다. (출석 관련 설정 모두 제거)
         
         embed.add_field(
             name="📊 환전 수수료",
@@ -368,7 +315,7 @@ class IntegratedLeaderboardCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    @app_commands.command(name="리더보드설정", description="리더보드 및 출석 설정을 확인하고 수정합니다 (관리자 전용)")
+    @app_commands.command(name="리더보드설정", description="출석 및 환전 등 리더보드 시스템의 모든 설정을 확인하고 수정합니다 (관리자 전용)")
     @app_commands.describe(
         설정="변경할 설정 항목",
         값="새로운 값"

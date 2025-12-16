@@ -115,20 +115,31 @@ class YabawiGameView(View):
             success = random.random() < success_rate
 
             # 컵 표시 함수
-            def format_cups(chosen_idx: int, reveal: bool, real_idx: int, success: bool):
+            def format_cups(chosen_idx: int, real_idx: int, is_game_win: bool, is_correct_choice: bool):
+                """
+                is_game_win: 'success' and 'is_correct_choice' 일 때 True
+                is_correct_choice: chosen_idx == real_idx
+                """
                 cups = []
                 for i in range(3):
-                    if i == chosen_idx and i == real_idx and success:
-                        cups.append("🤑")  # 성공 시 정답 선택
-                    elif i == chosen_idx:
-                        cups.append("🔵")  # 유저 선택
-                    elif i == real_idx and reveal:
-                        cups.append("💰")  # 실제 정답 위치 공개
+                    if i == chosen_idx and is_game_win:
+                        cups.append("👑") # 최종 성공/정답: 왕관 이모지 (승리 조건 충족 시)
+                    elif i == chosen_idx and is_correct_choice:
+                        cups.append("✅") # 정답 선택이지만 확률 실패: 체크 이모지 (위로금 O)
+                    elif i == chosen_idx and not is_correct_choice:
+                        cups.append("❌") # 오답 선택: 엑스 이모지
+                    elif i == real_idx:
+                        cups.append("💰") # 실제 정답 위치 공개
                     else:
-                        cups.append("⬜")  # 나머지
+                        cups.append("⬜") # 나머지
                 return f"{' '.join(cups)}"
+            
+            # 변수 준비
+            is_correct_choice = chosen_idx == self.real_position
+            is_game_win = success and is_correct_choice
 
-            cups_display = format_cups(chosen_idx, True, self.real_position, success)
+            # 이모지 표시 호출
+            cups_display = format_cups(chosen_idx, self.real_position, is_game_win, is_correct_choice)
 
             if success and chosen_idx == self.real_position:
                 self.wins += 1

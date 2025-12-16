@@ -209,11 +209,40 @@ class DatabaseManager:
             is_speaking INTEGER DEFAULT 0
             """
         )
+
         self.create_table(
             "levelup_channels",
             """
             channel_id TEXT NOT NULL,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            """
+        )
+        # 🚨 [새로 추가해야 할 부분 시작] 🚨
+        self.create_table( # ✅ 퇴장 로그 설정 테이블 추가
+            "log_settings",
+            """
+            guild_id TEXT NOT NULL PRIMARY KEY,
+            channel_id TEXT NOT NULL,
+            enabled INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            """
+        )
+        self.create_table( # ✅ 퇴장 로그 기록 테이블 추가
+            "exit_logs",
+            """
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            username TEXT,
+            display_name TEXT,
+            joined_at TEXT,
+            left_at TEXT NOT NULL,
+            server_time TEXT,
+            avatar_url TEXT,
+            is_bot INTEGER DEFAULT 0,
+            roles TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
         
