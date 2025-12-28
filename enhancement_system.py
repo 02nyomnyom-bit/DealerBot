@@ -46,7 +46,7 @@ def record_enhancement_attempt(user_id: str, username: str, is_success: bool):
 # ✅ 강화 시스템 설정
 ENHANCEMENT_CONFIG = {
     "data_file": 'data/enhancement_data.json',
-    "cooldown_time": 30,  # 강화 쿨다운 30초
+    "cooldown_time": 15,  # 강화 쿨다운 15초
     "max_level": 500,     # 최대 레벨
     "min_safe_level": 10, # 강등 방지 최소 레벨
     "level_change_range": (1, 10),  # 레벨 변동 범위
@@ -675,7 +675,7 @@ class EnhancementSystemCog(commands.Cog):
                 value=f"📈 성공률: **{next_success_rate:.1f}%**\n" +
                       f"📉 강등률: **{next_downgrade_rate:.1f}%**\n" +
                       f"💰 강화비: **무료**\n" +
-                      f"⏰ 쿨타임: **30초**",
+                      f"⏰ 쿨타임: *15초**",
                 inline=True
             )
             
