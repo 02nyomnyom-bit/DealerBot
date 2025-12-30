@@ -115,10 +115,10 @@ class MultiOddEvenView(View):
         self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
         self.choices = {}
         self.message = None
-        self.is_finished = False
+        self.game_completed = False  # 충돌 방지를 위해 이름 변경
 
     async def on_timeout(self):
-        if self.is_finished: return
+        if self.game_completed: return
         
         guild_id = self.message.guild.id
         refund_msg = "⏰ **시간 초과!** 두 분 모두 선택하지 않아 게임이 취소되었습니다.\n"
@@ -132,7 +132,7 @@ class MultiOddEvenView(View):
         await self.message.edit(embed=embed, view=None)
 
     async def finish_game(self):
-        self.is_finished = True
+        self.game_completed = True
 
     @discord.ui.button(label="홀", style=discord.ButtonStyle.danger, emoji="🔴")
     async def choose_odd(self, interaction, button): await self.make_choice(interaction, "홀")
@@ -141,6 +141,7 @@ class MultiOddEvenView(View):
 
     async def make_choice(self, interaction, choice):
         if self.p2 is None and interaction.user.id != self.p1.id:
+            # 잔액 체크 로직 추가 권장
             self.p2 = interaction.user
             if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
 
@@ -154,9 +155,10 @@ class MultiOddEvenView(View):
         await interaction.response.send_message(f"✅ {choice}를 선택하셨습니다!", ephemeral=True)
 
         if len(self.choices) == 2:
-            await self.finish_game()
+            await self.finish_game_logic() #
 
-    async def finish_game(self):
+    async def finish_game_logic(self):
+        self.game_completed = True # [수정] 플래그를 True로 설정하여 중복 실행 및 타임아웃 방지
         dice_val = random.randint(1, 6)
         actual = "홀" if dice_val % 2 != 0 else "짝"
         guild_id = self.message.guild.id
@@ -191,7 +193,7 @@ class OddEvenCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="홀짝게임", description="홀짝 게임을 시작합니다.(최대 5,000원)")
+    @app_commands.command(name="홀짝", description="홀짝 게임을 시작합니다.(최대 5,000원)")
     async def odd_even(self, interaction: discord.Interaction, 배팅: int = 100):
         if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터!", ephemeral=True)
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)

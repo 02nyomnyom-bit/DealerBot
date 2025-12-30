@@ -135,16 +135,15 @@ class MultiSetupView(View):
 
 # --- 3단계: 멀티플레이 게임 진행 View ---
 class MultiDiceView(View):
-    def __init__(self, bot, p1, bet, opponent=None):
-        super().__init__(timeout=60) # 1분 제한
-        self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, opponent
-        self.p1_val = self.p2_val = 0
-        self.p1_rolled = self.p2_rolled = False
+    def __init__(self, bot, p1, bet, p2=None):
+        super().__init__(timeout=60)
+        self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
+        self.game_completed = False # [변경] is_finished -> game_completed
         self.message = None
-        self.is_finished = False # 종료 플래그
 
     async def on_timeout(self):
-        if self.is_finished: return
+        if self.game_completed: # [변경]
+            return
         
         guild_id = self.message.guild.id
         refund_text = "⏰ **시간 초과!** 게임이 취소되었습니다.\n"
@@ -160,7 +159,7 @@ class MultiDiceView(View):
         await self.message.edit(embed=embed, view=None)
 
     async def finish_game(self):
-        self.is_finished = True # 플래그 설정
+        self.game_completed = True # [변경]
         
     @discord.ui.button(label="🎲 주사위 굴리기", style=discord.ButtonStyle.danger)
     async def roll(self, interaction: discord.Interaction, button: discord.ui.Button):

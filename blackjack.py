@@ -161,8 +161,15 @@ class MultiSetupView(View):
             if POINT_MANAGER_AVAILABLE:
                 p1_bal = await point_manager.get_point(self.bot, inter.guild_id, str(self.user.id))
                 p2_bal = await point_manager.get_point(self.bot, inter.guild_id, str(target.id))
+                
+                # --- 수정된 부분: None 값을 0으로 변환 ---
+                p1_bal = p1_bal if p1_bal is not None else 0
+                p2_bal = p2_bal if p2_bal is not None else 0
+                # --------------------------------------
+
                 if p1_bal < self.bet or p2_bal < self.bet:
                     return await inter.response.send_message("❌ 참가자 중 잔액이 부족한 사람이 있습니다.", ephemeral=True)
+                
                 await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
                 await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
 
@@ -190,25 +197,30 @@ class MultiBlackjackView(View):
     def __init__(self, bot, p1, bet, p2=None):
         super().__init__(timeout=60)
         self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
-        self.is_finished = False
+        self.game_completed = False  # is_finished 대신 사용
+        
+        # --- 아래 변수들이 __init__에 반드시 있어야 에러가 안 납니다 ---
+        self.game = BlackjackGame(bet) 
+        self.p1_cards = [self.game.draw_card(), self.game.draw_card()]
+        self.p2_cards = [self.game.draw_card(), self.game.draw_card()]
+        self.p1_done = False
+        self.p2_done = False
+        self.message = None
 
-    async def check_user(self, interaction: discord.Interaction):
-        if self.p2 is None and interaction.user.id != self.p1.id:
-            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
-            if balance < self.bet:
-                await interaction.response.send_message("❌ 잔액이 부족하여 참여할 수 없습니다.", ephemeral=True)
-                return False
-            self.p2 = interaction.user
-            if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
-
-        if interaction.user.id not in [self.p1.id, self.p2.id if self.p2 else None]:
-            await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
-            return False
-        return True
-    
     async def on_timeout(self):
-        if self.is_finished: return
+        if self.game_completed: return # 변수명 수정
+        
+        # 선차감된 금액 100% 환불
+        if POINT_MANAGER_AVAILABLE:
+            await point_manager.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
+            if self.p2:
+                await point_manager.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
+
+        embed = discord.Embed(title="⏰ 블랙잭 중단", description="참여자의 응답이 없어 배팅금이 환불되었습니다.", color=discord.Color.red())
+        await self.message.edit(embed=embed, view=None)
+    
+    async def finish_game_logic(self): # 메서드 이름도 명확하게 변경 권장
+        self.game_completed = True
         
         # 선차감된 금액 100% 환불
         if POINT_MANAGER_AVAILABLE:
@@ -219,8 +231,8 @@ class MultiBlackjackView(View):
         embed = discord.Embed(title="⏰ 블랙잭 중단", description="참여자의 응답이 없어 배팅금이 환불되었습니다.", color=discord.Color.red())
         await self.message.edit(embed=embed, view=None)
 
-    async def finish_game(self):
-        self.is_finished = True
+    async def finish_game_signal(self):
+        self.game_completed = True
 
     @discord.ui.button(label="🃏 히트", style=discord.ButtonStyle.primary)
     async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):

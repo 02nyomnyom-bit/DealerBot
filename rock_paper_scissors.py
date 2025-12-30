@@ -133,16 +133,14 @@ class MultiSetupView(View):
 
 class MultiRPSView(View):
     def __init__(self, bot, p1, bet, p2=None):
-        # timeout을 60초로 설정 (1분)
         super().__init__(timeout=60)
         self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
         self.choices = {}
         self.message = None
-        self.is_finished = False # 게임이 정상 종료되었는지 확인하는 플래그
+        self.game_completed = False # 이름을 is_finished에서 변경
 
-    # --- [핵심 추가] 1분 동안 아무도 안 누르거나, 한 명만 누른 경우 실행 ---
     async def on_timeout(self):
-        if self.is_finished:
+        if self.game_completed: # 변경된 이름 적용
             return
 
         guild_id = self.message.guild.id
@@ -193,9 +191,10 @@ class MultiRPSView(View):
         await interaction.response.send_message(f"✅ {choice}를 선택하셨습니다!", ephemeral=True)
 
         if len(self.choices) == 2:
-            await self.finish_game()
+            await self.finish_game_logic()
 
-    async def finish_game(self):
+    async def finish_game_logic(self): # 이름 변경
+        self.game_completed = True # 변수명 수정
         c1, c2 = self.choices[self.p1.id], self.choices[self.p2.id]
         guild_id = self.message.guild.id
         
