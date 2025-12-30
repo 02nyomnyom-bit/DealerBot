@@ -270,7 +270,8 @@ class EnhancedBot(commands.Bot):
         intents.members = True
         intents.guilds = True
         intents.voice_states = True
-        
+        self.is_synced = False  # 동기화 여부 플래그 추가
+
         super().__init__(
             command_prefix="IGNORE_PREFIX",
             intents=intents,
@@ -541,7 +542,7 @@ class EnhancedBot(commands.Bot):
         """봇 설정 후크"""
         self.startup_time = datetime.now(timezone.utc)
         
-        # 💡 개선: 확장 모듈 로딩을 setup_hook에서 한 번만 수행
+        # 확장 모듈 로딩은 그대로 유지
         await self.load_extensions()
 
         # 특정 길드에만 슬래시 명령어 동기화 (빠른 반영을 위해)
@@ -564,52 +565,42 @@ class EnhancedBot(commands.Bot):
         self.logger.info(f"✅ {self.user} (으)로 로그인 성공!")
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
 
-        # setup_hook에서 특정 길드 동기화를 하지 않은 경우, 여기서 모든 길드에 동기화
-        if not Config.MAIN_GUILD_IDS:
-            self.logger.info("🤔 특정 길드 설정이 없어, 연결된 모든 서버에 명령어를 동기화합니다...")
-            synced_count = 0
-            for guild in self.guilds:
-                try:
+        # ✅ 60초 후 자동 동기화 태스크 생성
+        if not self.is_synced:
+            asyncio.create_task(self.delayed_sync(60))
+
+        print("=" * 50)
+        print("🎉 딜러양 v7 구동 중 (60초 후 명령어 동기화 예정)")
+        print(f"✨ {self.user} | {len(self.guilds)}개 서버")
+        print("=" * 50)
+
+    async def delayed_sync(self, delay: int):
+        """지정된 시간(초) 후에 명령어를 딱 한 번 동기화합니다."""
+        self.logger.info(f"⏳ {delay}초 후 명령어 동기화를 시작합니다...")
+        await asyncio.sleep(delay)
+        
+        try:
+            if Config.MAIN_GUILD_IDS:
+                self.logger.info(f"🔧 설정된 {len(Config.MAIN_GUILD_IDS)}개의 서버에 명령어 동기화 중...")
+                for guild_id in Config.MAIN_GUILD_IDS:
+                    guild = discord.Object(id=guild_id)
+                    self.tree.copy_global_to(guild=guild)
+                    await self.tree.sync(guild=guild)
+                self.logger.info(f"✅ 특정 서버 {len(Config.MAIN_GUILD_IDS)}개 동기화 완료.")
+            else:
+                self.logger.info("🤔 모든 연결된 서버에 명령어를 동기화 중...")
+                synced_count = 0
+                for guild in self.guilds:
                     self.tree.copy_global_to(guild=guild)
                     await self.tree.sync(guild=guild)
                     synced_count += 1
-                except Exception as e:
-                    self.logger.error(f"❌ '{guild.name}' 서버에 명령어 동기화 실패: {e}")
-            self.logger.info(f"🔄 {synced_count}개의 서버에 명령어 동기화 완료.")
-        else:
-            self.logger.info("✅ 특정 길드에 대한 명령어 동기화는 setup_hook에서 처리되었습니다.")
-
-        print("=" * 50)
-        print("🎉 딜러양 v7 완전히 준비 완료!")
-        print(f"✨ {self.user} | {len(self.guilds)}개 서버")
-        print("=" * 50)
-    
-    async def close(self):
-        """봇 종료 시 정리 작업"""
-        self.logger.info("🛑 봇 종료 프로세스 시작...")
-        
-        # 종료 알림 (가능한 경우)
-        #try:
-        #    if self.update_system_available:
-        #        from update_system import add_realtime_update
-        #        add_realtime_update(
-        #            "🛑 딜러양 종료",
-        #            "딜러양이 일시적으로 종료되었습니다. 곧 다시 돌아올게요!",
-        #            "시스템",
-        #            "일반"
-        #        )
-        #except Exception as e:
-        #    self.logger.warning(f"⚠️ 종료 알림 추가 실패: {e}")
-        
-        # 백업 시스템 중지 (BackupCog에서 처리)
-        # if self.backup_system:
-        #     try:
-        #         self.backup_system.stop_auto_backup()
-        #     except Exception as e:
-        #         self.logger.warning(f"⚠️ 백업 시스템 종료 실패: {e}")
-        
-        await super().close()
-        self.logger.info("✅ 봇 정상 종료")
+                self.logger.info(f"🔄 {synced_count}개의 서버 동기화 완료.")
+            
+            self.is_synced = True # 한 번 실행 후 플래그 변경
+            self.logger.info("✨ 모든 명령어 동기화 프로세스가 완료되었습니다.")
+            
+        except Exception as e:
+            self.logger.error(f"❌ 동기화 중 오류 발생: {e}")
 
 # ✅ 신호 핸들러 설정
 def setup_signal_handlers(bot: EnhancedBot):
