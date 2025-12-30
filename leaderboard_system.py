@@ -40,8 +40,6 @@ get_point, add_point, set_point, is_registered, POINT_MANAGER_AVAILABLE = safe_i
 class IntegratedLeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        if DATABASE_AVAILABLE:
-            self.db = get_guild_db_manager_func(None) # Guild ID will be set per interaction
         print("✅ 통합 리더보드 시스템 초기화 완료")
 
     # ===== 통합 리더보드 명령어들 =====

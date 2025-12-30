@@ -256,8 +256,6 @@ class DatabaseManager:
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 """
         )
-
-        self.conn.commit()
     
         with self.get_connection() as conn:
             cursor = conn.cursor()
