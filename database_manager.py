@@ -328,14 +328,6 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"get_or_create_user 실행 중 오류 발생: {e}")
                 return False
-            
-    
-            
-    def get_connection(self):
-        """데이터베이스 연결 반환"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
 
     def execute_query(self, query: str, params: tuple = (), fetch_type: Literal['one', 'all', 'none'] = 'none') -> Optional[Union[sqlite3.Row, List[sqlite3.Row]]]:
         """쿼리를 실행하고 결과를 반환 (자동 커밋 포함)"""
