@@ -375,5 +375,5 @@ class BlackjackCog(commands.Cog):
         view = BlackjackModeSelectView(self.bot, interaction.user, 배팅)
         await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 10%가 차감됩니다.", view=view)
 
-async def setup(bot: commands.Bot):
+async def setup(bot):
     await bot.add_cog(BlackjackCog(bot))

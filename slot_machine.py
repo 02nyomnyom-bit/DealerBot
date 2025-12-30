@@ -206,3 +206,6 @@ class SlotMachineCog(commands.Cog):
                 await interaction.response.send_message("❌ 게임 시작 중 오류가 발생했습니다.", ephemeral=True)
             except:
                 pass
+
+async def setup(bot):
+    await bot.add_cog(SlotMachineCog(bot))

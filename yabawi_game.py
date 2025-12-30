@@ -220,5 +220,5 @@ class YabawiGameCog(commands.Cog):
         embed.add_field(name="💰 배팅", value=f"{배팅:,}원")
         await view.message.edit(embed=embed, view=view)
 
-async def setup(bot: commands.Bot):
+async def setup(bot):
     await bot.add_cog(YabawiGameCog(bot))
