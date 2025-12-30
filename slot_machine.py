@@ -187,12 +187,7 @@ class SlotMachineCog(commands.Cog):
                 value="• **3개 일치**: 해당 심볼 배당률 적용\n• **2개 일치**: 배팅액의 10% 반환 (❌ 제외)\n• **미일치**: 배팅 금액 손실",
                 inline=False
             )
-            embed.set_footer(text="인생은 한 방! 지금 버튼을 눌러보세요.")
-
-            await interaction.response.send_message(
-                embed=embed,
-                view=SlotMachineView(self.bot, guild_id, interaction.user, 배팅)
-            )
+            
             embed.set_footer(text="슬롯 돌리기 버튼을 눌러 운을 시험해보세요!")
 
             await interaction.response.send_message(

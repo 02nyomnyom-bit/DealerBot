@@ -168,7 +168,10 @@ class StopButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: YabawiGameView = self.view
-        # 중단 시 수수료 적용
+        
+        # [수정] 중복 클릭 방지 해제 (필요 시)
+        view.processing = False 
+        
         final_payout = int(view.current_pot * WINNER_RETENTION)
         await point_manager.add_point(view.bot, view.guild_id, view.user_id, final_payout)
         record_yabawi_game(view.user_id, view.user.display_name, view.base_bet, final_payout, True)
@@ -186,7 +189,12 @@ class ContinueButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         view: YabawiGameView = self.view
-        view.reset_for_next()
+        
+        # [수정] 다음 라운드 진행을 위해 플래그 초기화
+        view.reset_for_next() 
+        # reset_for_next() 함수 안에 이미 self.processing = False가 있으므로 
+        # 이 함수가 정상적으로 호출되는지 확인하세요.
+        
         view.clear_items()
         for i in range(3):
             view.add_item(CupButton("🥤", i))

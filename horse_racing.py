@@ -408,24 +408,28 @@ class AutoHorseRacingView(discord.ui.View):
 
 class HorseRacingView(discord.ui.View):
     def __init__(self, horses: List[str], user: discord.User):
-        super().__init__(timeout=300)  # 5분 타임아웃
+        super().__init__(timeout=300)
         self.racing = HorseRacing(horses)
-        self.user = user
+        self.user = user  # 주최자
         self.message = None
         self.race_started = False
 
-    @discord.ui.button(label="🏇 경주 시작", style=discord.ButtonStyle.success)
+    # 1. 공통 체크 로직 (View의 예약된 메서드 활용)
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.owner.id:
+        if interaction.user.id != self.user.id:
             await interaction.response.send_message("❌ 경주 시작은 주최자만 가능합니다!", ephemeral=True)
             return False
         return True
-    
-    async def start_race(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+    # 2. 실제 버튼 정의 및 콜백 연결
+    @discord.ui.button(label="🏇 경주 시작", style=discord.ButtonStyle.success)
+    async def start_race_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 기존 start_race 메서드의 로직을 여기로 옮기거나 호출합니다.
+        await self.process_start_race(interaction, button)
+
+    async def process_start_race(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            if interaction.user != self.user:
-                return await interaction.response.send_message("❗ 경주를 시작한 관리자만 경주를 진행할 수 있습니다.", ephemeral=True)
-            
+            # 주최자 확인은 interaction_check에서 이미 수행됨
             if self.race_started:
                 return await interaction.response.send_message("⚠️ 이미 경주가 시작되었습니다.", ephemeral=True)
             
@@ -444,11 +448,10 @@ class HorseRacingView(discord.ui.View):
             
             self.message = await interaction.original_response()
             
-            # 경주 시작 카운트다운
             for count in range(3, 0, -1):
                 content = f"🚨 **{count}초 후 시작!**\n```\n{self.racing.generate_track_display()}\n```"
                 await self.message.edit(content=content)
-                await asyncio.sleep(1) # <-- 이 부분은 1초 유지
+                await asyncio.sleep(1)
             
             # 경주 시작 알림
             content = f"🏁 **경주 시작!**\n```\n{self.racing.generate_track_display()}\n```"

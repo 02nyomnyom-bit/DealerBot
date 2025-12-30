@@ -427,7 +427,18 @@ class RealtimeUpdateSystem(commands.Cog):
             embed.set_footer(text="통계 생성 시간: 알 수 없음")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
+    async def record_game(self, guild_id, user_id, game_type, bet, win_amount):
+            """
+            다른 시스템(강화, 슬롯, 경마)에서 호출하는 공통 인터페이스
+            """
+            # 승리 여부 판단: 당첨금이 배팅금보다 크면 승리
+            is_win = win_amount > bet
+            # 순수익 계산 (당첨금 - 배팅금)
+            earn_points = win_amount - bet
+        
+            # 기존에 존재하는 update_stats 메서드 호출
+            return await self.update_stats(guild_id, user_id, game_type, is_win, earn_points)
+    
     @app_commands.command(name="업데이트", description="실시간 업데이트 내용만 확인합니다")
     async def show_updates_only(self, interaction: discord.Interaction):
         updates = load_realtime_updates()
