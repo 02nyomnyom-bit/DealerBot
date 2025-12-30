@@ -220,6 +220,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'database_manager',          # 데이터베이스 관리
         'utility_commands',          # 유틸리티 명령어
         'error_handler',             # 통합 에러 처리 시스템
+        'anonymous',  # ✅ 익명 시스템 추가
     ]
     
     # ✨ 새로운 시스템들 (선택적 로드)
@@ -276,7 +277,7 @@ class EnhancedBot(commands.Bot):
             help_command=None,
             case_insensitive=True,
             strip_after_prefix=True,
-            activity=discord.Game(name="딜러양 v6 | /안녕"),
+            activity=discord.Game(name="딜러양 v7 | /안녕"),
             status=discord.Status.online
         )
         
@@ -340,7 +341,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="딜러양 v6 - 서버 제한 시스템")
+                    embed.set_footer(text="딜러양 v7 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -445,7 +446,7 @@ class EnhancedBot(commands.Bot):
                 inline=False
             )
         
-        embed.set_footer(text="딜러양 v6 - 서버 제한 시스템")
+        embed.set_footer(text="딜러양 v7 - 서버 제한 시스템")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -489,7 +490,7 @@ class EnhancedBot(commands.Bot):
             inline=True
         )
         
-        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v6")
+        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v7")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -579,7 +580,7 @@ class EnhancedBot(commands.Bot):
             self.logger.info("✅ 특정 길드에 대한 명령어 동기화는 setup_hook에서 처리되었습니다.")
 
         print("=" * 50)
-        print("🎉 딜러양 v6 완전히 준비 완료!")
+        print("🎉 딜러양 v7 완전히 준비 완료!")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
     
@@ -662,7 +663,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 딜러양 v6 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 딜러양 v7 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

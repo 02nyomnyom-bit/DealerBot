@@ -256,41 +256,13 @@ def get_update_statistics() -> Dict:
 class RealtimeUpdateSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.auto_cleanup_task.start()  # 자동 정리 작업 시작
+        # self.auto_cleanup_task.start() # ❌ 자동 정리 작업 시작 중단
     
-    def cog_unload(self):
-        """Cog 언로드 시 작업 정리"""
-        self.auto_cleanup_task.cancel()
-    
-    @tasks.loop(hours=1)  # 1시간마다 실행
-    async def auto_cleanup_task(self):
-        """자동 정리 작업"""
-        try:
-            removed_count = remove_old_updates()
-            if removed_count > 0:
-                print(f"🕐 자동 정리: {removed_count}개 업데이트 보관 완료")
-        except Exception as e:
-            print(f"자동 정리 작업 오류: {e}")
-    
-    @auto_cleanup_task.before_loop
-    async def before_auto_cleanup(self):
-        """봇이 준비될 때까지 대기"""
-        await self.bot.wait_until_ready()
-
     @app_commands.command(name="업데이트추가", description="새로운 업데이트를 추가합니다 (관리자 전용)")
-    @app_commands.describe(
-        제목="업데이트 제목",
-        내용="업데이트 내용",
-        우선순위="업데이트 우선순위 (긴급/중요/일반)"
-    )
+    @app_commands.describe(제목="업데이트 제목", 내용="업데이트 내용", 우선순위="우선순위 (긴급/중요/일반)")
     async def add_update(self, interaction: discord.Interaction, 제목: str, 내용: str, 우선순위: str = "일반"):
         if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("🚫 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
-            return
-        
-        valid_priorities = ["긴급", "중요", "일반"]
-        if 우선순위 not in valid_priorities:
-            await interaction.response.send_message(f"❌ 잘못된 우선순위입니다. 사용 가능: {', '.join(valid_priorities)}", ephemeral=True)
+            await interaction.response.send_message("🚫 관리자만 사용 가능합니다.", ephemeral=True)
             return
         
         processed_description = 내용.replace("\\n", "\n")
@@ -303,9 +275,7 @@ class RealtimeUpdateSystem(commands.Cog):
                 description=f"{priority_emoji} **{제목}**\n{processed_description}",
                 color=discord.Color.green()
             )
-            embed.add_field(name="우선순위", value=우선순위, inline=True)
-            embed.add_field(name="작성자", value=interaction.user.display_name, inline=True)
-            embed.set_footer(text="24시간 후 자동으로 보관됩니다.")
+            embed.set_footer(text="이 업데이트는 관리자가 삭제할 때까지 유지됩니다.") # 문구 수정
             await interaction.response.send_message(embed=embed)
         else:
             await interaction.response.send_message("❌ 업데이트 추가에 실패했습니다.", ephemeral=True)
@@ -413,7 +383,7 @@ class RealtimeUpdateSystem(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="업데이트통계", description="실시간 업데이트 시스템 통계를 확인합니다 (관리자 전용)")
+    @app_commands.command(name="업데이트통계", description="시스템 통계를 확인합니다")
     async def update_stats(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("🚫 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
@@ -427,11 +397,11 @@ class RealtimeUpdateSystem(commands.Cog):
         )
         
         embed.add_field(
-            name="📈 기본 통계",
-            value=f"**활성 업데이트**: {stats['total_active']}개\n"
-                  f"**보관된 업데이트**: {stats['total_archived']}개\n"
-                  f"**오늘 추가됨**: {stats['today_count']}개",
-            inline=True
+            name="ℹ️ 시스템 정보",
+            value="• 업데이트는 관리자가 수동으로 삭제해야 합니다.\n"
+                  "• 삭제된 업데이트는 보관소에 저장됩니다.\n"
+                  "• 자동 정리 기능이 비활성화되었습니다.",
+            inline=False
         )
         
         embed.add_field(
@@ -543,7 +513,7 @@ class RealtimeUpdateSystem(commands.Cog):
             inline=True
         )
         
-        embed.set_footer(text="딜러양 v6 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="딜러양 v7 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 

@@ -217,7 +217,7 @@ class DatabaseManager:
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
-        # 🚨 [새로 추가해야 할 부분 시작] 🚨
+
         self.create_table( # ✅ 퇴장 로그 설정 테이블 추가
             "log_settings",
             """
@@ -245,7 +245,20 @@ class DatabaseManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
-        
+        # 익명 대화 기록 테이블 추가
+        self.create_table(
+            "anonymous_messages",
+                """
+                msg_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                user_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                """
+        )
+
+        self.conn.commit()
+    
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:

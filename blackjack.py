@@ -1,556 +1,379 @@
-# blackjack.py - 블랙잭 게임 (통계 기록 추가)
+# blackjack.py
 from __future__ import annotations
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ui import View
-from typing import List, Dict, Tuple
+from discord.ui import View, UserSelect
+from typing import List, Optional
 import random
+import asyncio
 
-# ✅ 통계 시스템 안전 임포트 (추가)
+# --- 시스템 설정 및 연동 ---
 try:
     from statistics_system import stats_manager
     STATS_AVAILABLE = True
-    print("✅ 통계 시스템 연동 완료 (블랙잭)")
 except ImportError:
     STATS_AVAILABLE = False
-    print("⚠️ 통계 시스템을 찾을 수 없습니다 (블랙잭)")
 
-# point_manager 임포트
 try:
     import point_manager
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
-    
-    class MockPointManager:
-        @staticmethod
-        async def is_registered(bot, guild_id, user_id):
-            return True
-        @staticmethod
-        async def get_point(bot, guild_id, user_id):
-            return 10000
-        @staticmethod
-        async def add_point(bot, guild_id, user_id, amount):
-            pass
-        @staticmethod
-        async def register_user(bot, guild_id, user_id):
-            pass
-    
-    point_manager = MockPointManager()
 
-# ✅ 통계 기록 헬퍼 함수 (추가)
-def record_blackjack_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
-    """블랙잭 게임 통계 기록"""
-    if STATS_AVAILABLE:
-        try:
-            stats_manager.record_game_activity(
-                user_id=user_id,
-                username=username,
-                game_name="blackjack",
-                is_win=is_win,
-                bet=bet,
-                payout=payout
-            )
-        except Exception as e:
-            print(f"❌ 블랙잭 통계 기록 실패: {e}")
+# 상수 설정
+MAX_BET = 6000  # 최대 배팅금: 6천 원
+PUSH_RETENTION = 0.95 # 무승부 시 5% 수수료 제외 (95%만 지급)
+WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
 
-# ✅ 카드 덱 정의
+# 카드 및 이모지 정의
 CARD_DECK = {
-    # 스페이드 (♠)
     'A♠': ('🂡', 'A♠'), '2♠': ('🂢', '2♠'), '3♠': ('🂣', '3♠'), '4♠': ('🂤', '4♠'), '5♠': ('🂥', '5♠'),
     '6♠': ('🂦', '6♠'), '7♠': ('🂧', '7♠'), '8♠': ('🂨', '8♠'), '9♠': ('🂩', '9♠'), '10♠': ('🂪', '10♠'),
     'J♠': ('🂫', 'J♠'), 'Q♠': ('🂭', 'Q♠'), 'K♠': ('🂮', 'K♠'),
-    
-    # 하트 (♥)
     'A♥': ('🂱', 'A♥'), '2♥': ('🂲', '2♥'), '3♥': ('🂳', '3♥'), '4♥': ('🂴', '4♥'), '5♥': ('🂵', '5♥'),
     '6♥': ('🂶', '6♥'), '7♥': ('🂷', '7♥'), '8♥': ('🂸', '8♥'), '9♥': ('🂹', '9♥'), '10♥': ('🂺', '10♥'),
     'J♥': ('🂻', 'J♥'), 'Q♥': ('🂽', 'Q♥'), 'K♥': ('🂾', 'K♥'),
-    
-    # 다이아몬드 (♦)
     'A♦': ('🃁', 'A♦'), '2♦': ('🃂', '2♦'), '3♦': ('🃃', '3♦'), '4♦': ('🃄', '4♦'), '5♦': ('🃅', '5♦'),
     '6♦': ('🃆', '6♦'), '7♦': ('🃇', '7♦'), '8♦': ('🃈', '8♦'), '9♦': ('🃉', '9♦'), '10♦': ('🃊', '10♦'),
     'J♦': ('🃋', 'J♦'), 'Q♦': ('🃍', 'Q♦'), 'K♦': ('🃎', 'K♦'),
-    
-    # 클럽 (♣)
     'A♣': ('🃑', 'A♣'), '2♣': ('🃒', '2♣'), '3♣': ('🃓', '3♣'), '4♣': ('🃔', '4♣'), '5♣': ('🃕', '5♣'),
     '6♣': ('🃖', '6♣'), '7♣': ('🃗', '7♣'), '8♣': ('🃘', '8♣'), '9♣': ('🃙', '9♣'), '10♣': ('🃚', '10♣'),
     'J♣': ('🃛', 'J♣'), 'Q♣': ('🃝', 'Q♣'), 'K♣': ('🃞', 'K♣')
 }
-
-# 카드 뒷면
 CARD_BACK = ('🂠', '???')
 
-# ✅ 블랙잭 게임 로직 클래스
+def record_blackjack_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
+    if STATS_AVAILABLE:
+        try:
+            stats_manager.record_game_activity(user_id, username, "blackjack", is_win, bet, payout)
+        except: pass
+
 class BlackjackGame:
     def __init__(self, bet: int):
         self.bet = bet
-        self.deck = list(CARD_DECK.keys())
+        self.deck = list(CARD_DECK.keys()) * 4
         random.shuffle(self.deck)
-        
-        self.player_cards = []
-        self.dealer_cards = []
+        self.player_cards = [self.draw_card(), self.draw_card()]
+        self.dealer_cards = [self.draw_card(), self.draw_card()]
         self.game_over = False
-        self.player_stood = False
         self.result = None
-        
-        # 초기 카드 2장씩 배분
-        self.player_cards.append(self.draw_card())
-        self.dealer_cards.append(self.draw_card())
-        self.player_cards.append(self.draw_card())
-        self.dealer_cards.append(self.draw_card())
-    
-    def draw_card(self) -> str:
-        """덱에서 카드 한 장 뽑기"""
-        if self.deck:
-            return self.deck.pop()
-        else:
-            # 덱이 비었으면 새로 섞기
-            self.deck = list(CARD_DECK.keys())
+
+    def draw_card(self):
+        if not self.deck:
+            self.deck = list(CARD_DECK.keys()) * 4
             random.shuffle(self.deck)
-            return self.deck.pop()
-    
-    def get_card_value(self, card: str) -> int:
-        """카드의 숫자 값 계산"""
-        rank = card.split('♠')[0].split('♥')[0].split('♦')[0].split('♣')[0]
-        if rank in ['J', 'Q', 'K']:
-            return 10
-        elif rank == 'A':
-            return 11  # 에이스는 일단 11로 계산
-        else:
-            return int(rank)
-    
-    def calculate_hand_value(self, cards: List[str]) -> int:
-        """핸드의 총 값 계산 (에이스 처리 포함)"""
-        total = 0
-        aces = 0
-        
+        return self.deck.pop()
+
+    def calculate_hand_value(self, cards):
+        total, aces = 0, 0
         for card in cards:
-            value = self.get_card_value(card)
-            if card.startswith('A'):
-                aces += 1
-            total += value
-        
-        # 에이스를 1로 바꿔서 21을 넘지 않도록 조정
+            rank = card[:-1]
+            if rank in ['J', 'Q', 'K', '10']: total += 10
+            elif rank == 'A': total += 11; aces += 1
+            else: total += int(rank)
         while total > 21 and aces > 0:
-            total -= 10
-            aces -= 1
-        
+            total -= 10; aces -= 1
         return total
-    
-    def is_blackjack(self, cards: List[str]) -> bool:
-        """블랙잭인지 확인 (A + 10점 카드)"""
-        if len(cards) != 2:
-            return False
-        
-        values = [self.get_card_value(card) for card in cards]
-        return (11 in values or 1 in values) and 10 in values
-    
-    def get_card_display(self, cards: List[str], hide_first: bool = False) -> str:
-        """카드들을 이모지+텍스트로 표시"""
-        display_parts = []
-        for i, card in enumerate(cards):
-            if hide_first and i == 0:
-                emoji, text = CARD_BACK
-                display_parts.append(f"{emoji}({text})")
-            else:
-                emoji, text = CARD_DECK[card]
-                display_parts.append(f"{emoji}({text})")
-        return " ".join(display_parts)
-    
+
     def hit_player(self):
-        """플레이어가 카드 한 장 더 받기"""
-        if not self.game_over:
-            self.player_cards.append(self.draw_card())
-            if self.calculate_hand_value(self.player_cards) > 21:
-                self.game_over = True
-                self.result = "bust"
-    
+        self.player_cards.append(self.draw_card())
+        if self.calculate_hand_value(self.player_cards) > 21:
+            self.game_over = True
+            self.result = "bust"
+
     def stand_player(self):
-        """플레이어가 스탠드"""
-        self.player_stood = True
-        self.dealer_play()
-    
-    def dealer_play(self):
-        """딜러 자동 플레이"""
+        self.game_over = True
         while self.calculate_hand_value(self.dealer_cards) < 17:
             self.dealer_cards.append(self.draw_card())
-        
-        self.game_over = True
         self.determine_winner()
-    
-    def determine_winner(self):
-        """승부 판정"""
-        player_value = self.calculate_hand_value(self.player_cards)
-        dealer_value = self.calculate_hand_value(self.dealer_cards)
-        
-        player_bj = self.is_blackjack(self.player_cards)
-        dealer_bj = self.is_blackjack(self.dealer_cards)
-        
-        if self.result == "bust":
-            # 이미 버스트로 설정됨
-            pass
-        elif player_bj and dealer_bj:
-            self.result = "push"
-        elif player_bj and not dealer_bj:
-            self.result = "blackjack"
-        elif dealer_bj and not player_bj:
-            self.result = "dealer_blackjack"
-        elif dealer_value > 21:
-            self.result = "dealer_bust"
-        elif player_value > dealer_value:
-            self.result = "win"
-        elif player_value < dealer_value:
-            self.result = "lose"
-        else:
-            self.result = "push"
 
-# ✅ 블랙잭 게임 View
+    def determine_winner(self):
+        p_val = self.calculate_hand_value(self.player_cards)
+        d_val = self.calculate_hand_value(self.dealer_cards)
+        if p_val > 21: self.result = "bust"
+        elif d_val > 21: self.result = "dealer_bust"
+        elif p_val > d_val: self.result = "win"
+        elif p_val < d_val: self.result = "lose"
+        else: self.result = "push"
+
+    def get_card_display(self, cards, hide_first=False):
+        if hide_first:
+            return f"{CARD_BACK[0]} " + " ".join([CARD_DECK[c][0] for c in cards[1:]])
+        return " ".join([CARD_DECK[c][0] for c in cards])
+
+    def get_card_value(self, card):
+        rank = card[:-1]
+        if rank in ['J', 'Q', 'K', '10']: return 10
+        elif rank == 'A': return 11
+        return int(rank)
+
+    def is_blackjack(self, cards):
+        return len(cards) == 2 and self.calculate_hand_value(cards) == 21
+
+# --- 모드 선택 및 멀티플레이 View 클래스들 ---
+
+class BlackjackModeSelectView(View):
+    def __init__(self, bot, user, bet):
+        super().__init__(timeout=60)
+        self.bot, self.user, self.bet = bot, user, bet
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("❌ 명령어 실행자만 선택할 수 있습니다.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")
+    async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 포인트 선차감 (싱글)
+        if POINT_MANAGER_AVAILABLE:
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+        
+        view = BlackjackView(self.user, self.bet, self.bot)
+        embed = view.create_game_embed()
+        await interaction.response.edit_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
+        if view.game.is_blackjack(view.game.player_cards):
+            view.game.game_over = True
+            view.game.determine_winner()
+            await view.end_game(None)
+
+    @discord.ui.button(label="👥 멀티 모드", style=discord.ButtonStyle.primary, emoji="⚔️")
+    async def multi_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(title="👥 멀티플레이 설정", description="대결 방식을 선택하세요.", color=discord.Color.green())
+        await interaction.response.edit_message(embed=embed, view=MultiSetupView(self.bot, self.user, self.bet))
+
+class MultiSetupView(View):
+    def __init__(self, bot, user, bet):
+        super().__init__(timeout=60)
+        self.bot, self.user, self.bet = bot, user, bet
+
+    @discord.ui.button(label="🎯 상대 지정하기", style=discord.ButtonStyle.secondary)
+    async def select_opponent(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_select = UserSelect(placeholder="상대를 선택하세요.")
+        async def callback(inter: discord.Interaction):
+            target = user_select.values[0]
+            if target.id == self.user.id or target.bot:
+                return await inter.response.send_message("❌ 올바른 상대를 선택하세요.", ephemeral=True)
+            
+            # 두 명 포인트 선차감 (먹튀 방지)
+            if POINT_MANAGER_AVAILABLE:
+                p1_bal = await point_manager.get_point(self.bot, inter.guild_id, str(self.user.id))
+                p2_bal = await point_manager.get_point(self.bot, inter.guild_id, str(target.id))
+                if p1_bal < self.bet or p2_bal < self.bet:
+                    return await inter.response.send_message("❌ 참가자 중 잔액이 부족한 사람이 있습니다.", ephemeral=True)
+                await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
+                await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
+
+            await self.start_game(inter, target)
+        
+        view = View(); user_select.callback = callback; view.add_item(user_select)
+        await interaction.response.edit_message(content="상대를 지목해주세요.", embed=None, view=view)
+
+    @discord.ui.button(label="🔓 공개 대전 (아무나)", style=discord.ButtonStyle.success)
+    async def public_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 방장 포인트만 먼저 차감
+        if POINT_MANAGER_AVAILABLE:
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+        await self.start_game(interaction, None)
+
+    async def start_game(self, interaction, target):
+        view = MultiBlackjackView(self.bot, self.user, self.bet, target)
+        embed = discord.Embed(title="🃏 1:1 블랙잭 대결", color=discord.Color.gold())
+        embed.add_field(name="P1", value=self.user.mention); embed.add_field(name="P2", value=target.mention if target else "대기 중...")
+        embed.set_footer(text="참가자는 아래 버튼을 눌러 게임을 진행하세요!")
+        await interaction.response.edit_message(content=None, embed=embed, view=view)
+        view.message = await interaction.original_response()
+
+class MultiBlackjackView(View):
+    def __init__(self, bot, p1, bet, p2=None):
+        super().__init__(timeout=60)
+        self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
+        self.is_finished = False
+
+    async def check_user(self, interaction: discord.Interaction):
+        if self.p2 is None and interaction.user.id != self.p1.id:
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+            if balance < self.bet:
+                await interaction.response.send_message("❌ 잔액이 부족하여 참여할 수 없습니다.", ephemeral=True)
+                return False
+            self.p2 = interaction.user
+            if POINT_MANAGER_AVAILABLE:
+                await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
+
+        if interaction.user.id not in [self.p1.id, self.p2.id if self.p2 else None]:
+            await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
+            return False
+        return True
+    
+    async def on_timeout(self):
+        if self.is_finished: return
+        
+        # 선차감된 금액 100% 환불
+        if POINT_MANAGER_AVAILABLE:
+            await point_manager.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
+            if self.p2:
+                await point_manager.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
+
+        embed = discord.Embed(title="⏰ 블랙잭 중단", description="참여자의 응답이 없어 배팅금이 환불되었습니다.", color=discord.Color.red())
+        await self.message.edit(embed=embed, view=None)
+
+    async def finish_game(self):
+        self.is_finished = True
+
+    @discord.ui.button(label="🃏 히트", style=discord.ButtonStyle.primary)
+    async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.check_user(interaction): return
+        is_p1 = interaction.user.id == self.p1.id
+        if (is_p1 and self.p1_done) or (not is_p1 and self.p2_done):
+            return await interaction.response.send_message("이미 스탠드 상태입니다.", ephemeral=True)
+
+        cards = self.p1_cards if is_p1 else self.p2_cards
+        cards.append(self.game.draw_card())
+
+        if self.game.calculate_hand_value(cards) > 21:
+            if is_p1: self.p1_done = True
+            else: self.p2_done = True
+            await interaction.response.send_message("💥 버스트!", ephemeral=True)
+            if self.p1_done and self.p2_done: await self.finish_game()
+            else: await self.update_view()
+        else:
+            await interaction.response.defer()
+            await self.update_view()
+
+    @discord.ui.button(label="✋ 스탠드", style=discord.ButtonStyle.secondary)
+    async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self.check_user(interaction): return
+        if interaction.user.id == self.p1.id: self.p1_done = True
+        else: self.p2_done = True
+        await interaction.response.defer()
+        if self.p1_done and self.p2_done: await self.finish_game()
+        else: await self.update_view()
+
+    async def update_view(self):
+        embed = discord.Embed(title="🃏 블랙잭 1:1 대결", color=discord.Color.blue())
+        p1_val = self.game.calculate_hand_value(self.p1_cards)
+        p2_val = self.game.calculate_hand_value(self.p2_cards) if self.p2 else "??"
+        embed.add_field(name=f"👤 {self.p1.display_name}", value=f"점수: {p1_val}\n상태: {'✋ 스탠드' if self.p1_done else '🃏 고민 중'}")
+        embed.add_field(name=f"👤 {self.p2.display_name if self.p2 else '상대방 대기 중'}", value=f"점수: {p2_val}\n상태: {'✋ 스탠드' if self.p2_done else '🃏 고민 중'}")
+        await self.message.edit(embed=embed, view=self)
+
+    async def finish_game(self):
+        v1, v2 = self.game.calculate_hand_value(self.p1_cards), self.game.calculate_hand_value(self.p2_cards)
+        guild_id = self.message.guild.id
+        
+        # 승패 판정 로직
+        winner = None
+        if v1 > 21 and v2 > 21: result = "무승부 (둘 다 버스트)"
+        elif v1 > 21: winner = self.p2; result = f"{self.p2.mention} 승리!"
+        elif v2 > 21: winner = self.p1; result = f"{self.p1.mention} 승리!"
+        elif v1 > v2: winner = self.p1; result = f"{self.p1.mention} 승리!"
+        elif v2 > v1: winner = self.p2; result = f"{self.p2.mention} 승리!"
+        else: result = "무승부!"
+
+        if winner:
+            total_pot = self.bet * 2
+            reward = int(total_pot * WINNER_RETENTION) # 5% 수수료 차감
+            if POINT_MANAGER_AVAILABLE:
+                await point_manager.add_point(self.bot, self.message.guild.id, str(winner.id), reward)
+            reward_msg = f"💰 {winner.mention} 승리! 수수료 제외 **{reward:,}원** 획득!"
+        else:
+            # 🤝 무승부 시 10% 수수료 적용 (90%만 환불)
+            refund = int(self.bet * PUSH_RETENTION)
+            if POINT_MANAGER_AVAILABLE:
+                await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
+                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
+            reward_msg = f"🤝 무승부! 수수료 5%를 제외한 **{refund:,}원**이 환불되었습니다."
+
+        final_embed = discord.Embed(title="🏁 게임 종료", description=f"**{result}**\n{reward_msg}\n\n"
+                                                                  f"{self.p1.mention}: {v1}점\n{self.p2.mention}: {v2}점", 
+                                    color=discord.Color.gold())
+        await self.message.edit(embed=final_embed, view=None)
+        self.stop()
+
+# --- 기존 BlackjackView 및 Cog (일부 수정) ---
+
 class BlackjackView(View):
+    # 기존 BlackjackView 코드와 동일하나 calculate_hand_value 호출명 확인 필요
     def __init__(self, user: discord.User, bet: int, bot: commands.Bot):
         super().__init__(timeout=120)
-        self.user = user
-        self.bet = bet
-        self.bot = bot
+        self.user, self.bet, self.bot = user, bet, bot
         self.game = BlackjackGame(bet)
         self.message = None
     
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("❌ 본인의 게임 버튼만 누를 수 있습니다.", ephemeral=True)
+            return False
+        return True
+    
     @discord.ui.button(label="🃏 히트", style=discord.ButtonStyle.primary)
-    async def hit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user:
-            return await interaction.response.send_message("❗ 본인만 조작할 수 있습니다.", ephemeral=True)
-        
-        if self.game.game_over:
-            return await interaction.response.send_message("❗ 이미 게임이 종료되었습니다.", ephemeral=True)
-        
-        # 카드 한 장 더
+    async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.game.hit_player()
-        
-        if self.game.game_over:
-            await self.end_game(interaction)
-        else:
-            # 게임 상태 업데이트
-            embed = self.create_game_embed()
-            await interaction.response.edit_message(embed=embed, view=self)
+        if self.game.game_over: await self.end_game(interaction)
+        else: await interaction.response.edit_message(embed=self.create_game_embed(), view=self)
     
     @discord.ui.button(label="✋ 스탠드", style=discord.ButtonStyle.secondary)
-    async def stand_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user:
-            return await interaction.response.send_message("❗ 본인만 조작할 수 있습니다.", ephemeral=True)
-        
-        if self.game.game_over:
-            return await interaction.response.send_message("❗ 이미 게임이 종료되었습니다.", ephemeral=True)
-        
-        # 스탠드 처리
+    async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.game.stand_player()
         await self.end_game(interaction)
-    
+
     def create_game_embed(self, final: bool = False) -> discord.Embed:
-        """게임 상태 임베드 생성"""
-        player_value = self.game.calculate_hand_value(self.game.player_cards)
-        dealer_value = self.game.calculate_hand_value(self.game.dealer_cards)
-        
-        if final:
-            title = "🃏 블랙잭 - 게임 종료"
-            color = self.get_result_color()
-            dealer_cards_display = self.game.get_card_display(self.game.dealer_cards, hide_first=False)
-        else:
-            title = "🃏 블랙잭 - 진행 중"
-            color = discord.Color.purple()
-            dealer_cards_display = self.game.get_card_display(self.game.dealer_cards, hide_first=True)
-            dealer_value = self.game.get_card_value(self.game.dealer_cards[1])  # 보이는 카드만
-        
-        embed = discord.Embed(title=title, color=color)
-        
-        # 플레이어 정보
-        embed.add_field(
-            name=f"👤 {self.user.display_name}의 카드",
-            value=f"{self.game.get_card_display(self.game.player_cards)}\n**총 점수**: {player_value}점",
-            inline=False
-        )
-        
-        # 딜러 정보
-        if final:
-            embed.add_field(
-                name="🤖 딜러의 카드",
-                value=f"{dealer_cards_display}\n**총 점수**: {dealer_value}점",
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="🤖 딜러의 카드",
-                value=f"{dealer_cards_display}\n**보이는 점수**: {dealer_value}점",
-                inline=False
-            )
-        
-        if not final:
-            embed.add_field(
-                name="⚠️ 주의",
-                value="21점을 초과하면 버스트로 패배\n(21 초과 시 버스트)",
-                inline=True
-            )
-            
-            embed.add_field(
-                name="🎮 다음 행동",
-                value="• **히트**: 카드 한 장 더\n• **스탠드**: 현재 상태로 승부",
-                inline=True
-            )
-        
-        embed.set_footer(text=f"배팅 금액: {self.bet:,}원")
+        p_val = self.game.calculate_hand_value(self.game.player_cards)
+        d_val = self.game.calculate_hand_value(self.game.dealer_cards)
+        embed = discord.Embed(title="🃏 블랙잭", color=discord.Color.blue())
+        embed.add_field(name="플레이어", value=f"{self.game.get_card_display(self.game.player_cards)}\n({p_val}점)")
+        d_display = self.game.get_card_display(self.game.dealer_cards, hide_first=not final)
+        embed.add_field(name="딜러", value=f"{d_display}\n({'??' if not final else d_val}점)")
         return embed
-    
-    def get_result_color(self) -> discord.Color:
-        """결과에 따른 색상 반환"""
-        if self.game.result in ["blackjack", "win", "dealer_bust"]:
-            return discord.Color.green()
-        elif self.game.result == "push":
-            return discord.Color.gold()
-        else:
-            return discord.Color.red()
-    
+
     async def end_game(self, interaction: discord.Interaction = None):
-        """게임 종료 처리"""
+        self.game.game_over = True
+        self.game.determine_winner()
+        guild_id = self.message.guild.id
         uid = str(self.user.id)
-        guild_id = interaction.guild_id if interaction else self.message.guild.id
         
-        # 모든 버튼 비활성화
-        for child in self.children:
-            child.disabled = True
-        
-        # 결과에 따른 포인트 처리 및 통계 기록
         reward = 0
-        is_win = False
-        
-        if self.game.result == "blackjack":
-            reward = int(self.bet * 2.5)  # 블랙잭은 2.5배
-            result_text = "🎉 블랙잭! 축하합니다!"
-            result_detail = f"+{reward:,}원 획득 (2.5배!)"
-            is_win = True
-        elif self.game.result in ["win", "dealer_bust"]:
+        if self.game.result in ["win", "dealer_bust"]:
             reward = self.bet * 2
-            if self.game.result == "dealer_bust":
-                result_text = "🎉 딜러 버스트로 승리!"
-            else:
-                result_text = "🎉 승리!"
-            result_detail = f"+{reward:,}원 획득 (2배)"
-            is_win = True
+        elif self.game.is_blackjack(self.game.player_cards) and self.game.result == "win":
+            reward = int(self.bet * 2.5)
         elif self.game.result == "push":
-            reward = self.bet  # 배팅 금액 반환
-            result_text = "🤝 무승부 (푸시)!"
-            result_detail = "배팅 금액 반환"
-            is_win = False
-        else:  # bust, lose, dealer_blackjack
-            reward = 0
-            if self.game.result == "bust":
-                result_text = "💥 버스트! 21을 초과했습니다."
-            elif self.game.result == "dealer_blackjack":
-                result_text = "🤖 딜러 블랙잭으로 패배!"
-            else:
-                result_text = "😢 패배!"
-            result_detail = f"-{self.bet:,}원 차감"
-            is_win = False
+            # 싱글 모드 무승부 수수료 적용
+            reward = int(self.bet * PUSH_RETENTION)
 
-        # ✅ 통계 기록 (추가)
-        record_blackjack_game(uid, self.user.display_name, self.bet, reward, is_win)
-        
-        # 포인트 지급
-        if POINT_MANAGER_AVAILABLE:
+        if POINT_MANAGER_AVAILABLE and reward > 0:
             await point_manager.add_point(self.bot, guild_id, uid, reward)
-        
-        # 최종 잔액 조회
-        final_balance = await point_manager.get_point(self.bot, guild_id, uid) if POINT_MANAGER_AVAILABLE else 10000
-        
-        # 최종 결과 임베드
-        embed = self.create_game_embed(final=True)
-        embed.add_field(name="🏆 결과", value=result_text, inline=True)
-        embed.add_field(name="💰 획득/손실", value=result_detail, inline=True)
-        embed.add_field(name="💳 현재 잔액", value=f"{final_balance:,}원", inline=True)
-        
-        # 게임 통계 정보
-        player_value = self.game.calculate_hand_value(self.game.player_cards)
-        dealer_value = self.game.calculate_hand_value(self.game.dealer_cards)
-        embed.add_field(
-            name="📊 최종 점수",
-            value=f"플레이어: {player_value}점\n딜러: {dealer_value}점",
-            inline=True
-        )
-        
-        # 블랙잭 여부 표시
-        player_bj = self.game.is_blackjack(self.game.player_cards)
-        dealer_bj = self.game.is_blackjack(self.game.dealer_cards)
-        bj_status = []
-        if player_bj:
-            bj_status.append("플레이어 블랙잭")
-        if dealer_bj:
-            bj_status.append("딜러 블랙잭")
-        
-        if bj_status:
-            embed.add_field(
-                name="⭐ 특수",
-                value="\n".join(bj_status),
-                inline=True
-            )
-        
-        # 게임 규칙 정보
-        embed.add_field(
-            name="📋 블랙잭 규칙",
-            value="• **목표**: 21에 가깝게\n• **A**: 1 또는 11\n• **J,Q,K**: 10점\n• **블랙잭**: 2.5배\n• **승리**: 2배\n• **딜러**: 17 이상 스탠드",
-            inline=False
-        )
-        
-        try:
-            if interaction and not interaction.response.is_done():
-                await interaction.response.edit_message(embed=embed, view=self)
-            else:
-                await self.message.edit(embed=embed, view=self)
-        except:
-            await self.message.edit(embed=embed, view=self)
+
+        # 결과 출력 및 종료
+        final_embed = self.create_game_embed(final=True)
+        final_embed.add_field(name="결과", value=f"{self.game.result} (정산: {reward:,}원)")
+        if interaction: await interaction.response.edit_message(embed=final_embed, view=None)
+        else: await self.message.edit(embed=final_embed, view=None)
         self.stop()
-    
-    async def on_timeout(self):
-        try:
-            # 타임아웃 시 자동 스탠드
-            if not self.game.game_over:
-                self.game.stand_player()
-                # 게임 종료 처리를 직접 실행
-                uid = str(self.user.id)
-                guild_id = self.message.guild.id if self.message and self.message.guild else None
-                
-                # 결과에 따른 포인트 처리
-                reward = 0
-                is_win = False
-                
-                if self.game.result == "blackjack":
-                    reward = int(self.bet * 2.5)
-                    is_win = True
-                elif self.game.result in ["win", "dealer_bust"]:
-                    reward = self.bet * 2
-                    is_win = True
-                elif self.game.result == "push":
-                    reward = self.bet
-                    is_win = False
-                else:
-                    reward = 0
-                    is_win = False
 
-                # 통계 기록 및 포인트 지급
-                record_blackjack_game(uid, self.user.display_name, self.bet, reward, is_win)
-                if POINT_MANAGER_AVAILABLE:
-                    await point_manager.add_point(self.bot, guild_id, uid, reward)
-            
-            # 모든 버튼 비활성화
-            for item in self.children:
-                item.disabled = True
-                item.label = "시간 만료"
-                item.style = discord.ButtonStyle.secondary
-            
-            embed = discord.Embed(
-                title="⏰ 블랙잭 게임 - 시간 만료",
-                description="시간이 초과되어 자동으로 스탠드 처리되었습니다.",
-                color=discord.Color.orange()
-            )
-            
-            if self.message:
-                await self.message.edit(embed=embed, view=self)
-        except Exception as e:
-            print(f"블랙잭 타임아웃 처리 오류: {e}")
-
-# ✅ 블랙잭 게임 Cog
+# --- [수정] BlackjackCog 명령어 부분 ---
 class BlackjackCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="블랙잭", description="🃏 블랙잭 게임을 플레이합니다.")
-    @app_commands.describe(배팅="배팅할 현금 (기본값: 10원, 최대 6,000원)")
-    async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 10):
-        try:
-            uid = str(interaction.user.id)
-            guild_id = str(interaction.guild.id)
+    @app_commands.command(name="블랙잭", description="🃏 블랙잭 게임 모드를 선택합니다.")
+    @app_commands.describe(배팅="배팅할 금액을 입력하세요. (최대 6,000원)")
+    async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
+        # 1. 배팅 금액 제한 체크
+        if 배팅 < 100:
+            return await interaction.response.send_message("❌ 최소 배팅 금액은 100원입니다.", ephemeral=True)
+        if 배팅 > MAX_BET:
+            return await interaction.response.send_message(f"❌ 최대 배팅 금액은 {MAX_BET:,}원입니다.", ephemeral=True)
 
-            # 등록 확인
-            if not await point_manager.is_registered(self.bot, guild_id, uid):
-                return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
+        # 2. 잔액 체크
+        balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+        if balance < 배팅:
+            return await interaction.response.send_message(f"❌ 잔액이 부족합니다. (보유: {balance:,}원)", ephemeral=True)
 
-            # 배팅 금액 검증
-            if 배팅 < 10 or 배팅 > 6000:
-                return await interaction.response.send_message("❗ 배팅은 10~6,000원 사이여야 합니다.", ephemeral=True)
+        view = BlackjackModeSelectView(self.bot, interaction.user, 배팅)
+        await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 10%가 차감됩니다.", view=view)
 
-            current_balance = await point_manager.get_point(self.bot, guild_id, uid)
-            if current_balance < 배팅:
-                return await interaction.response.send_message(
-                    f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {배팅:,}원", 
-                    ephemeral=True
-                )
-
-            # 배팅 금액 차감
-            if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, guild_id, uid, -배팅)
-
-            # 게임 시작
-            embed = discord.Embed(
-                title="🃏 블랙잭 게임 시작!",
-                description="21에 가장 가깝게 만들어보세요!",
-                color=discord.Color.purple()
-            )
-            
-            embed.add_field(name="💰 배팅 금액", value=f"{배팅:,}원", inline=True)
-            embed.add_field(name="🎯 목표", value="21에 가깝게!", inline=True)
-            embed.add_field(name="🏆 블랙잭 보상", value="2.5배", inline=True)
-            
-            embed.add_field(
-                name="📋 게임 규칙",
-                value="• **A**: 1 또는 11점\n• **J, Q, K**: 10점\n• **딜러**: 17 이상에서 스탠드\n• **블랙잭**: A + 10점 카드 = 2.5배\n• **일반 승리**: 2배 지급",
-                inline=False
-            )
-            
-            embed.add_field(
-                name="🎮 조작법",
-                value="• **히트**: 카드 한 장 더\n• **스탠드**: 현재 상태로 승부\n• **21 초과**: 자동 패배 (버스트)",
-                inline=False
-            )
-            
-            embed.set_footer(text="히트 또는 스탠드를 선택하세요!")
-
-            view = BlackjackView(interaction.user, 배팅, self.bot)
-            await interaction.response.send_message(embed=embed, view=view)
-            view.message = await interaction.original_response()
-            
-            # 게임 상황으로 즉시 업데이트
-            game_embed = view.create_game_embed()
-            await view.message.edit(embed=game_embed, view=view)
-            
-            # 즉시 블랙잭 체크
-            if view.game.is_blackjack(view.game.player_cards):
-                view.game.game_over = True
-                view.game.determine_winner()
-                # 블랙잭인 경우 즉시 종료 처리
-                uid = str(interaction.user.id)
-                reward = int(배팅 * 2.5)
-                record_blackjack_game(uid, interaction.user.display_name, 배팅, reward, True)
-                if POINT_MANAGER_AVAILABLE:
-                    await point_manager.add_point(self.bot, guild_id, uid, reward)
-                
-                # 최종 결과 표시
-                final_embed = view.create_game_embed(final=True)
-                final_embed.add_field(name="🏆 결과", value="🎉 블랙잭! 축하합니다!", inline=True)
-                final_embed.add_field(name="💰 획득", value=f"+{reward:,}원 (2.5배!)", inline=True)
-                final_balance = await point_manager.get_point(self.bot, guild_id, uid) if POINT_MANAGER_AVAILABLE else 10000
-                final_embed.add_field(name="💳 현재 잔액", value=f"{final_balance:,}원", inline=True)
-                
-                # 버튼 비활성화
-                for child in view.children:
-                    child.disabled = True
-                
-                await view.message.edit(embed=final_embed, view=view)
-
-        except Exception as e:
-            print(f"블랙잭 게임 오류: {e}")
-            try:
-                await interaction.response.send_message("❌ 게임 시작 중 오류가 발생했습니다.", ephemeral=True)
-            except:
-                pass
-
-# ✅ setup 함수
 async def setup(bot: commands.Bot):
     await bot.add_cog(BlackjackCog(bot))
-    print("✅ 블랙잭 게임 (통계 기록 포함) 로드 완료")

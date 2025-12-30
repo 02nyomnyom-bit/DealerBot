@@ -1,13 +1,20 @@
+# update_system.py
 from __future__ import annotations
-import discord
-from discord.ext import commands
-from discord import app_commands
 import datetime
+import discord
+from discord import app_commands
+from discord.ext import commands, tasks
 import json
 import os
+from typing import Dict, List, Optional
 
-# 실시간 업데이트 시스템 안전 import
-UPDATE_SYSTEM_AVAILABLE = False
+# ✅ 설정 파일 경로
+DATA_DIR = "data"
+REALTIME_UPDATES_FILE = os.path.join(DATA_DIR, "realtime_updates.json")
+ARCHIVED_UPDATES_FILE = os.path.join(DATA_DIR, "archived_updates.json")
+
+os.makedirs(DATA_DIR, exist_ok=True)
+
 try:
     from update_system import get_realtime_updates_summary, get_update_statistics
     UPDATE_SYSTEM_AVAILABLE = True
@@ -20,19 +27,61 @@ except ImportError:
             'priority_counts': {'긴급': 0, '중요': 0, '일반': 0}
         }
 
-# ✅ JSON 파일 로드 헬퍼 함수 추가
-def load_json_file(file_path):
+# (기존 load/save 함수들은 동일하게 유지)
+def load_realtime_updates():
+    if not os.path.exists(REALTIME_UPDATES_FILE): return []
     try:
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return []
-    except Exception as e:
-        print(f"❌ JSON 파일 로드 오류: {file_path} - {e}")
-        return []
+        with open(REALTIME_UPDATES_FILE, "r", encoding="utf-8") as f: return json.load(f)
+    except Exception as e: return []
 
-# ✅ 게임 데이터 로드
-GAMES_DATA = load_json_file('data/games.json')
+def save_realtime_updates(updates):
+    try:
+        with open(REALTIME_UPDATES_FILE, "w", encoding="utf-8") as f:
+            json.dump(updates, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception: return False
+
+def load_archived_updates():
+    if not os.path.exists(ARCHIVED_UPDATES_FILE): return []
+    try:
+        with open(ARCHIVED_UPDATES_FILE, "r", encoding="utf-8") as f: return json.load(f)
+    except Exception: return []
+
+def save_archived_updates(updates):
+    try:
+        with open(ARCHIVED_UPDATES_FILE, "w", encoding="utf-8") as f:
+            json.dump(updates, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception: return False
+
+def add_realtime_update(title: str, description: str, author: str, priority: str = "일반") -> bool:
+    """실시간 업데이트 추가 (자동 삭제 로직 제거됨)"""
+    try:
+        updates = load_realtime_updates()
+        
+        # ID 생성
+        max_id = max([update.get("id", 0) for update in updates], default=0)
+        
+        new_update = {
+            "id": max_id + 1,
+            "title": title,
+            "description": description,
+            "author": author,
+            "priority": priority,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "date": datetime.datetime.now().strftime("%Y-%m-%d")
+        }
+        
+        updates.append(new_update)
+        return save_realtime_updates(updates)
+    except Exception as e:
+        print(f"추가 오류: {e}")
+        return False
+
+def remove_old_updates() -> int:
+    """자동 삭제 기능을 비활성화했습니다."""
+    # 더 이상 시간을 체크하여 삭제하지 않습니다.
+    return 0
 
 # 📖 도움말 카테고리 선택 드롭다운
 class HelpCategorySelect(discord.ui.Select):
@@ -85,37 +134,31 @@ class HelpCategorySelect(discord.ui.Select):
                           "`/주사위` - 주사위 게임을 플레이합니다.\n"
                           "`        모드 = 싱글(봇과 대결) 또는 멀티(다른 유저와 대결)`\n"
                           "`        배팅 = 배팅할 현금 (기본값: 10원, 싱글 모드 최대 1,000원)`\n"
-                          "`        상대방 = 멀티 모드에서 특정 상대방 지정 (선택사항)`\n"
                           "\n"
                           "`/강화` - 아이템을 강화합니다.\n"
                           "`     아이템명 = 강화할 아이템의 이름`\n"
-                          "`/내강화` - 내가 소유한 아이템 목록을 확인합니다.\n"
-                          "`/강화순위` - 전체 강화 순위를 확인합니다.\n"
-                          "`/강화정보` - 강화 시스템에 대한 정보를 확인합니다.\n"
+                          "\n"
+                          "`/슬롯머신` - 🔥 **화끈한 한방! 슬롯머신**을 플레이합니다.\n"
+                          "`         배팅 = 100원 ~ 10,000원`\n"
+                          "`         특징 = 대박 확률 상승! (🍀 x100, 🍋 x10, 🍒 x5, 🔔 x2)`\n"
                           "\n"
                           "`/경마` - 경마 게임을 생성합니다.\n"
-                          "`      모드 = 경마 모드를 선택하세요`\n"
-                          "`      인원 = 수동 모드: 최대 참가자 수 / 자동 모드: 참가자 이름 (쉼표로 구분)`\n"
+                          "`      모드 = 경마 모드 선택`\n"
                           "\n"
                           "`/홀짝` - 홀짝 게임을 플레이합니다.\n"
-                          "`      모드 = 싱글(봇과 대결) 또는 멀티(다른 유저와 대결)`\n"
-                          "`      배팅 = 배팅할 현금 (기본값: 10원, 최대 1,000원)`\n"
-                          "`      상대방 = 멀티 모드에서 특정 상대방 지정 (선택사항)`\n"
+                          "`      배팅 = 기본값 10원, 최대 1,000원`\n"
                           "\n"
-                          "`/가위바위보` - 가위바위보 게임 시작\n"
-                          "`            모드 = 싱글 또는 멀티 선택`\n"
-                          "`            배팅 = 배팅할 현금 (1~1,000원), 미입력시 10원이 나갑니다.`\n"
-                          "`            상대방 = (선택 사항) 상대 플레이어를 지정하세요.`\n"
-                          "\n"
-                          "`/슬롯머신` - 🎰 슬롯머신 게임을 플레이합니다.\n"
-                          "`         배팅 = 배팅할 현금 (기본값: 10원, 최대 5,000원)`\n"
+                          "`/가위바위보` - 가위바위보 게임을 시작합니다.\n"
+                          "`            배팅 = 1~1,000원 (미입력 시 10원)`\n"
                           "\n"
                           "`/야바위게임` - 야바위 게임을 시작합니다.\n"
-                          "`           배팅 = 배팅할 현금 (기본값: 10원, 최대 500원)`\n",
+                          "`           배팅 = 기본값 10원, 최대 500원`\n",
                     inline=False)
-            view = HelpCategoryView(include_game_select=True)
+            # 기존 뷰 유지
+            view = HelpCategoryView() 
             await interaction.response.edit_message(embed=embed, view=view)
             return
+
         elif category == "other":
             embed.add_field(name="✨ 기타 명령어",
                     value="`도움말` - 봇의 모든 명령어와 기능을 확인할 수 있는 메뉴입니다.\n"

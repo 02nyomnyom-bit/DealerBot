@@ -414,7 +414,13 @@ class HorseRacingView(discord.ui.View):
         self.message = None
         self.race_started = False
 
-    @discord.ui.button(label="🏁 경주 시작!", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🏇 경주 시작", style=discord.ButtonStyle.success)
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner.id:
+            await interaction.response.send_message("❌ 경주 시작은 주최자만 가능합니다!", ephemeral=True)
+            return False
+        return True
+    
     async def start_race(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if interaction.user != self.user:
