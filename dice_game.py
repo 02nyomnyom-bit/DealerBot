@@ -126,7 +126,8 @@ class MultiSetupView(View):
         await self.start_game(interaction, None)
 
     async def start_game(self, interaction, target):
-        view = MultiDiceView(self.bot, self.user, self.bet, opponent=target)
+        # opponent=target 부분을 target으로 수정
+        view = MultiDiceView(self.bot, self.user, self.bet, target) 
         embed = discord.Embed(title="🎲 주사위 대결", color=discord.Color.gold())
         embed.add_field(name="💰 배팅액", value=f"{self.bet:,}원"); embed.add_field(name="P1", value=self.user.mention)
         embed.add_field(name="P2", value=target.mention if target else "대기 중...")
@@ -138,8 +139,14 @@ class MultiDiceView(View):
     def __init__(self, bot, p1, bet, p2=None):
         super().__init__(timeout=60)
         self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
-        self.game_completed = False # [변경] is_finished -> game_completed
+        self.game_completed = False
         self.message = None
+        
+        # --- 아래 변수들을 반드시 초기화해야 에러가 발생하지 않습니다 ---
+        self.p1_rolled = False
+        self.p2_rolled = False
+        self.p1_val = 0
+        self.p2_val = 0
 
     async def on_timeout(self):
         if self.game_completed: # [변경]

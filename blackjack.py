@@ -208,16 +208,27 @@ class MultiBlackjackView(View):
         self.message = None
 
     async def on_timeout(self):
-        if self.game_completed: return # 변수명 수정
+        if self.game_completed:
+            return
+            
+        self.game_completed = True
         
-        # 선차감된 금액 100% 환불
-        if POINT_MANAGER_AVAILABLE:
-            await point_manager.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
+        # 타임아웃 시 배팅금 100% 환불 로직
+        if POINT_MANAGER_AVAILABLE and self.message:
+            guild_id = self.message.guild.id
+            await point_manager.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
             if self.p2:
-                await point_manager.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
+                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
 
-        embed = discord.Embed(title="⏰ 블랙잭 중단", description="참여자의 응답이 없어 배팅금이 환불되었습니다.", color=discord.Color.red())
-        await self.message.edit(embed=embed, view=None)
+        try:
+            embed = discord.Embed(
+                title="⏰ 게임 무효화", 
+                description="입력 시간이 초과되어 게임이 취소되었습니다. 배팅금은 전액 환불되었습니다.", 
+                color=discord.Color.red()
+            )
+            await self.message.edit(embed=embed, view=None)
+        except:
+            pass
     
     async def finish_game_logic(self): # 메서드 이름도 명확하게 변경 권장
         self.game_completed = True
@@ -235,24 +246,39 @@ class MultiBlackjackView(View):
         self.game_completed = True
 
     @discord.ui.button(label="🃏 히트", style=discord.ButtonStyle.primary)
-    async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not await self.check_user(interaction): return
-        is_p1 = interaction.user.id == self.p1.id
-        if (is_p1 and self.p1_done) or (not is_p1 and self.p2_done):
-            return await interaction.response.send_message("이미 스탠드 상태입니다.", ephemeral=True)
+    async def check_user(self, interaction: discord.Interaction) -> bool:
+        # 1. 이미 등록된 플레이어인지 확인
+        if interaction.user.id == self.p1.id:
+            return True
+        if self.p2 and interaction.user.id == self.p2.id:
+            return True
 
-        cards = self.p1_cards if is_p1 else self.p2_cards
-        cards.append(self.game.draw_card())
+        # 2. 플레이어 2가 없는 경우 (공개 대전 대기 중)
+        if self.p2 is None:
+            # 방장은 중복 참여 불가
+            if interaction.user.id == self.p1.id:
+                await interaction.response.send_message("❌ 이미 게임에 참여 중입니다.", ephemeral=True)
+                return False
+            
+            # 참가자 잔액 확인 및 차감
+            if POINT_MANAGER_AVAILABLE:
+                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+                balance = balance if balance is not None else 0
+                if balance < self.bet:
+                    await interaction.response.send_message(f"❌ 잔액이 부족합니다. (필요: {self.bet:,}원)", ephemeral=True)
+                    return False
+                
+                # 포인트 차감
+                await point_manager.add_point(self.bot, interaction.guild_id, str(interaction.user.id), -self.bet)
 
-        if self.game.calculate_hand_value(cards) > 21:
-            if is_p1: self.p1_done = True
-            else: self.p2_done = True
-            await interaction.response.send_message("💥 버스트!", ephemeral=True)
-            if self.p1_done and self.p2_done: await self.finish_game()
-            else: await self.update_view()
-        else:
-            await interaction.response.defer()
-            await self.update_view()
+            # 플레이어 2로 등록
+            self.p2 = interaction.user
+            await interaction.channel.send(f"🎮 {interaction.user.mention}님이 대결에 참가했습니다!")
+            return True
+
+        # 3. 제3자가 버튼을 누른 경우
+        await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
+        return False
 
     @discord.ui.button(label="✋ 스탠드", style=discord.ButtonStyle.secondary)
     async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
