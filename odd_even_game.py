@@ -134,10 +134,17 @@ class MultiOddEvenView(View):
     async def finish_game(self):
         self.game_completed = True
 
-    @discord.ui.button(label="홀", style=discord.ButtonStyle.danger, emoji="🔴")
-    async def choose_odd(self, interaction, button): await self.make_choice(interaction, "홀")
-    @discord.ui.button(label="짝", style=discord.ButtonStyle.primary, emoji="🔵")
-    async def choose_even(self, interaction, button): await self.make_choice(interaction, "짝")
+    @discord.ui.button(label="홀", style=discord.ButtonStyle.primary)
+    async def odd_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("❌ 본인의 게임 버튼만 누를 수 있습니다.", ephemeral=True)
+        await self.process_game(interaction, "홀")
+
+    @discord.ui.button(label="짝", style=discord.ButtonStyle.secondary)
+    async def even_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("❌ 본인의 게임 버튼만 누를 수 있습니다.", ephemeral=True)
+        await self.process_game(interaction, "짝")
 
     async def make_choice(self, interaction, choice):
         if self.p2 is None and interaction.user.id != self.p1.id:

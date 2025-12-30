@@ -168,26 +168,62 @@ class MultiDiceView(View):
     async def finish_game(self):
         self.game_completed = True # [변경]
         
+
     @discord.ui.button(label="🎲 주사위 굴리기", style=discord.ButtonStyle.danger)
     async def roll(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 공개 모드 참가자 등록 및 선차감
-        if self.p2 is None and interaction.user.id != self.p1.id:
-            bal = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
-            if bal < self.bet:
-                return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
+        user_id = interaction.user.id
+    
+        # 1. P1(방장)인 경우
+        if user_id == self.p1.id:
+            if self.p1_rolled:
+                return await interaction.response.send_message("❌ 이미 주사위를 굴리셨습니다.", ephemeral=True)
+            self.p1_val = random.randint(1, 6)
+            self.p1_rolled = True
+
+        # 2. P2(지정 상대)인 경우
+        elif self.p2 and user_id == self.p2.id:
+            if self.p2_rolled:
+                return await interaction.response.send_message("❌ 이미 주사위를 굴리셨습니다.", ephemeral=True)
+            self.p2_val = random.randint(1, 6)
+            self.p2_rolled = True
+
+        # 3. 공개 대전(p2 미정)에서 제3자가 참여하는 경우
+        elif self.p2 is None:
+            if user_id == self.p1.id:
+                return await interaction.response.send_message("❌ 상대방을 기다려주세요.", ephemeral=True)
+    
+            # 1. p2를 즉시 할당하여 다른 난입자 차단
             self.p2 = interaction.user
+        
+            # 2. 그 후 포인트 체크 및 차감
             if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
+                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
+                if (balance or 0) < self.bet:
+                    self.p2 = None # 잔액 부족 시 p2 해제
+                    return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(user_id), -self.bet)
+            
+            # 방장이 중복 참여하는 것 방지
+            if user_id == self.p1.id:
+                return await interaction.response.send_message("❌ 상대방을 기다려주세요.", ephemeral=True)
+            
+            # [핵심] 제3자 참여 시 포인트 차감 확인
+            if POINT_MANAGER_AVAILABLE:
+                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
+                if (balance or 0) < self.bet:
+                    return await interaction.response.send_message("❌ 잔액이 부족하여 참가할 수 없습니다.", ephemeral=True)
+            
+                # 포인트 선차감
+                await point_manager.add_point(self.bot, interaction.guild_id, str(user_id), -self.bet)
+        
+            self.p2 = interaction.user
+            self.p2_val = random.randint(1, 6)
+            self.p2_rolled = True
+            await interaction.channel.send(f"⚔️ {interaction.user.mention}님이 {self.bet:,}원을 걸고 대결에 난입했습니다!")
 
-        if interaction.user.id == self.p1.id:
-            if self.p1_rolled: return await interaction.response.send_message("이미 굴리셨습니다.", ephemeral=True)
-            self.p1_val = random.randint(1, 6); self.p1_rolled = True
-        elif self.p2 and interaction.user.id == self.p2.id:
-            if self.p2_rolled: return await interaction.response.send_message("이미 굴리셨습니다.", ephemeral=True)
-            self.p2_val = random.randint(1, 6); self.p2_rolled = True
+        # 4. 그 외 완전히 상관없는 제3자인 경우
         else:
-            return await interaction.response.send_message("❌ 대결 참가자가 아닙니다.", ephemeral=True)
-
+            return await interaction.response.send_message("❌ 이 대결의 참가자가 아닙니다.", ephemeral=True)
         await interaction.response.defer()
         if self.p1_rolled and self.p2_rolled: await self.finish_game()
         else:

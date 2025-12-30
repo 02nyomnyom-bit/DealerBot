@@ -173,16 +173,55 @@ class MultiRPSView(View):
     @discord.ui.button(label="✋ 보", style=discord.ButtonStyle.gray)
     async def paper(self, interaction, button): await self.make_choice(interaction, "보")
 
-    async def make_choice(self, interaction, choice):
-        # 공개 대전 참여 처리
-        if self.p2 is None and interaction.user.id != self.p1.id:
-            bal = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
-            if bal < self.bet: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
-            self.p2 = interaction.user
-            if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
+    async def make_choice(self, interaction: discord.Interaction, choice: str):
+        user_id = interaction.user.id
+    
+        # 1. 플레이어 판별
+        if user_id == self.p1.id:
+            if self.p1_choice:
+                return await interaction.response.send_message("❌ 이미 선택하셨습니다.", ephemeral=True)
+            self.p1_choice = choice
+        elif self.p2 and user_id == self.p2.id:
+            if self.p2_choice:
+                return await interaction.response.send_message("❌ 이미 선택하셨습니다.", ephemeral=True)
+            self.p2_choice = choice
+        elif self.p2 is None:
+            if user_id == self.p1.id:
+                return await interaction.response.send_message("❌ 상대방을 기다려주세요.", ephemeral=True)
+    
+            # 1. p2를 즉시 할당하여 다른 사람의 난입을 빛의 속도로 차단
+            self.p2 = interaction.user 
+    
+            # 2. 그 후 포인트 체크 및 차감
+        if POINT_MANAGER_AVAILABLE:
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
+            if (balance or 0) < self.bet:
+                self.p2 = None # 잔액 부족 시 다시 자리를 비움
+                return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(user_id), -self.bet)
+    
+        # 3. 주사위 값 할당
+        self.p2_val = random.randint(1, 6)
+        self.p2_rolled = True
+        await interaction.channel.send(f"⚔️ {interaction.user.mention}님이 대결에 참가했습니다!")
+    
+        # 여기서 self.p2를 먼저 할당하여 다른 사람의 난입을 즉시 차단 (Race Condition 방지)
+        self.p2 = interaction.user 
+    
+        if POINT_MANAGER_AVAILABLE:
+        
+            # 포인트 체크 및 차감
+            if POINT_MANAGER_AVAILABLE:
+                bal = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
+                if (bal or 0) < self.bet:
+                    return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
+                await point_manager.add_point(self.bot, interaction.guild_id, str(user_id), -self.bet)
 
-        if interaction.user.id not in [self.p1.id, self.p2.id if self.p2 else None]:
-            return await interaction.response.send_message("❌ 참가자가 아닙니다.", ephemeral=True)
+            self.p2 = interaction.user
+            self.p2_choice = choice
+            await interaction.channel.send(f"⚔️ {interaction.user.mention}님이 가위바위보 대결에 난입했습니다!")
+        else:
+            return await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
         
         if interaction.user.id in self.choices:
             return await interaction.response.send_message("이미 선택하셨습니다!", ephemeral=True)

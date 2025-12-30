@@ -42,6 +42,13 @@ def record_yabawi_game(user_id: str, username: str, bet: int, payout: int, is_wi
         except: pass
 
 class YabawiGameView(View):
+    # 이 함수를 추가하면 이 View에 속한 모든 버튼은 실행자만 누를 수 있게 됩니다.
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.user.id:
+            await interaction.response.send_message("❌ 이 게임의 주인만 조작할 수 있습니다.", ephemeral=True)
+            return False
+        return True
+    
     def __init__(self, bot: commands.Bot, user: discord.User, base_bet: int, guild_id: str):
         super().__init__(timeout=120) # 2분 제한
         self.bot = bot
@@ -85,10 +92,7 @@ class YabawiGameView(View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
-            await interaction.response.send_message("❌ 본인의 게임만 참여할 수 있습니다.", ephemeral=True)
-            return False
-        if self.processing:
-            await interaction.response.send_message("⏳ 처리 중입니다. 잠시만 기다려주세요.", ephemeral=True)
+            await interaction.response.send_message("❌ 이 게임의 주인만 조작할 수 있습니다.", ephemeral=True)
             return False
         return True
 

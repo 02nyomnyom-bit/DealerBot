@@ -247,36 +247,34 @@ class MultiBlackjackView(View):
 
     @discord.ui.button(label="🃏 히트", style=discord.ButtonStyle.primary)
     async def check_user(self, interaction: discord.Interaction) -> bool:
-        # 1. 이미 등록된 플레이어인지 확인
-        if interaction.user.id == self.p1.id:
+        user_id = interaction.user.id
+    
+        # 참가자(P1, P2)인 경우 통과
+        if user_id == self.p1.id:
             return True
-        if self.p2 and interaction.user.id == self.p2.id:
+        if self.p2 and user_id == self.p2.id:
             return True
 
-        # 2. 플레이어 2가 없는 경우 (공개 대전 대기 중)
+        # P2가 없는 상태(공개 대전)에서 누군가 참여를 시도할 때
         if self.p2 is None:
-            # 방장은 중복 참여 불가
-            if interaction.user.id == self.p1.id:
-                await interaction.response.send_message("❌ 이미 게임에 참여 중입니다.", ephemeral=True)
+            if user_id == self.p1.id:
+                await interaction.response.send_message("❌ 이미 참가 중입니다.", ephemeral=True)
                 return False
             
-            # 참가자 잔액 확인 및 차감
+            # 포인트 체크 및 차감
             if POINT_MANAGER_AVAILABLE:
-                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
-                balance = balance if balance is not None else 0
-                if balance < self.bet:
-                    await interaction.response.send_message(f"❌ 잔액이 부족합니다. (필요: {self.bet:,}원)", ephemeral=True)
+                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
+                if (balance or 0) < self.bet:
+                    await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
                     return False
-                
-                # 포인트 차감
-                await point_manager.add_point(self.bot, interaction.guild_id, str(interaction.user.id), -self.bet)
+                await point_manager.add_point(self.bot, interaction.guild_id, str(user_id), -self.bet)
 
-            # 플레이어 2로 등록
+            # 참가자로 등록
             self.p2 = interaction.user
-            await interaction.channel.send(f"🎮 {interaction.user.mention}님이 대결에 참가했습니다!")
+            await interaction.channel.send(f"🃏 {interaction.user.mention}님이 블랙잭 대결에 참가했습니다!")
             return True
 
-        # 3. 제3자가 버튼을 누른 경우
+        # 이미 자리가 꽉 찼는데 제3자가 누른 경우
         await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
         return False
 
