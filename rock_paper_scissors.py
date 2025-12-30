@@ -272,7 +272,7 @@ class RPSCog(commands.Cog):
         if balance < 배팅: return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
 
         view = RPSModeSelectView(self.bot, interaction.user, 배팅)
-        await interaction.response.send_message(f"🎮 **가위바위보 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 10%가 차감됩니다.", view=view)
+        await interaction.response.send_message(f"🎮 **가위바위보 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
 
 async def setup(bot):
     await bot.add_cog(RPSCog(bot))

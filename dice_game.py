@@ -69,8 +69,8 @@ class DiceModeSelectView(View):
             payout = 0
             result_text = f"💀 패배... (-{self.bet:,}원)"
         else: # 무승부
-            payout = int(self.bet * PUSH_RETENTION) # 10% 수수료 차감 후 환불
-            result_text = f"🤝 무승부! (수수료 10% 제외 {payout:,}원 환불)"
+            payout = int(self.bet * PUSH_RETENTION) # 5% 수수료 차감 후 환불
+            result_text = f"🤝 무승부! (수수료 5% 제외 {payout:,}원 환불)"
 
         if POINT_MANAGER_AVAILABLE and payout > 0:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
@@ -249,7 +249,7 @@ class MultiDiceView(View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            reward_msg = f"🤝 각자 수수료 10%를 제외한 **{refund:,}원**이 환불되었습니다."
+            reward_msg = f"🤝 각자 수수료 5%를 제외한 **{refund:,}원**이 환불되었습니다."
 
         embed = discord.Embed(title="🎲 대결 결과", description=f"{self.p1.mention}: {DICE_EMOJIS[self.p1_val]} ({self.p1_val})\n{self.p2.mention}: {DICE_EMOJIS[self.p2_val]} ({self.p2_val})\n\n**{res_msg}**\n{reward_msg}", color=discord.Color.purple())
         await self.message.edit(embed=embed, view=None)
@@ -268,7 +268,7 @@ class DiceGameCog(commands.Cog):
         if balance < 배팅: return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
 
         view = DiceModeSelectView(self.bot, interaction.user, 배팅)
-        await interaction.response.send_message(f"🎲 **주사위 게임** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 10%가 발생합니다.", view=view)
+        await interaction.response.send_message(f"🎲 **주사위 게임** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 발생합니다.", view=view)
 
 async def setup(bot):
     await bot.add_cog(DiceGameCog(bot))

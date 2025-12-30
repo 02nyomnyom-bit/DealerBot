@@ -188,7 +188,7 @@ class MultiOddEvenView(View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            res_msg = f"🤝 무승부! (수수료 10% 제외 **{refund:,}원** 환불)"
+            res_msg = f"🤝 무승부! (수수료 5% 제외 **{refund:,}원** 환불)"
 
         embed = discord.Embed(title="🎲 홀짝 대결 결과", color=discord.Color.purple())
         embed.description = f"결과: {DICE_EMOJIS[dice_val]} ({dice_val}) -> **{actual}**\n\n**{res_msg}**\n"
@@ -209,7 +209,7 @@ class OddEvenCog(commands.Cog):
         if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
         view = OddEvenModeSelectView(self.bot, interaction.user, 배팅)
-        await interaction.response.send_message(f"🎲 **홀짝 게임 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 10%가 차감됩니다.", view=view)
+        await interaction.response.send_message(f"🎲 **홀짝 게임 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
 
 async def setup(bot):
     await bot.add_cog(OddEvenCog(bot))

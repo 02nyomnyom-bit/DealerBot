@@ -409,7 +409,7 @@ class BlackjackCog(commands.Cog):
             return await interaction.response.send_message(f"❌ 잔액이 부족합니다. (보유: {balance:,}원)", ephemeral=True)
 
         view = BlackjackModeSelectView(self.bot, interaction.user, 배팅)
-        await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 10%가 차감됩니다.", view=view)
+        await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
 
 async def setup(bot):
     await bot.add_cog(BlackjackCog(bot))
