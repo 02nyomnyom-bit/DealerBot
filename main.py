@@ -200,10 +200,10 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'enhancement_system',        # 강화 시스템
         'slot_machine',              # 슬롯머신
         'blackjack',                 # 블랙잭
-        'dice_game',                 # 주사위 게임
+        'dice_game',                 # 주사위 게임 - 모션빠짐
         'yabawi_game',               # 야바위 게임
         "rock_paper_scissors",       # 가위바위보
-        'odd_even_game',             # 홀짝 
+        'odd_even_game',             # 홀짝  - 모션빠짐
         'ladder_game',               # 사다리타기
     ]
     
