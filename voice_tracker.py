@@ -24,7 +24,7 @@ logger = logging.getLogger('voice_tracker')
 xp_settings = load_xp_settings()
 VOICE_XP_PER_MINUTE = xp_settings.get("voice_xp", 10)
 
-# ✅ 초기화 확인 뷰
+# 데이터 초기화 전 확인 버튼 UI
 class VoiceResetConfirmView(discord.ui.View):
     def __init__(self, cog, guild_id: str, user_id: str = None, target_user: Member = None):
         super().__init__(timeout=30)
@@ -33,6 +33,7 @@ class VoiceResetConfirmView(discord.ui.View):
         self.user_id = user_id
         self.target_user = target_user
 
+    # [확인] 버튼 클릭 시 실행되는 함수
     @discord.ui.button(label="✅ 확인", style=discord.ButtonStyle.danger)
     async def confirm_reset(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
@@ -64,13 +65,14 @@ class VoiceTracker(commands.Cog):
         self.sync_voice_status_loop.start()
 
     def cog_unload(self):
+        """Cog이 내려갈 때 반복 작업 중단"""
         self.update_sessions_loop.cancel()
         self.sync_voice_status_loop.cancel()
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        # 봇은 무시
-        if member.bot:
+        """사용자가 음성 채널에 들어오거나, 나가거나, 마이크를 끄는 등 상태 변화를 감지"""
+        if member.bot: # 봇은 XP 지급 대상에서 제외
             return
 
         user_id_str = str(member.id)
@@ -79,10 +81,11 @@ class VoiceTracker(commands.Cog):
         if not guild_id_str:
             return
 
+        # 마이크 및 스피커가 켜져 있는지 확인 (음소거 유저는 XP 지급 방지용)
         was_unmuted = not (before.self_mute or before.deaf or before.self_deaf)
         is_unmuted = not (after.self_mute or after.deaf or after.self_deaf)
         
-        # 음성 채널에 들어왔을 때
+        # 음성 채널에 새로 입장했을 때
         if after.channel is not None and before.channel is None:
             if is_unmuted:
                 self.active_sessions[user_id_str] = {
@@ -175,13 +178,13 @@ class VoiceTracker(commands.Cog):
                         continue
                     # 레벨업 확인을 위한 이전 레벨 저장
                     old_level = self.xp_cog.get_user_level(user_id, guild_id)
-                    # ✅ XP 지급
+                    # XP 지급
                     xp_gained = VOICE_XP_PER_MINUTE
                     success = await self.xp_cog.add_xp(user_id, guild_id, xp_gained)
                     if success:
                         logger.info(f"✅ {member.name}에게 음성 XP {xp_gained} 지급 완료!")
                         
-                        # ✅ 레벨업 확인 및 알림
+                        # 레벨업 확인 및 알림
                         new_level = self.xp_cog.get_user_level(user_id, guild_id)
     
                         if new_level > old_level:
@@ -201,9 +204,7 @@ class VoiceTracker(commands.Cog):
                         # ==========================================================
                         try:
                             db = get_guild_db_manager(guild_id)
-                            # add_voice_activity는 voice_time_log에 상세 기록을 남기고, 
-                            # voice_time의 total_time을 업데이트합니다.
-                            # 루프가 1분마다 실행되므로 duration은 1분입니다.
+                            # add_voice_activity = voice_time_log 상세 기록, voice_time의 total_time 업데이트 (루프 1분)
                             db.add_voice_activity(user_id, duration=1) 
                             logger.info(f"✅ {member.name}의 통화 시간 1분 기록 완료! (voice_time, voice_time_log 업데이트)")
                         except Exception as db_e:
@@ -235,7 +236,7 @@ class VoiceTracker(commands.Cog):
                 if not guild:
                     continue
 
-                # ✅ 모든 음성 채널의 멤버를 확인 (수정됨)
+                # 모든 음성 채널의 멤버를 확인
                 members_in_vc = set()
                 for voice_channel in guild.voice_channels:
                     for member in voice_channel.members:
@@ -279,7 +280,7 @@ class VoiceTracker(commands.Cog):
             
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="보이스랭크", description="사용자의 통화 시간을 공개적으로 확인합니다")
+    @app_commands.command(name="보이스랭크", description="사용자의 통화 시간을 공개적으로 확인합니다.")
     @app_commands.describe(사용자="확인할 사용자")
     async def voice_rank(self, interaction: discord.Interaction, 사용자: discord.Member):
         """보이스 랭크 확인 명령어 (공개)"""
@@ -358,7 +359,7 @@ class VoiceTracker(commands.Cog):
             logger.error(f"보이스랭크 명령어 오류: {e}")
             await interaction.followup.send("❌ 명령어 처리 중 오류가 발생했습니다.")
 
-    @app_commands.command(name="보이스통계", description="기간별 통화 순위를 공개적으로 확인합니다 (상위 10명)")
+    @app_commands.command(name="보이스통계", description="기간별 통화 순위를 공개적으로 확인합니다. (상위 10명)")
     @app_commands.describe(기간="통계 기간 선택")
     @app_commands.choices(기간=[
         app_commands.Choice(name="📅 하루 (24시간)", value="1"),
@@ -413,7 +414,7 @@ class VoiceTracker(commands.Cog):
             logger.error(f"보이스통계 명령어 오류: {e}")
             await interaction.followup.send("❌ 명령어 처리 중 오류가 발생했습니다.")
 
-    @app_commands.command(name="보이스초기화", description="[관리자] 통화 시간 데이터를 초기화합니다")
+    @app_commands.command(name="보이스초기화", description="[관리자 전용] 통화 시간 데이터를 초기화합니다.")
     @app_commands.describe(사용자="초기화할 사용자 (미지정시 전체 초기화)")
     @commands.has_permissions(administrator=True)
     async def reset_voice_data_cmd(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None):
@@ -511,7 +512,7 @@ class VoiceTracker(commands.Cog):
                 
         return " ".join(parts) if parts else "1분 미만"
 
-    # ✅ 음성 기록 초기화 기능
+    # 음성 기록 초기화 기능
     def reset_voice_data_db(self, guild_id: str, user_id: str = None) -> bool:
         """
         데이터베이스의 음성 기록을 초기화합니다.

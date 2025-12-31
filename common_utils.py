@@ -1,4 +1,4 @@
-# common_utils.py - 개선된 공통 유틸리티 함수 모음
+# common_utils.py
 from __future__ import annotations
 import os
 import json

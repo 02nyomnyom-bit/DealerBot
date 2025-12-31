@@ -1,4 +1,4 @@
-# tax_system.py - 등급별 세금 시스템 (완전한 원본 복원)
+# tax_system.py
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -8,11 +8,11 @@ import json
 import os
 import asyncio
 
-# ✅ common_utils에서 필요한 함수들 import
+# 외부 유틸리티 함수 임포트
 try:
     from common_utils import log_admin_action, format_xp, now_str
 except ImportError:
-    # common_utils가 없는 경우 대체 함수들
+    # 모듈이 없을 경우를 대비한 대체(Fallback) 함수 정의
     def log_admin_action(message: str):
         print(f"[ADMIN LOG] {message}")
     
@@ -23,7 +23,7 @@ except ImportError:
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# ✅ 안전한 의존성 import
+# 데이터베이스 관리자 임포트
 def safe_import_database():
     try:
         from database_manager import get_guild_db_manager
@@ -32,21 +32,21 @@ def safe_import_database():
         print("⚠️ DatabaseManager 임포트 실패")
         return None, False
 
-# 데이터베이스 로드
+# DB 함수 및 사용 가능 여부 확인
 get_guild_db_manager_func, DATABASE_AVAILABLE = safe_import_database()
 
-# ✅ 데이터 디렉토리 및 파일 경로
+# 데이터 저장 경로 설정
 DATA_DIR = "data"
 TAX_SETTINGS_FILE = os.path.join(DATA_DIR, "tax_settings.json")
 
-# 디렉토리 생성
+# 저장 디렉토리 자동 생성
 os.makedirs(DATA_DIR, exist_ok=True)
 
 class TaxManager:
     """세금 시스템 관리 클래스"""
     
     def __init__(self):
-        self.tax_settings: Dict[str, Dict[str, int]] = {}  # {guild_id: {role_id: xp_amount}}
+        self.tax_settings: Dict[str, Dict[str, int]] = {}
         self.load_data()
     
     def load_data(self):
@@ -91,7 +91,7 @@ class TaxManager:
             if guild_id in self.tax_settings and role_id in self.tax_settings[guild_id]:
                 del self.tax_settings[guild_id][role_id]
                 
-                # 해당 서버의 세금 설정이 모두 없으면 서버 데이터도 제거
+                # 서버 내 설정이 하나도 없으면 서버 키 자체를 삭제
                 if not self.tax_settings[guild_id]:
                     del self.tax_settings[guild_id]
                 
@@ -191,13 +191,13 @@ class TaxSystemCog(commands.Cog):
         self.bot = bot
         self.tax_manager = tax_manager
     
-    @app_commands.command(name="세금설정", description="특정 역할에 대한 세금 XP를 설정합니다 (관리자 전용)")
+    @app_commands.command(name="세금설정", description="[관리자 전용] 특정 역할에 대한 세금 XP를 설정합니다.")
     @app_commands.describe(역할="세금을 부과할 역할", xp="빼앗을 XP 양")
     async def set_tax(self, interaction: discord.Interaction, 역할: discord.Role, xp: int):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -275,13 +275,13 @@ class TaxSystemCog(commands.Cog):
                 ephemeral=True
             )
     
-    @app_commands.command(name="세금수거", description="특정 역할의 사용자들로부터 세금을 수거합니다 (관리자 전용)")
+    @app_commands.command(name="세금수거", description="[관리자 전용] 특정 역할의 사용자들로부터 세금을 수거합니다.")
     @app_commands.describe(역할="세금을 수거할 역할")
     async def collect_tax(self, interaction: discord.Interaction, 역할: discord.Role):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -432,7 +432,7 @@ class TaxSystemCog(commands.Cog):
         
         await interaction.edit_original_response(embed=result_embed)
     
-    @app_commands.command(name="세금목록", description="현재 설정된 세금 목록을 확인합니다")
+    @app_commands.command(name="세금목록", description="현재 설정된 세금 목록을 확인합니다.")
     async def tax_list(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild.id)
         guild_taxes = self.tax_manager.get_tax_settings(guild_id)
@@ -508,13 +508,13 @@ class TaxSystemCog(commands.Cog):
         embed.set_footer(text=f"확인자: {interaction.user.display_name}")
         await interaction.response.send_message(embed=embed, ephemeral=False)
     
-    @app_commands.command(name="세금삭제", description="특정 역할의 세금 설정을 삭제합니다 (관리자 전용)")
+    @app_commands.command(name="세금삭제", description="[관리자 전용] 특정 역할의 세금 설정을 삭제합니다.")
     @app_commands.describe(역할="세금 설정을 삭제할 역할")
     async def remove_tax(self, interaction: discord.Interaction, 역할: discord.Role):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -562,12 +562,12 @@ class TaxSystemCog(commands.Cog):
                 ephemeral=True
             )
     
-    @app_commands.command(name="세금초기화", description="모든 세금 설정을 초기화합니다 (관리자 전용)")
+    @app_commands.command(name="세금초기화", description="[관리자 전용] 모든 세금 설정을 초기화합니다.")
     async def clear_all_taxes(self, interaction: discord.Interaction):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -615,7 +615,5 @@ class TaxSystemCog(commands.Cog):
         view = TaxClearConfirmView(interaction.user.id, guild_id, self.tax_manager)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-# ✅ setup 함수
 async def setup(bot: commands.Bot):
     await bot.add_cog(TaxSystemCog(bot))
-    print("✅ 등급별 세금 시스템 로드 완료")

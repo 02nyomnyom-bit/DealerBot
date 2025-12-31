@@ -9,6 +9,11 @@ import asyncio
 
 # --- 시스템 연동부 ---
 try:
+    from statistics_system import stats_manager
+    STATS_AVAILABLE = True
+except ImportError:
+    STATS_AVAILABLE = False
+try:
     import point_manager
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
@@ -20,6 +25,16 @@ PUSH_RETENTION = 0.95 # 무승부 시 5% 수수료 제외 (95%만 지급)
 WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
 
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
+
+# --- 애니메이션 유틸리티 ---
+async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
+    """주사위 굴리는 애니메이션 효과를 줍니다."""
+    dice_faces = list(DICE_EMOJIS.values())
+    for _ in range(4): # 4회 반복
+        current_face = random.choice(dice_faces)
+        base_embed.description = f"🎲 **주사위를 굴리는 중...** {current_face}"
+        await message.edit(embed=base_embed, view=None)
+        await asyncio.sleep(0.3)
 
 # --- 1단계: 모드 선택 View ---
 class OddEvenModeSelectView(View):
@@ -60,7 +75,14 @@ class SingleOddEvenView(View):
     async def choose_even(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_game(interaction, "짝")
 
-    async def process_game(self, interaction, user_choice):
+    async def process_game(self, interaction: discord.Interaction, user_choice):
+        await interaction.response.defer()
+        message = await interaction.original_response()
+
+        # 애니메이션 실행
+        anim_embed = discord.Embed(title="🎲 결과 확인 중...", color=discord.Color.light_grey())
+        await play_dice_animation(message, anim_embed)
+
         dice_val = random.randint(1, 6)
         actual = "홀" if dice_val % 2 != 0 else "짝"
         
@@ -69,11 +91,13 @@ class SingleOddEvenView(View):
 
         if POINT_MANAGER_AVAILABLE and payout > 0:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
+        if STATS_AVAILABLE:
+            stats_manager.record_game(str(self.user.id), self.user.display_name, "홀짝", self.bet, payout, is_win)
 
         embed = discord.Embed(title="🎲 홀짝 결과", color=discord.Color.gold() if is_win else discord.Color.red())
         result_text = "🏆 맞췄습니다!" if is_win else "💀 틀렸습니다..."
         embed.description = f"선택: **{user_choice}**\n결과: {DICE_EMOJIS[dice_val]} ({dice_val}) -> **{actual}**\n\n**{result_text}**\n정산: {payout:,}원"
-        await interaction.response.edit_message(embed=embed, view=None)
+        await message.edit(embed=embed, view=None)
 
 # --- 3단계: 멀티 세부 설정 View ---
 class MultiSetupView(View):
@@ -115,40 +139,27 @@ class MultiOddEvenView(View):
         self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
         self.choices = {}
         self.message = None
-        self.game_completed = False  # 충돌 방지를 위해 이름 변경
-
+        self.game_completed = False
+        
     async def on_timeout(self):
         if self.game_completed: return
-        
         guild_id = self.message.guild.id
-        refund_msg = "⏰ **시간 초과!** 두 분 모두 선택하지 않아 게임이 취소되었습니다.\n"
-        
         if POINT_MANAGER_AVAILABLE:
             await point_manager.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
-            if self.p2:
-                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
-        
-        embed = discord.Embed(title="❌ 타임아웃 환불", description=refund_msg, color=discord.Color.red())
+            if self.p2: await point_manager.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
+        embed = discord.Embed(title="❌ 타임아웃 환불", description="⏰ 두 분 모두 선택하지 않아 게임이 취소되었습니다.", color=discord.Color.red())
         await self.message.edit(embed=embed, view=None)
-
-    async def finish_game(self):
-        self.game_completed = True
 
     @discord.ui.button(label="홀", style=discord.ButtonStyle.primary)
     async def odd_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            return await interaction.response.send_message("❌ 본인의 게임 버튼만 누를 수 있습니다.", ephemeral=True)
-        await self.process_game(interaction, "홀")
+        await self.make_choice(interaction, "홀")
 
     @discord.ui.button(label="짝", style=discord.ButtonStyle.secondary)
     async def even_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.user_id:
-            return await interaction.response.send_message("❌ 본인의 게임 버튼만 누를 수 있습니다.", ephemeral=True)
-        await self.process_game(interaction, "짝")
+        await self.make_choice(interaction, "짝")
 
     async def make_choice(self, interaction, choice):
         if self.p2 is None and interaction.user.id != self.p1.id:
-            # 잔액 체크 로직 추가 권장
             self.p2 = interaction.user
             if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
 
@@ -162,10 +173,15 @@ class MultiOddEvenView(View):
         await interaction.response.send_message(f"✅ {choice}를 선택하셨습니다!", ephemeral=True)
 
         if len(self.choices) == 2:
-            await self.finish_game_logic() #
+            await self.finish_game_logic()
 
     async def finish_game_logic(self):
-        self.game_completed = True # [수정] 플래그를 True로 설정하여 중복 실행 및 타임아웃 방지
+        self.game_completed = True
+        
+        # 애니메이션 실행
+        anim_embed = discord.Embed(title="🎲 결과 확인 중...", color=discord.Color.light_grey())
+        await play_dice_animation(self.message, anim_embed)
+
         dice_val = random.randint(1, 6)
         actual = "홀" if dice_val % 2 != 0 else "짝"
         guild_id = self.message.guild.id
@@ -175,13 +191,12 @@ class MultiOddEvenView(View):
 
         if p1_correct and not p2_correct: winner = self.p1
         elif p2_correct and not p1_correct: winner = self.p2
-        else: winner = None # 둘 다 맞추거나 둘 다 틀림
+        else: winner = None
 
         if winner:
             total_pot = self.bet * 2
             reward = int(total_pot * WINNER_RETENTION)
-            if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
+            if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             res_msg = f"🏆 {winner.mention} 승리! 수수료 제외 **{reward:,}원** 획득!"
         else:
             refund = int(self.bet * PUSH_RETENTION)
@@ -200,13 +215,14 @@ class OddEvenCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="홀짝", description="홀짝 게임을 시작합니다.(최대 5,000원)")
+    @app_commands.command(name="홀짝", description="홀짝 게임을 시작합니다.(100원 ~ 5,000원)")
     async def odd_even(self, interaction: discord.Interaction, 배팅: int = 100):
         if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터!", ephemeral=True)
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
         
-        balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
-        if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
+        if POINT_MANAGER_AVAILABLE:
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+            if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
         view = OddEvenModeSelectView(self.bot, interaction.user, 배팅)
         await interaction.response.send_message(f"🎲 **홀짝 게임 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)

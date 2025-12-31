@@ -11,11 +11,11 @@ from pathlib import Path
 
 # ✅ 기본 리더보드 설정 (다른 모듈에서 참조 가능)
 DEFAULT_LEADERBOARD_SETTINGS = {
-    "attendance_cash": 3000,
-    "attendance_xp": 100,
-    "streak_cash_per_day": 100,      # 연속 출석일당 추가 현금
-    "streak_xp_per_day": 10,         # 연속 출석일당 추가 XP
-    "max_streak_bonus_days": 30,     # 연속 보너스가 적용되는 최대 일수
+    "attendance_cash": 3000,        # 출석 시 지급 현금
+    "attendance_xp": 100,           # 출석 시 지급 XP
+    "streak_cash_per_day": 100,     # 연속 출석일당 추가 현금
+    "streak_xp_per_day": 10,        # 연속 출석일당 추가 XP
+    "max_streak_bonus_days": 30,    # 연속 보너스가 적용되는 최대 일수
     "weekly_cash_bonus": 1000,
     "weekly_xp_bonus": 500,
     "monthly_cash_bonus": 10000,

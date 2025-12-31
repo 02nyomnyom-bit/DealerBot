@@ -341,14 +341,11 @@ class BackupSystem:
 
 # ✅ Discord 백업 Cog 클래스
 class BackupCog(commands.Cog):
-    def __init__(self, bot, backup_system): # FIX 2: Accept backup_system instance
+    def __init__(self, bot, backup_system):
         self.bot = bot
         self.backup_system = backup_system
 
-# FIX 3: Remove CLI code and main() function
 async def setup(bot: commands.Bot):
     backup_system_instance = BackupSystem()
     await bot.add_cog(BackupCog(bot, backup_system_instance))
-    # Start auto backup when the cog is loaded
     backup_system_instance.start_auto_backup()
-    print("✅ 백업 시스템 (Discord 명령어 포함) 로드 완료")

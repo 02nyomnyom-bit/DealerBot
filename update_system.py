@@ -8,10 +8,10 @@ import json
 import os
 from typing import Dict, List, Optional
 
-# ✅ 설정 파일 경로
-DATA_DIR = "data"
-REALTIME_UPDATES_FILE = os.path.join(DATA_DIR, "realtime_updates.json")
-ARCHIVED_UPDATES_FILE = os.path.join(DATA_DIR, "archived_updates.json")
+# 설정 파일 경로
+DATA_DIR = "data"                                                       # 데이터 저장 폴더
+REALTIME_UPDATES_FILE = os.path.join(DATA_DIR, "realtime_updates.json") # 현재 활성 업데이트 파일
+ARCHIVED_UPDATES_FILE = os.path.join(DATA_DIR, "archived_updates.json") # 삭제/만료된 업데이트 보관 파일
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -59,7 +59,7 @@ def save_archived_updates(updates):
         return False
 
 def add_realtime_update(title: str, description: str, author: str, priority: str = "일반") -> bool:
-    """실시간 업데이트 추가 (우선순위 포함)"""
+    """새로운 업데이트를 추가합니다. 추가 전 오래된(24시간 경과) 업데이트를 정리합니다."""
     try:
         updates = load_realtime_updates()
         
@@ -149,12 +149,12 @@ def remove_old_updates() -> int:
                 update_time = datetime.datetime.fromisoformat(update["timestamp"])
                 time_diff = (current_date - update_time).total_seconds()
                 
-                if time_diff < 86400:  # 24시간 (86400초) 미만인 업데이트만 유지
+                if time_diff < 2592000:  # 한달 미만인 업데이트만 유지
                     filtered_updates.append(update)
                 else:
                     # 보관된 업데이트에 추가
                     update["archived_date"] = current_date.isoformat()
-                    update["archived_reason"] = "24시간 경과로 자동 보관"
+                    update["archived_reason"] = "한달 경과로 자동 보관"
                     archived.append(update)
                     removed_count += 1
                     print(f"📦 보관: [{update.get('priority', '일반')}] {update['title']}")
@@ -258,11 +258,11 @@ class RealtimeUpdateSystem(commands.Cog):
         self.bot = bot
         # self.auto_cleanup_task.start() # ❌ 자동 정리 작업 시작 중단
     
-    @app_commands.command(name="업데이트추가", description="새로운 업데이트를 추가합니다 (관리자 전용)")
+    @app_commands.command(name="업데이트추가", description="[관리자 전용] 새로운 업데이트를 추가합니다.")
     @app_commands.describe(제목="업데이트 제목", 내용="업데이트 내용", 우선순위="우선순위 (긴급/중요/일반)")
     async def add_update(self, interaction: discord.Interaction, 제목: str, 내용: str, 우선순위: str = "일반"):
         if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("🚫 관리자만 사용 가능합니다.", ephemeral=True)
+            await interaction.response.send_message("❌ 관리자만 사용 가능합니다.", ephemeral=True)
             return
         
         processed_description = 내용.replace("\\n", "\n")
@@ -271,11 +271,11 @@ class RealtimeUpdateSystem(commands.Cog):
         if success:
             priority_emoji = {"긴급": "🚨", "중요": "⚠️", "일반": "📌"}.get(우선순위, "📌")
             embed = discord.Embed(
-                title="✅ 실시간 업데이트 추가 완료",
+                title="실시간 업데이트 추가 완료",
                 description=f"{priority_emoji} **{제목}**\n{processed_description}",
                 color=discord.Color.green()
             )
-            embed.set_footer(text="이 업데이트는 관리자가 삭제할 때까지 유지됩니다.") # 문구 수정
+            embed.set_footer(text="이 업데이트는 관리자가 삭제할 때까지 유지됩니다.")
             await interaction.response.send_message(embed=embed)
         else:
             await interaction.response.send_message("❌ 업데이트 추가에 실패했습니다.", ephemeral=True)
@@ -336,11 +336,11 @@ class RealtimeUpdateSystem(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="업데이트삭제", description="특정 ID의 업데이트를 삭제합니다 (관리자 전용)")
+    @app_commands.command(name="업데이트삭제", description="[관리자 전용] 특정 ID의 업데이트를 삭제합니다.")
     @app_commands.describe(업데이트_id="삭제할 업데이트의 ID")
     async def delete_update(self, interaction: discord.Interaction, 업데이트_id: int):
         if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("🚫 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
+            await interaction.response.send_message("❌ 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
             return
         
         success = delete_update_by_id(업데이트_id)
@@ -360,10 +360,10 @@ class RealtimeUpdateSystem(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="전체업데이트정리", description="모든 실시간 및 보관된 업데이트를 삭제합니다 (관리자 전용)")
+    @app_commands.command(name="전체업데이트정리", description="[관리자 전용] 모든 실시간 및 보관된 업데이트를 삭제합니다.")
     async def clear_all_updates_command(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("🚫 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
+            await interaction.response.send_message("❌ 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
             return
 
         success = clear_all_updates()
@@ -383,10 +383,10 @@ class RealtimeUpdateSystem(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="업데이트통계", description="시스템 통계를 확인합니다")
+    @app_commands.command(name="업데이트통계", description="[관리자 전용] 시스템 통계를 확인합니다.")
     async def update_stats(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("🚫 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
+            await interaction.response.send_message("❌ 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
             return
         
         stats = get_update_statistics()
@@ -439,7 +439,7 @@ class RealtimeUpdateSystem(commands.Cog):
             # 기존에 존재하는 update_stats 메서드 호출
             return await self.update_stats(guild_id, user_id, game_type, is_win, earn_points)
     
-    @app_commands.command(name="업데이트", description="실시간 업데이트 내용만 확인합니다")
+    @app_commands.command(name="업데이트", description="실시간 업데이트 내용만 확인합니다.")
     async def show_updates_only(self, interaction: discord.Interaction):
         updates = load_realtime_updates()
         
@@ -478,7 +478,7 @@ class RealtimeUpdateSystem(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    @app_commands.command(name="안녕", description="딜러양과 인사하고 최신 업데이트를 확인합니다")
+    @app_commands.command(name="안녕", description="딜러양과 인사하고 최신 뉴스를 확인합니다.")
     async def hello_with_updates(self, interaction: discord.Interaction):
         # 기본 인사말
         embed = discord.Embed(
@@ -524,7 +524,7 @@ class RealtimeUpdateSystem(commands.Cog):
             inline=True
         )
         
-        embed.set_footer(text="딜러양 v7 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="딜러양 v1.5.7 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 

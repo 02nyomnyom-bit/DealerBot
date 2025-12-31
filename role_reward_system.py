@@ -1,4 +1,4 @@
-# role_reward_system.py - 레벨별 역할 자동 부여 시스템 (레벨 역할 지급 안내 채널 추가)\
+# role_reward_system.py
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -8,10 +8,10 @@ import json
 import os
 from common_utils import log_admin_action, now_str
 
-# ✅ 데이터 디렉토리 및 파일 경로
+# 데이터 파일 경로
 DATA_DIR = "data"
-ROLE_REWARDS_FILE = os.path.join(DATA_DIR, "role_rewards.json")
-ROLE_NOTIFICATION_CHANNELS_FILE = os.path.join(DATA_DIR, "role_notification_channels.json")
+ROLE_REWARDS_FILE = os.path.join(DATA_DIR, "role_rewards.json")                             # 레벨별 역할 보상 정보 저장 파일
+ROLE_NOTIFICATION_CHANNELS_FILE = os.path.join(DATA_DIR, "role_notification_channels.json") # 역할 지급 알림을 보낼 채널 설정 저장 파일
 
 # 디렉토리 생성
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -37,12 +37,13 @@ def save_role_notification_channels(channels_data):
     except Exception as e:
         print(f"역할 알림 채널 설정 저장 오류: {e}")
         return False
-
+    
+# --- [데이터 관리 클래스] 역할 보상 로직 처리 ---
 class RoleRewardManager:
     """레벨별 역할 보상 관리 클래스"""
     
     def __init__(self):
-        self.role_rewards: Dict[str, Dict[int, str]] = {}  # {guild_id: {level: role_id}}
+        self.role_rewards: Dict[str, Dict[int, str]] = {}                    # {서버ID: {레벨: 역할ID}} 구조로 데이터 저장
         self.role_notification_channels = load_role_notification_channels()  # 역할 알림 채널 설정
         self.load_data()
     
@@ -190,7 +191,7 @@ class RoleRewardManager:
                 except Exception as e:
                     print(f"❌ 역할 부여 실패 ({role.name}): {e}")
             
-            # 새로 부여된 역할이 있으면 알림 - 수정된 부분
+            # 새로 부여된 역할이 있으면 알림
             if roles_to_add:
                 try:
                     embed = discord.Embed(
@@ -239,13 +240,13 @@ class RoleRewardCog(commands.Cog):
         """레벨업 시 역할 확인 및 부여 - Cog 내부용 메서드"""
         await self.role_manager.check_and_assign_level_role(member, new_level, old_level)
     
-    @app_commands.command(name="역할설정", description="특정 레벨에 도달시 부여할 역할을 설정합니다 (관리자 전용)")
+    @app_commands.command(name="역할설정", description="[관리자 전용] 특정 레벨에 도달시 부여할 역할을 설정합니다.")
     @app_commands.describe(레벨="역할을 부여할 레벨", 역할="부여할 역할")
     async def set_role_reward(self, interaction: discord.Interaction, 레벨: int, 역할: discord.Role):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -311,12 +312,12 @@ class RoleRewardCog(commands.Cog):
                 ephemeral=True
             )
     
-    @app_commands.command(name="역할목록", description="설정된 레벨별 역할 보상 목록을 확인합니다 (관리자 전용)")
+    @app_commands.command(name="역할목록", description="[관리자 전용] 설정된 레벨별 역할 보상 목록을 확인합니다.")
     async def list_role_rewards(self, interaction: discord.Interaction):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -380,13 +381,13 @@ class RoleRewardCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="역할삭제", description="특정 레벨의 역할 보상을 삭제합니다 (관리자 전용)")
+    @app_commands.command(name="역할삭제", description="[관리자 전용] 특정 레벨의 역할 보상을 삭제합니다.")
     @app_commands.describe(레벨="삭제할 역할 보상의 레벨")
     async def remove_role_reward(self, interaction: discord.Interaction, 레벨: int):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -443,12 +444,12 @@ class RoleRewardCog(commands.Cog):
                 ephemeral=True
             )
     
-    @app_commands.command(name="역할초기화", description="모든 레벨별 역할 보상을 삭제합니다 (관리자 전용)")
+    @app_commands.command(name="역할초기화", description="[관리자 전용] 모든 레벨별 역할 보상을 삭제합니다.")
     async def clear_role_rewards(self, interaction: discord.Interaction):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -496,7 +497,7 @@ class RoleRewardCog(commands.Cog):
         view = ClearConfirmView(self.role_manager, guild_id, interaction.user.id)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
-    @app_commands.command(name="역할알림채널설정", description="레벨 역할 지급 안내 채널을 설정합니다 (관리자 전용)")
+    @app_commands.command(name="역할알림채널설정", description="[관리자 전용] 레벨 역할 지급 안내 채널을 설정합니다.")
     @app_commands.describe(채널="레벨 역할 지급 안내를 보낼 채널")
     async def setup_role_notification_channel(self, interaction: discord.Interaction, 채널: discord.TextChannel = None):
         """레벨 역할 지급 안내 채널 설정"""
@@ -572,7 +573,7 @@ class RoleRewardCog(commands.Cog):
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="역할알림채널해제", description="레벨 역할 지급 안내 채널 설정을 해제합니다 (관리자 전용)")
+    @app_commands.command(name="역할알림채널해제", description="[관리자 전용] 레벨 역할 지급 안내 채널 설정을 해제합니다.")
     async def remove_role_notification_channel(self, interaction: discord.Interaction):
         """레벨 역할 지급 안내 채널 설정 해제"""
         if not interaction.user.guild_permissions.administrator:
@@ -713,4 +714,3 @@ class ClearConfirmView(discord.ui.View):
 
 async def setup(bot):
     await bot.add_cog(RoleRewardCog(bot))
-    print("✅ 레벨별 역할 보상 시스템 (레벨 역할 지급 안내 채널 포함) 로드 완료")

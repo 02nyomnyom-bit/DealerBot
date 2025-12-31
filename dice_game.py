@@ -26,6 +26,16 @@ MAX_BET = 5000  # 최대 배팅금: 5천 원
 PUSH_RETENTION = 0.95 # 무승부 시 5% 수수료 제외 (95%만 지급)
 WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
 
+# --- 애니메이션 유틸리티 ---
+async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
+    """주사위 애니메이션: 임베드의 내용을 유지하며 주사위 눈금만 변경합니다."""
+    dice_faces = list(DICE_EMOJIS.values())
+    for i in range(5):  # 5회 회전
+        current_face = random.choice(dice_faces)
+        base_embed.description = f"🎲 **주사위가 굴러가고 있습니다...** {current_face}"
+        await message.edit(embed=base_embed, view=None)
+        await asyncio.sleep(0.4)
+
 # 통계 기록 헬퍼 함수
 def record_dice_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
     if STATS_AVAILABLE:
@@ -34,58 +44,51 @@ def record_dice_game(user_id: str, username: str, bet: int, payout: int, is_win:
         except Exception as e:
             print(f"통계 기록 오류: {e}")
 
-# --- 1단계: 메인 모드 선택 View ---
+# --- 1단계: 모드 선택 View ---
 class DiceModeSelectView(View):
     def __init__(self, bot, user, bet):
         super().__init__(timeout=60)
-        self.bot = bot
-        self.user = user
-        self.bet = bet
+        self.bot, self.user, self.bet = bot, user, bet
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
-            await interaction.response.send_message("❌ 이 메뉴는 명령어 실행자만 조작할 수 있습니다.", ephemeral=True)
+            await interaction.response.send_message("❌ 명령어 실행자만 선택 가능합니다.", ephemeral=True)
             return False
         return True
 
-    @discord.ui.button(label="🤖 싱글 모드 (vs 봇)", style=discord.ButtonStyle.secondary, emoji="👤")
+    @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 1. 포인트 선차감 (블랙잭 방식 적용)
         if POINT_MANAGER_AVAILABLE:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
-
-        bot_val = random.randint(1, 6)
-        user_val = random.randint(1, 6)
         
-        diff = user_val - bot_val
-        payout = 0
-        is_win = False
-
-        if diff > 0: # 승리
-            payout = self.bet * 2 # 선차감했으므로 배팅금의 2배를 지급 (본전 + 수익)
-            result_text = f"🏆 승리! (+{self.bet:,}원)"
-            is_win = True
-        elif diff < 0: # 패배
-            payout = 0
-            result_text = f"💀 패배... (-{self.bet:,}원)"
-        else: # 무승부
-            payout = int(self.bet * PUSH_RETENTION) # 5% 수수료 차감 후 환불
-            result_text = f"🤝 무승부! (수수료 5% 제외 {payout:,}원 환불)"
+        # 싱글 모드는 즉시 주사위를 굴립니다.
+        await interaction.response.defer()
+        message = await interaction.original_response()
+        
+        # 애니메이션 시작
+        anim_embed = discord.Embed(title="🤖 주사위: 싱글 모드", color=discord.Color.blue())
+        await play_dice_animation(message, anim_embed)
+        
+        # 결과 계산
+        dice_val = random.randint(1, 6)
+        payout = self.bet * 2 if dice_val >= 4 else 0 # 4 이상 승리 예시
 
         if POINT_MANAGER_AVAILABLE and payout > 0:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
         
-        record_dice_game(str(self.user.id), self.user.display_name, self.bet, payout, is_win)
+        is_win = payout > 0
+        if STATS_AVAILABLE:
+            stats_manager.record_game(str(self.user.id), self.user.display_name, "주사위", self.bet, payout, is_win)
 
-        embed = discord.Embed(title="🎲 싱글 주사위 결과", color=discord.Color.blue())
-        embed.description = f"**{self.user.display_name}**: {DICE_EMOJIS[user_val]} ({user_val})\n**봇**: {DICE_EMOJIS[bot_val]} ({bot_val})\n\n**{result_text}**"
-        await interaction.response.edit_message(content=None, embed=embed, view=None)
+        embed = discord.Embed(title="🎲 주사위 결과", color=discord.Color.gold() if is_win else discord.Color.red())
+        result_text = "🏆 승리!" if is_win else "💀 패배..."
+        embed.description = f"결과: {DICE_EMOJIS[dice_val]} ({dice_val})\n\n**{result_text}**\n정산: {payout:,}원"
+        await message.edit(embed=embed, view=None)
 
-    @discord.ui.button(label="👥 멀티 모드 (플레이어)", style=discord.ButtonStyle.primary, emoji="⚔️")
+    @discord.ui.button(label="👥 멀티 모드", style=discord.ButtonStyle.primary, emoji="⚔️")
     async def multi_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(title="👥 멀티플레이 설정", description="대결 방식을 선택하세요.", color=discord.Color.green())
-        view = MultiSetupView(self.bot, self.user, self.bet)
-        await interaction.response.edit_message(embed=embed, view=view)
+        embed = discord.Embed(title="👥 멀티플레이 설정", description="상대방과 주사위 숫자가 높은 사람이 승리합니다.", color=discord.Color.green())
+        await interaction.response.edit_message(embed=embed, view=MultiSetupView(self.bot, self.user, self.bet))
 
 # --- 2단계: 멀티 세부 설정 View ---
 class MultiSetupView(View):
@@ -95,180 +98,128 @@ class MultiSetupView(View):
 
     @discord.ui.button(label="🎯 상대 지정하기", style=discord.ButtonStyle.secondary)
     async def select_opponent(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_select = UserSelect(placeholder="대결할 상대를 선택하세요!")
-        
-        async def select_callback(inter: discord.Interaction):
+        user_select = UserSelect(placeholder="대결 상대를 선택하세요.")
+        async def callback(inter: discord.Interaction):
             target = user_select.values[0]
             if target.id == self.user.id or target.bot:
                 return await inter.response.send_message("❌ 올바른 상대를 선택하세요.", ephemeral=True)
             
-            # 양측 포인트 체크 및 선차감
             if POINT_MANAGER_AVAILABLE:
-                p1_bal = await point_manager.get_point(self.bot, inter.guild_id, str(self.user.id))
-                p2_bal = await point_manager.get_point(self.bot, inter.guild_id, str(target.id))
-                if p1_bal < self.bet or p2_bal < self.bet:
-                    return await inter.response.send_message("❌ 참가자 중 잔액이 부족한 사람이 있습니다.", ephemeral=True)
-                
                 await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
                 await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
-
-            await self.start_game(inter, target)
-
-        user_select.callback = select_callback
-        view = View(); view.add_item(user_select)
-        await interaction.response.edit_message(content="상대를 지목해주세요.", embed=None, view=view)
+            await self.start_multi(inter, target)
+        
+        v = View(); user_select.callback = callback; v.add_item(user_select)
+        await interaction.response.edit_message(content="상대를 선택해주세요.", embed=None, view=v)
 
     @discord.ui.button(label="🔓 공개 대전 (아무나)", style=discord.ButtonStyle.success)
     async def public_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 방장 포인트 선차감
         if POINT_MANAGER_AVAILABLE:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
-        await self.start_game(interaction, None)
+        await self.start_multi(interaction, None)
 
-    async def start_game(self, interaction, target):
-        # opponent=target 부분을 target으로 수정
-        view = MultiDiceView(self.bot, self.user, self.bet, target) 
-        embed = discord.Embed(title="🎲 주사위 대결", color=discord.Color.gold())
-        embed.add_field(name="💰 배팅액", value=f"{self.bet:,}원"); embed.add_field(name="P1", value=self.user.mention)
-        embed.add_field(name="P2", value=target.mention if target else "대기 중...")
+    async def start_multi(self, interaction, target):
+        view = MultiDiceView(self.bot, self.user, self.bet, target)
+        embed = discord.Embed(title="⚔️ 주사위 대결", description=f"배팅액: {self.bet:,}원\n상대방이 참여하면 주사위가 굴러갑니다!", color=discord.Color.orange())
+        embed.add_field(name="P1", value=self.user.mention); embed.add_field(name="P2", value=target.mention if target else "대기 중...")
         await interaction.response.edit_message(content=None, embed=embed, view=view)
         view.message = await interaction.original_response()
 
-# --- 3단계: 멀티플레이 게임 진행 View ---
+# --- 3단계: 멀티 게임 진행 View ---
 class MultiDiceView(View):
     def __init__(self, bot, p1, bet, p2=None):
         super().__init__(timeout=60)
         self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
-        self.game_completed = False
         self.message = None
-        
-        # --- 아래 변수들을 반드시 초기화해야 에러가 발생하지 않습니다 ---
-        self.p1_rolled = False
-        self.p2_rolled = False
-        self.p1_val = 0
-        self.p2_val = 0
+        self.game_completed = False
+        self.rolling = False # 애니메이션 중복 실행 방지 플래그
 
-    async def on_timeout(self):
-        if self.game_completed: # [변경]
-            return
-        
-        guild_id = self.message.guild.id
-        refund_text = "⏰ **시간 초과!** 게임이 취소되었습니다.\n"
-        
-        if POINT_MANAGER_AVAILABLE:
-            await point_manager.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
-            refund_text += f"- {self.p1.mention}님 {self.bet:,}원 환불\n"
-            if self.p2:
-                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
-                refund_text += f"- {self.p2.mention}님 {self.bet:,}원 환불"
+    @discord.ui.button(label="🎲 주사위 던지기", style=discord.ButtonStyle.danger)
+    async def roll_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 1. 메시지 객체 확보 (self.message가 없을 경우를 대비)
+        if not self.message:
+            self.message = await interaction.original_response()
 
-        embed = discord.Embed(title="❌ 게임 자동 취소", description=refund_text, color=discord.Color.red())
-        await self.message.edit(embed=embed, view=None)
-
-    async def finish_game(self):
-        self.game_completed = True # [변경]
-        
-
-    @discord.ui.button(label="🎲 주사위 굴리기", style=discord.ButtonStyle.danger)
-    async def roll(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-    
-        # 1. P1(방장)인 경우
-        if user_id == self.p1.id:
-            if self.p1_rolled:
-                return await interaction.response.send_message("❌ 이미 주사위를 굴리셨습니다.", ephemeral=True)
-            self.p1_val = random.randint(1, 6)
-            self.p1_rolled = True
-
-        # 2. P2(지정 상대)인 경우
-        elif self.p2 and user_id == self.p2.id:
-            if self.p2_rolled:
-                return await interaction.response.send_message("❌ 이미 주사위를 굴리셨습니다.", ephemeral=True)
-            self.p2_val = random.randint(1, 6)
-            self.p2_rolled = True
-
-        # 3. 공개 대전(p2 미정)에서 제3자가 참여하는 경우
-        elif self.p2 is None:
-            if user_id == self.p1.id:
-                return await interaction.response.send_message("❌ 상대방을 기다려주세요.", ephemeral=True)
-    
-            # 1. p2를 즉시 할당하여 다른 난입자 차단
+        # 2. 참가자 확인 및 P2 등록
+        if self.p2 is None and interaction.user.id != self.p1.id:
             self.p2 = interaction.user
-        
-            # 2. 그 후 포인트 체크 및 차감
             if POINT_MANAGER_AVAILABLE:
-                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
-                if (balance or 0) < self.bet:
-                    self.p2 = None # 잔액 부족 시 p2 해제
-                    return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
-            await point_manager.add_point(self.bot, interaction.guild_id, str(user_id), -self.bet)
-            
-            # 방장이 중복 참여하는 것 방지
-            if user_id == self.p1.id:
-                return await interaction.response.send_message("❌ 상대방을 기다려주세요.", ephemeral=True)
-            
-            # [핵심] 제3자 참여 시 포인트 차감 확인
-            if POINT_MANAGER_AVAILABLE:
-                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
-                if (balance or 0) < self.bet:
-                    return await interaction.response.send_message("❌ 잔액이 부족하여 참가할 수 없습니다.", ephemeral=True)
-            
-                # 포인트 선차감
-                await point_manager.add_point(self.bot, interaction.guild_id, str(user_id), -self.bet)
+                await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
         
-            self.p2 = interaction.user
-            self.p2_val = random.randint(1, 6)
-            self.p2_rolled = True
-            await interaction.channel.send(f"⚔️ {interaction.user.mention}님이 {self.bet:,}원을 걸고 대결에 난입했습니다!")
+        if interaction.user.id not in [self.p1.id, self.p2.id if self.p2 else None]:
+            return await interaction.response.send_message("❌ 대결 참가자가 아닙니다.", ephemeral=True)
 
-        # 4. 그 외 완전히 상관없는 제3자인 경우
-        else:
-            return await interaction.response.send_message("❌ 이 대결의 참가자가 아닙니다.", ephemeral=True)
-        await interaction.response.defer()
-        if self.p1_rolled and self.p2_rolled: await self.finish_game()
-        else:
-            embed = self.message.embeds[0]
-            embed.set_footer(text=f"✅ {interaction.user.display_name} 완료!")
-            await self.message.edit(embed=embed, view=self)
+        if self.p2 is None:
+            return await interaction.response.send_message("⌛ 상대방을 기다리는 중입니다.", ephemeral=True)
 
-    async def finish_game(self):
+        # 3. 게임 실행 (애니메이션 및 정산)
+        if not self.rolling:
+            self.rolling = True
+            await interaction.response.defer() # 응답 지연 처리
+            await self.finish_game_logic()
+        else:
+            await interaction.response.send_message("🎲 이미 주사위가 굴러가고 있습니다!", ephemeral=True)
+
+    async def finish_game_logic(self):
+        # 결과 선계산
+        p1_roll = random.randint(1, 6)
+        p2_roll = random.randint(1, 6)
         guild_id = self.message.guild.id
-        winner = None
-        if self.p1_val > self.p2_val: winner = self.p1; res_msg = f"🏆 {self.p1.mention} 승리!"
-        elif self.p1_val < self.p2_val: winner = self.p2; res_msg = f"🏆 {self.p2.mention} 승리!"
-        else: res_msg = "🤝 무승부!"
+        
+        # 애니메이션 실행 (기존 베이스 임베드 활용)
+        anim_embed = discord.Embed(title="⚔️ 주사위 대결 진행 중", color=discord.Color.yellow())
+        await play_dice_animation(self.message, anim_embed)
+        
+        # 결과 판정
+        if p1_roll > p2_roll:
+            winner, res_msg = self.p1, f"🏆 {self.p1.mention} 승리!"
+        elif p2_roll > p1_roll:
+            winner, res_msg = self.p2, f"🏆 {self.p2.mention} 승리!"
+        else:
+            winner, res_msg = None, "🤝 무승부! 배팅금이 환불됩니다."
 
+        # 포인트 정산 로직
+        reward_text = ""
         if winner:
-            payout = self.bet * 2
+            reward = int(self.bet * 2 * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, guild_id, str(winner.id), payout)
-            reward_msg = f"💰 승자가 **{payout:,}원**을 획득했습니다!"
+                await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
+            reward_text = f"\n수수료 제외 **{reward:,}원** 획득!"
+            if STATS_AVAILABLE: # 통계 기록
+                stats_manager.record_game(str(self.p1.id), self.p1.display_name, "주사위", self.bet, reward if winner == self.p1 else 0, winner == self.p1)
+                stats_manager.record_game(str(self.p2.id), self.p2.display_name, "주사위", self.bet, reward if winner == self.p2 else 0, winner == self.p2)
         else:
-            # 🤝 멀티 무승부 수수료 적용
             refund = int(self.bet * PUSH_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            reward_msg = f"🤝 각자 수수료 5%를 제외한 **{refund:,}원**이 환불되었습니다."
+            reward_text = f"\n각자 5% 제외 **{refund:,}원** 환불"
 
-        embed = discord.Embed(title="🎲 대결 결과", description=f"{self.p1.mention}: {DICE_EMOJIS[self.p1_val]} ({self.p1_val})\n{self.p2.mention}: {DICE_EMOJIS[self.p2_val]} ({self.p2_val})\n\n**{res_msg}**\n{reward_msg}", color=discord.Color.purple())
+        # 최종 임베드 출력
+        self.game_completed = True
+        embed = discord.Embed(title="🎲 최종 결과", color=discord.Color.purple())
+        embed.description = f"{res_msg}{reward_text}"
+        embed.add_field(name=f"{self.p1.display_name}", value=f"{DICE_EMOJIS[p1_roll]} ({p1_roll})", inline=True)
+        embed.add_field(name=f"{self.p2.display_name}", value=f"{DICE_EMOJIS[p2_roll]} ({p2_roll})", inline=True)
+        
         await self.message.edit(embed=embed, view=None)
 
 # --- Cog 클래스 ---
-class DiceGameCog(commands.Cog):
+class DiceCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="주사위게임", description="싱글/멀티 주사위 게임 (최대 5,000원)")
+    @app_commands.command(name="주사위", description="주사위 게임을 시작합니다.(100원 ~ 5,000원)")
     async def dice_game(self, interaction: discord.Interaction, 배팅: int = 100):
-        if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터 가능합니다.", ephemeral=True)
+        if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터!", ephemeral=True)
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
-
-        balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
-        if balance < 배팅: return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
+        
+        if POINT_MANAGER_AVAILABLE:
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+            if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
         view = DiceModeSelectView(self.bot, interaction.user, 배팅)
-        await interaction.response.send_message(f"🎲 **주사위 게임** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 발생합니다.", view=view)
+        await interaction.response.send_message(f"🎲 **주사위 게임 모드 선택** (배팅: {배팅:,}원)", view=view)
 
 async def setup(bot):
-    await bot.add_cog(DiceGameCog(bot))
+    await bot.add_cog(DiceCog(bot))

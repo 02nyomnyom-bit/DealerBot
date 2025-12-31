@@ -46,7 +46,7 @@ CARD_BACK = ('🂠', '???')
 def record_blackjack_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
     if STATS_AVAILABLE:
         try:
-            stats_manager.record_game_activity(user_id, username, "blackjack", is_win, bet, payout)
+            stats_manager.record_game(user_id, username, "블랙잭", bet, payout, is_win)
         except: pass
 
 class BlackjackGame:
@@ -394,8 +394,8 @@ class BlackjackCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="블랙잭", description="🃏 블랙잭 게임 모드를 선택합니다.")
-    @app_commands.describe(배팅="배팅할 금액을 입력하세요. (최대 6,000원)")
+    @app_commands.command(name="블랙잭", description="🃏 블랙잭을 시작합니다.(100원 ~ 6,000원)")
+    @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
         # 1. 배팅 금액 제한 체크
         if 배팅 < 100:

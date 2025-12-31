@@ -163,7 +163,7 @@ class ErrorHandler(commands.Cog):
             perms = ', '.join(error.missing_permissions)
             await self.send_error_message(
                 ctx,
-                "🚫 권한 부족",
+                "❌ 권한 부족",
                 f"이 명령어를 사용하려면 **{perms}** 권한이 필요합니다.",
                 ephemeral=False
             )
@@ -188,7 +188,7 @@ class ErrorHandler(commands.Cog):
         elif isinstance(error, commands.NotOwner):
             await self.send_error_message(
                 ctx,
-                "🚫 소유자 전용",
+                "❌ 소유자 전용",
                 "이 명령어는 봇 소유자만 사용할 수 있습니다.",
                 ephemeral=False
             )
@@ -255,7 +255,7 @@ class ErrorHandler(commands.Cog):
             perms = ', '.join(error.missing_permissions)
             await self.send_error_message(
                 interaction,
-                "🚫 권한 부족",
+                "❌ 권한 부족",
                 f"이 명령어를 사용하려면 **{perms}** 권한이 필요합니다."
             )
         
@@ -291,7 +291,7 @@ class ErrorHandler(commands.Cog):
         elif isinstance(error, discord.Forbidden):
             await self.send_error_message(
                 interaction,
-                "🚫 접근 금지",
+                "❌ 접근 금지",
                 "이 작업을 수행할 권한이 없습니다."
             )
         
@@ -320,7 +320,7 @@ class ErrorHandler(commands.Cog):
         elif isinstance(error, PermissionError):
             await self.send_error_message(
                 interaction,
-                "🚫 권한 오류",
+                "❌ 권한 오류",
                 "필요한 권한이 없습니다."
             )
         
@@ -355,7 +355,7 @@ class ErrorHandler(commands.Cog):
             
             logger.error(f"Error in event '{event}': {error_info}")
 
-    @app_commands.command(name="에러통계", description="에러 발생 통계 확인 (관리자 전용)")
+    @app_commands.command(name="에러통계", description="[관리자 전용] 에러 발생 통계 확인")
     async def error_stats(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)

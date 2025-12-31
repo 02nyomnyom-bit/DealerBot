@@ -134,12 +134,12 @@ class UserManagementCog(commands.Cog):
         """Cog 레벨 체크 - 데이터베이스 사용 가능성 확인"""
         return DATABASE_AVAILABLE
 
-    @app_commands.command(name="사용자관리", description="통합 사용자 관리 패널을 표시합니다 (관리자 전용)")
+    @app_commands.command(name="사용자관리", description="[관리자 전용] 통합 사용자 관리 패널을 표시합니다.")
     async def user_management_panel(self, interaction: Interaction):
         # 관리자 권한 체크
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -250,13 +250,13 @@ class UserManagementCog(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ 관리 패널 로드 중 오류: {str(e)}")
 
-    @app_commands.command(name="등록목록", description="등록된 사용자 목록을 확인합니다 (관리자 전용)")
+    @app_commands.command(name="등록목록", description="[관리자 전용] 등록된 사용자 목록을 확인합니다.")
     @app_commands.describe(페이지="확인할 페이지 번호 (기본값: 1)")
     async def list_registered_users(self, interaction: Interaction, 페이지: int = 1):
         # 관리자 권한 체크
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         
@@ -337,11 +337,11 @@ class UserManagementCog(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ 사용자 목록 조회 중 오류: {str(e)}")
 
-    @app_commands.command(name="사용자정보", description="특정 사용자의 상세 정보를 확인합니다 (관리자 전용)")
+    @app_commands.command(name="사용자정보", description="[관리자 전용] 특정 사용자의 상세 정보를 확인합니다.")
     @app_commands.describe(대상="정보를 확인할 사용자")
     async def user_info(self, interaction: Interaction, 대상: Member):
         if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("🚫 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True)
+            return await interaction.response.send_message("❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         await interaction.response.defer(ephemeral=False)
         
@@ -440,11 +440,11 @@ class UserManagementCog(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"❌ 사용자 정보 조회 중 오류: {str(e)}")
 
-    @app_commands.command(name="데이터초기화", description="사용자의 모든 데이터를 초기화합니다 (관리자 전용)")
+    @app_commands.command(name="데이터초기화", description="[관리자 전용] 사용자의 모든 데이터를 초기화합니다.")
     @app_commands.describe(사용자="데이터를 초기화할 사용자")
     async def reset_user_data(self, interaction: Interaction, 사용자: Member):
         if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("🚫 관리자만 사용할 수 있습니다.", ephemeral=True)
+            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         target_id = str(사용자.id)
         guild_id = str(interaction.guild.id)

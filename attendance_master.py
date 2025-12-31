@@ -9,7 +9,7 @@ import random
 import os
 import json
 
-# ✅ 권장: database_manager 모듈을 안전하게 불러오는 로직 추가
+# database_manager 모듈을 안전하게 불러오는 로직 추가
 try:
     from database_manager import get_guild_db_manager, DEFAULT_LEADERBOARD_SETTINGS
     DB_AVAILABLE = True
@@ -79,6 +79,8 @@ class AttendanceMasterCog(commands.Cog):
             return 0, True
 
     @app_commands.command(name="출석체크", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
+    @app_commands.command(name="출첵", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
+    @app_commands.command(name="ㅊㅊ", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
     async def attendance_check_v2(self, interaction: discord.Interaction):
         await interaction.response.defer()
         
@@ -301,7 +303,7 @@ class AttendanceMasterCog(commands.Cog):
         
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="출석랭킹", description="서버 내 출석 랭킹을 확인합니다")
+    @app_commands.command(name="출석랭킹", description="서버 내 출석 랭킹을 확인합니다.")
     async def attendance_ranking(self, interaction: discord.Interaction):
         """서버 내 연속 출석일 랭킹 표시"""
         await interaction.response.defer()

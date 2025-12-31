@@ -1,4 +1,4 @@
-# point_manager.py - 통합 포인트 관리 시스템 + 고급 선물 시스템 (등록 문제 해결)
+# point_manager.py
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member, User
@@ -92,12 +92,6 @@ except ImportError as e:
                        for uid, data in self.users.items() if data['cash'] > 0]
             return []
 
-# 데이터베이스 매니저 인스턴스 생성 (이제 각 길드별로 생성됩니다)
-# 전역 db_manager 인스턴스는 제거하고, PointManager 내에서 길드 ID를 기반으로 인스턴스를 관리합니다.
-
-# MockDatabaseManager는 여전히 필요할 수 있으므로 클래스 정의는 유지합니다.
-# DATABASE_AVAILABLE 플래그는 이제 PointManager 내부에서 관리됩니다.
-
 # 선물 설정 파일 경로
 GIFT_SETTINGS_FILE = "data/gift_settings.json"
 
@@ -148,16 +142,14 @@ class GiftSettings:
 class PointManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_managers: Dict[str, DatabaseManager] = {} # Store guild-specific DB managers
+        self.db_managers: Dict[str, DatabaseManager] = {}
         self.gift_settings = GiftSettings()
         self.user_cooldowns: Dict[str, datetime] = {}
         self.daily_gift_counts: Dict[str, Dict[str, int]] = {}
         
-        # Check if DatabaseManager was successfully imported
+        # DatabaseManager 확인
         self.DATABASE_AVAILABLE = True
         try:
-            # Attempt to use DatabaseManager to confirm it's functional
-            # This is just a check, actual instances are per-guild
             _ = DatabaseManager(guild_id="temp_check") 
         except Exception:
             self.DATABASE_AVAILABLE = False
@@ -222,7 +214,7 @@ class PointManager(commands.Cog):
     # 기본 포인트 관리 명령어들
     # point_manager.py - updated register command
 
-    @app_commands.command(name="등록", description="Gamble에 플레이어로 등록합니다")
+    @app_commands.command(name="등록", description="서버의 멤버로 등록합니다.")
     async def register(self, interaction: Interaction):
         user_id = str(interaction.user.id)
         username = interaction.user.name
@@ -302,8 +294,8 @@ class PointManager(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="지갑", description="현재 보유 현금을 확인합니다")
-    @app_commands.describe(사용자="다른 사용자의 지갑을 확인 (선택사항)")
+    @app_commands.command(name="지갑", description="현재 보유 현금을 확인합니다.")
+    @app_commands.describe(사용자="[선택사항] 다른 사용자의 지갑을 확인")
     async def wallet(self, interaction: Interaction, 사용자: Optional[Member] = None):
         target_user = 사용자 or interaction.user
         user_id = str(target_user.id)
@@ -353,7 +345,7 @@ class PointManager(commands.Cog):
             print(f"❌ 지갑 조회 중 오류: {e}")
             await interaction.response.send_message(f"❌ 지갑 조회 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
-    @app_commands.command(name="선물", description="다른 사용자에게 현금을 선물합니다")
+    @app_commands.command(name="선물", description="다른 사용자에게 현금을 선물합니다.")
     @app_commands.describe(
         받는사람="현금을 받을 사용자",
         금액="선물할 현금 (100원 ~ 1,000,000원)"
@@ -613,7 +605,7 @@ class PointManager(commands.Cog):
         async def on_timeout(self):
             self.stop()
 
-    @app_commands.command(name="탈퇴", description="Gamble에서 탈퇴합니다 (모든 데이터 삭제)")
+    @app_commands.command(name="탈퇴", description="서버에서 탈퇴합니다. (모든 데이터 삭제)")
     async def leave(self, interaction: Interaction):
         user_id = str(interaction.user.id)
         
@@ -647,7 +639,7 @@ class PointManager(commands.Cog):
 
         user_id = str(member.id)
         guild_id = str(member.guild.id)
-        db = self._get_db(guild_id) # Get the correct guild-specific DB manager
+        db = self._get_db(guild_id)
 
         if db.get_user(user_id):
             try:
@@ -658,7 +650,7 @@ class PointManager(commands.Cog):
 
 # ==================== 관리자 명령어들 ====================
 
-    @app_commands.command(name="현금지급", description="사용자에게 현금을 지급합니다 (관리자 전용)")
+    @app_commands.command(name="현금지급", description="[관리자 전용] 사용자에게 현금을 지급합니다.")
     @app_commands.describe(사용자="현금을 받을 사용자", 금액="지급할 현금")
     async def give_cash(self, interaction: Interaction, 사용자: Member, 금액: int):
 
@@ -691,7 +683,7 @@ class PointManager(commands.Cog):
             print(f"❌ 현금 지급 중 오류: {e}")
             await interaction.response.send_message(f"❌ 현금 지급 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
-    @app_commands.command(name="현금차감", description="사용자의 현금을 차감합니다 (관리자 전용)")
+    @app_commands.command(name="현금차감", description="[관리자 전용] 사용자의 현금을 차감합니다.")
     @app_commands.describe(사용자="현금을 차감할 사용자", 금액="차감할 현금")
     async def deduct_cash(self, interaction: Interaction, 사용자: Member, 금액: int):
 
@@ -721,7 +713,7 @@ class PointManager(commands.Cog):
             print(f"❌ 현금 차감 중 오류: {e}")
             await interaction.response.send_message(f"❌ 현금 차감 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
-    @app_commands.command(name="선물설정", description="선물 시스템 설정을 변경합니다 (관리자 전용)")
+    @app_commands.command(name="선물설정", description="[관리자 전용] 선물 시스템 설정을 변경합니다.")
     @app_commands.describe(
         수수료율="수수료율 (0.0 ~ 1.0, 예: 0.1 = 10%)",
         최소금액="최소 선물 금액",

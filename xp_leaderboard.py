@@ -23,12 +23,12 @@ except ImportError:
 
 # 설정 파일 경로
 DATA_DIR = "data"
-LEVELUP_CHANNELS_FILE = os.path.join(DATA_DIR, "levelup_channels.json")
-XP_SETTINGS_FILE = os.path.join(DATA_DIR, "xp_settings.json")
+LEVELUP_CHANNELS_FILE = os.path.join(DATA_DIR, "levelup_channels.json") # 레벨업 알림이 전송될 채널 설정 데이터 파일 경로
+XP_SETTINGS_FILE = os.path.join(DATA_DIR, "xp_settings.json")           # 경험치 데이터가 저장될 JSON 파일 경로 설정
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ✅ 레벨업 채널 관리 함수를 클래스 밖으로 이동
+# 레벨업 채널 관리 함수를 클래스 밖으로 이동
 def load_levelup_channels():
     """레벨업 알림 채널 설정 로드"""
     if not os.path.exists(LEVELUP_CHANNELS_FILE):
@@ -45,7 +45,7 @@ def get_levelup_channel_id(guild_id: str) -> Optional[int]:
     data = load_levelup_channels()
     return data.get(guild_id)
 
-# ✅ 사용자 등록 확인 함수를 클래스 밖으로 이동
+# 사용자 등록 확인 함수를 클래스 밖으로 이동
 def is_user_registered(user_id: str, guild_id: str) -> bool:
     """사용자 등록 여부 확인"""
     try:
@@ -76,10 +76,10 @@ def load_xp_settings():
     if not os.path.exists(XP_SETTINGS_FILE):
         print("⚠️ xp_settings.json 파일이 없습니다. 기본 설정으로 대체합니다.")
         return {
-            "chat_cooldown": 30, # 채팅 XP 쿨다운 (초)
-            "voice_xp_per_minute": 10, # 음성 채널 분당 XP
-            "chat_xp": 5,           # 채팅 XP
-            "attendance_xp": 100,   # 출석체크 XP
+            "chat_cooldown": 30,        # 채팅 XP 쿨다운 (초)
+            "voice_xp_per_minute": 10,  # 음성 채널 분당 XP
+            "chat_xp": 5,               # 채팅 XP
+            "attendance_xp": 100,       # 출석체크 XP
         }
     try:
         with open(XP_SETTINGS_FILE, 'r', encoding='utf-8') as f:
@@ -114,41 +114,41 @@ def log_admin_action(action_msg):
     except Exception as e:
         print(f"로그 기록 실패: {e}")
 
-# ✅ 레벨업 알림 함수 - 수정된 버전
+# ✅ 레벨업 알림 함수
 async def check_and_send_levelup_notification(bot, member, guild, old_level, new_level):
     """
     레벨업 알림을 보냅니다.
     """
     
-    # 레벨업이 여러 단계로 발생한 경우를 처리합니다.
+    # 레벨업이 여러 단계로 발생한 경우를 처리
     if new_level <= old_level:
-        print("ℹ️ 레벨업이 발생하지 않았으므로 알림을 보내지 않습니다.")
         return
         
     for level in range(old_level + 1, new_level + 1):
-        # 레벨업 알림을 보낼 채널을 가져옵니다.
+        # 알림 채널 가져오기
         channel_id = get_levelup_channel_id(str(guild.id))
         if not channel_id:
-            print(f"⚠️ 레벨업 알림 채널이 설정되지 않았습니다.")
-            continue # 다음 레벨로 계속 진행
+            return
 
         channel = bot.get_channel(int(channel_id))
         if not channel or not channel.permissions_for(guild.me).send_messages:
             print(f"❌ 설정된 레벨업 채널({channel_id})이 없거나 권한이 부족합니다.")
-            continue # 다음 레벨로 계속 진행
+            return # 다음 레벨로 계속 진행
         
-        # 임베드를 생성하고 전송합니다.
+        # 여러 레벨이 올랐을 경우 문구 조정
+        level_text = f"**Lv.{new_level}**" if new_level == old_level + 1 else f"**Lv.{old_level} → Lv.{new_level}**"
+        
+        # 임베드를 생성 및 전송
         embed = discord.Embed(
             title="🎉 레벨업!",
             description=f"{member.mention}님이 **Lv.{level}**로 레벨업했습니다!",
             color=discord.Color.gold()
         )
         embed.set_thumbnail(url=member.display_avatar.url)
-        embed.add_field(name="🎊", value="축하합니다!", inline=True)
+        embed.add_field(name="🎊 축하합니다!", value=f"총 **{new_level - old_level}**단계 상승했습니다.", inline=False)
         
         try:
             await channel.send(embed=embed)
-            print(f"✅ 레벨업 알림 전송 성공: {member.display_name} (Lv.{old_level} → Lv.{new_level})")
         except Exception as e:
             print(f"❌ 레벨업 알림 전송 실패: {e}")
 
@@ -163,10 +163,10 @@ class XPLeaderboardCog(commands.Cog):
         self.xp_settings = load_xp_settings()
         self.levelup_channels = load_levelup_channels()
 
-    # ✅ XP 계산 함수는 기존과 동일
+    # XP 계산 함수
     def get_xp_for_next_level(self, user_id: str, guild_id: str) -> int:
         """다음 레벨까지 필요한 XP를 계산합니다."""
-        # ⚠️ 수정된 부분: 현재 XP를 다시 가져오고, 레벨 계산 로직을 명확히 합니다.
+        # 현재 XP를 다시 가져오고, 레벨 계산 로직을 명확히 합니다.
         user_xp = self.get_user_xp(user_id, guild_id)
         current_level = self.calculate_level_from_xp(user_xp)
 
@@ -175,7 +175,7 @@ class XPLeaderboardCog(commands.Cog):
         return xp_required_for_next_level - user_xp
 
     @app_commands.command(name="레벨", description="자신 또는 다른 사용자의 레벨 및 XP를 확인합니다.")
-    @app_commands.describe(사용자="레벨을 확인할 사용자 (선택 사항)")
+    @app_commands.describe(사용자="[선택사항] 레벨을 확인할 사용자")
     async def level(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None):
         """레벨 조회 명령어"""
         await interaction.response.defer()
@@ -183,17 +183,17 @@ class XPLeaderboardCog(commands.Cog):
         user_id = str(target.id)
         guild_id = str(interaction.guild.id)
         
-        # 🔒 등록 확인
+        # 등록 확인
         if not is_user_registered(user_id, guild_id):
             embed = discord.Embed(
                 title="❌ 등록되지 않은 사용자",
-                description="아직 봇에 등록되지 않았습니다. 활동을 시작하면 자동으로 등록됩니다!",
+                description="아직 서버에 등록되지 않았습니다. /등록을 사용하여 등록해주세요.",
                 color=discord.Color.red()
             )
             return await interaction.followup.send(embed=embed)
         
         try:
-            # ✅ get_user_level_info 함수를 사용하여 모든 정보를 한 번에 가져옴
+            # get_user_level_info 함수를 사용, 모든 정보를 한 번에 가져옴
             user_xp_info = self.get_user_level_info(user_id, guild_id)
             current_level = user_xp_info['level']
             total_xp = user_xp_info['total_xp']
@@ -201,7 +201,7 @@ class XPLeaderboardCog(commands.Cog):
             xp_needed_for_level_up = user_xp_info['next_level_xp']
             progress_percentage = user_xp_info['progress'] * 100
             
-            # ✅ 순위 계산
+            # 순위 계산
             db = get_guild_db_manager(guild_id)
             rank_result = db.execute_query('''
                 SELECT COUNT(*) + 1 as rank
@@ -250,7 +250,7 @@ class XPLeaderboardCog(commands.Cog):
     
         guild_id = str(interaction.guild_id)
     
-        # ⚠️ 수정된 부분: 응답할 embed를 미리 정의합니다.
+        # 응답할 embed를 미리 정의
         embed = None
     
         # 채널 설정 or 해제 로직
@@ -294,7 +294,7 @@ class XPLeaderboardCog(commands.Cog):
                     color=discord.Color.blue()
                 )
     
-        # ⚠️ 수정된 부분: 모든 로직이 끝난 후 한 번만 응답을 보냅니다.
+        # 모든 로직이 끝난 후 한 번만 응답을 보냅니다.
         if embed:
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
@@ -303,16 +303,15 @@ class XPLeaderboardCog(commands.Cog):
 
     def create_progress_bar(self, percentage):
         """진행도를 시각적인 막대로 변환합니다."""
-        # Ensure the percentage is capped at 100 to prevent oversized bars
-        # This also correctly handles negative or invalid percentages
+        # 막대 그래프를 백분율을 100%로 제한, 음수 또는 유효하지 않은 백분율 처리
         percentage = max(0, min(100, percentage))
     
-        # Calculate filled and empty blocks for a fixed-length bar (e.g., 20 blocks)
-        bar_length = 20
-        filled_blocks = int(percentage / (100 / bar_length))
+        # 길이가 고정된 막대 블록의 수를 계산합니다.
+        bar_length = 20                                         # 블록 수
+        filled_blocks = int(percentage / (100 / bar_length))    # 백분률
         empty_blocks = bar_length - filled_blocks
     
-        # Return the formatted string
+        # 문자열 반환
         return "⬛" * filled_blocks + "⬜" * empty_blocks
     
     def cog_unload(self):
@@ -373,11 +372,11 @@ class XPLeaderboardCog(commands.Cog):
                 'progress': 0.0
             }
 
-        # ⚠️ 수정된 부분: sqlite3.Row 객체는 'get' 메서드가 없으므로 대괄호를 사용합니다.
+        # sqlite3.Row 객체는 'get' 메서드가 없으므로 대괄호를 사용
         current_xp = user_data['xp']
         current_level = user_data['level']
 
-        # 현재 레벨의 시작 XP와 다음 레벨의 시작 XP를 정확히 계산합니다.
+        # 현재 레벨의 시작 XP와 다음 레벨의 시작 XP를 계산
         xp_for_current_level = self.calculate_xp_for_level(current_level)
         xp_for_next_level = self.calculate_xp_for_level(current_level + 1)
 
@@ -389,11 +388,11 @@ class XPLeaderboardCog(commands.Cog):
         progress = xp_in_current_level / xp_needed_for_level_up if xp_needed_for_level_up > 0 else 0.0
 
         return {
-            'level': current_level,
-            'current_xp': xp_in_current_level, # 현재 레벨에서의 XP
-            'total_xp': current_xp,
-            'next_level_xp': xp_needed_for_level_up, # 다음 레벨까지 필요한 총 XP
-            'progress': progress
+            'level': current_level,                     # 사용자의 현재 레벨
+            'current_xp': xp_in_current_level,          # 현재 레벨에 도달한 후 추가로 획득한 XP (현재 레벨 내에서의 진행도 확인용)
+            'total_xp': current_xp,                     # 봇 사용 시작부터 현재까지 쌓인 전체 누적 XP
+            'next_level_xp': xp_needed_for_level_up,    # 현재 레벨에서 다음 레벨로 넘어가기 위해 채워야 하는 구간 XP (목표값)
+            'progress': progress                        # 다음 레벨까지의 진행률 (0.0 ~ 1.0 사이의 실수 값)
         }
     
     def update_user_level(self, user_id: str, guild_id: str):
@@ -408,7 +407,7 @@ class XPLeaderboardCog(commands.Cog):
     
     async def add_xp(self, user_id: str, guild_id: str, xp_amount: int):
         """사용자에게 XP 추가 (등록된 사용자만)"""
-        # 🔒 등록 확인 추가
+        # 등록 확인 추가
         if not is_user_registered(user_id, guild_id):
             return False
             
@@ -515,7 +514,7 @@ class XPLeaderboardCog(commands.Cog):
             await interaction.response.send_message(f"❌ 리더보드 조회 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
     
     # ===== 관리자 명령어들 =====
-    @app_commands.command(name="경험치관리", description="XP 및 레벨 관리 (관리자 전용)")
+    @app_commands.command(name="경험치관리", description="[관리자 전용] XP 및 레벨 관리")
     @app_commands.describe(
         작업="수행할 작업",
         대상자="대상 사용자 (일부 작업에만 필요)",
@@ -637,7 +636,7 @@ class XPLeaderboardCog(commands.Cog):
             if not 대상자:
                 return await interaction.response.send_message("❌ 대상자를 지정해주세요.", ephemeral=True)
             
-            # 🔒 대상자 등록 확인
+            # 대상자 등록 확인
             user_id = str(대상자.id)
             if not is_user_registered(user_id, guild_id):
                 return await interaction.response.send_message(
@@ -656,12 +655,12 @@ class XPLeaderboardCog(commands.Cog):
                 VALUES (?, ?, 0, 1)
             ''', (user_id, guild_id))
             
-            # 🔥 핵심 수정 부분: 레벨 변경 추적을 위한 변수들
+            # 레벨 변경 추적을 위한 변수들
             old_level = self.get_user_level(user_id, guild_id)
             role_update_needed = False
             
             if 작업 == "give_xp":
-                success = await self.add_xp(user_id, guild_id, 수량) # ✅ [수정] await 추가
+                success = await self.add_xp(user_id, guild_id, 수량)
                 if not success:
                     return await interaction.response.send_message("❌ XP 지급에 실패했습니다.", ephemeral=True)
                     
@@ -679,7 +678,7 @@ class XPLeaderboardCog(commands.Cog):
                 
                 if new_level > old_level:
                     embed.add_field(name="레벨업!", value=f"Lv.{old_level} → Lv.{new_level}", inline=False)
-                    # ✅ 레벨업 알림 호출 - 올바른 매개변수 전달
+                    # 레벨업 알림 호출
                     await check_and_send_levelup_notification(self.bot, 대상자, interaction.guild, old_level, new_level)
                 
             elif 작업 == "remove_xp":
@@ -758,7 +757,7 @@ class XPLeaderboardCog(commands.Cog):
                 
                 embed.add_field(name="초기화 결과", value="Lv.1 (0 XP)", inline=False)
             
-            # 🔥 핵심 수정 부분: 역할 자동 조정 실행
+            # 역할 자동 조정 실행
             if role_update_needed and ROLE_REWARD_AVAILABLE:
                 try:
                     await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
@@ -792,7 +791,7 @@ class XPLeaderboardCog(commands.Cog):
             print(f"XP 설정 업데이트 실패: {e}")
             return False
 
-    @app_commands.command(name="경험치데이터확인", description="등록되지 않은 사용자의 경험치 데이터를 확인합니다 (관리자 전용)")
+    @app_commands.command(name="경험치데이터확인", description="[관리자 전용] 등록되지 않은 사용자의 경험치 데이터를 확인합니다.")
     @app_commands.describe(
         작업="수행할 작업",
         확인="정말로 실행하시겠습니까? (삭제 작업시 필수)"
@@ -806,19 +805,19 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="❌ 아니오", value="cancelled")
     ])
     async def check_xp_data_integrity(self, interaction: Interaction, 작업: str, 확인: str = "cancelled"):
-        """경험치 데이터 무결성 확인 및 정리"""
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
-        
+    
         guild_id = str(interaction.guild.id)
         await interaction.response.defer(ephemeral=True)
+
+        # ✅ 아래 줄을 추가하여 DB 매니저를 가져와야 합니다.
+        db = get_guild_db_manager(guild_id)
         
         try:
             if 작업 == "check_only":
-                # 📊 불일치 데이터 확인만
-                
-                # 1. user_xp에는 있지만 users에는 없는 사용자들 찾기
-                unregistered_xp_users = self.db.execute_query('''
+                # self.db -> db로 변경
+                unregistered_xp_users = db.execute_query(''' 
                     SELECT ux.user_id, ux.guild_id, ux.xp, ux.level, ux.updated_at
                     FROM user_xp ux
                     LEFT JOIN users u ON ux.user_id = u.user_id
@@ -827,7 +826,7 @@ class XPLeaderboardCog(commands.Cog):
                 ''', (guild_id,), 'all')
                 
                 # 2. users에는 있지만 user_xp에는 없는 사용자들 찾기
-                registered_no_xp = self.db.execute_query('''
+                registered_no_xp = db.execute_query('''
                     SELECT u.user_id, u.username, u.display_name, u.registered_at
                     FROM users u
                     LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
@@ -836,7 +835,7 @@ class XPLeaderboardCog(commands.Cog):
                 ''', (guild_id,), 'all')
                 
                 # 3. 정상 등록된 사용자 수
-                properly_registered = self.db.execute_query('''
+                properly_registered = db.execute_query('''
                     SELECT COUNT(*) as count
                     FROM users u
                     INNER JOIN user_xp ux ON u.user_id = ux.user_id
@@ -914,7 +913,7 @@ class XPLeaderboardCog(commands.Cog):
                     )
                 
                 # 삭제 전 현황 확인
-                unregistered_xp_users = self.db.execute_query('''
+                unregistered_xp_users = db.execute_query('''
                     SELECT ux.user_id, ux.guild_id, ux.xp, ux.level
                     FROM user_xp ux
                     LEFT JOIN users u ON ux.user_id = u.user_id AND ux.guild_id = u.guild_id
@@ -931,7 +930,7 @@ class XPLeaderboardCog(commands.Cog):
                     # 삭제 실행
                     total_deleted_xp = sum(user['xp'] for user in unregistered_xp_users)
                     
-                    deleted_count = self.db.execute_query('''
+                    deleted_count = db.execute_query('''
                         DELETE FROM user_xp 
                         WHERE guild_id = ? AND user_id IN (
                             SELECT ux.user_id 
@@ -974,7 +973,7 @@ class XPLeaderboardCog(commands.Cog):
                 # 📋 전체 XP 통계
                 
                 # 전체 통계 수집
-                stats = self.db.execute_query('''
+                stats = db.execute_query('''
                     SELECT 
                         (SELECT COUNT(*) FROM users WHERE guild_id = ?) as total_registered,
                         (SELECT COUNT(*) FROM user_xp WHERE guild_id = ?) as total_xp_records,
@@ -1054,7 +1053,7 @@ class XPLeaderboardCog(commands.Cog):
         if current_time - last_xp_time < self.xp_settings["chat_cooldown"]:
             return
         
-        # ✅ 1. 레벨업 확인을 위한 이전 레벨 저장 (XP 지급 전에 실행되어야 함)
+        # 1. 레벨업 확인을 위한 이전 레벨 저장 (XP 지급 전에 실행되어야 함)
         old_level = self.get_user_level(user_id, guild_id)
         
         # 2. XP 지급
@@ -1067,10 +1066,10 @@ class XPLeaderboardCog(commands.Cog):
         # 3. 쿨다운 업데이트
         self.last_chat_xp_time[user_id] = current_time
         
-        # ✅ 4. 레벨업 확인: XP 지급 성공 시에만 new_level을 계산합니다.
+        # 4. 레벨업 확인: XP 지급 성공 시에만 new_level을 계산합니다.
         new_level = self.get_user_level(user_id, guild_id)
         
-        # 5. 레벨업 처리 (라인 1048)
+        # 5. 레벨업 처리
         if new_level > old_level:
             member = message.author
             
@@ -1085,307 +1084,7 @@ class XPLeaderboardCog(commands.Cog):
                 except Exception as e:
                     print(f"❌ 채팅 레벨업 역할 지급 오류: {e}")
             
-# ✅ setup 함수 (확장 로드용)
-async def setup(bot: commands.Bot):
-    await bot.add_cog(XPLeaderboardCog(bot))
-    print("✅ XP 리더보드 Cog 로드 완료")
-    
-
-
-    @app_commands.command(name="경험치데이터확인", description="등록되지 않은 사용자의 경험치 데이터를 확인합니다 (관리자 전용)")
-    @app_commands.describe(
-        작업="수행할 작업",
-        확인="정말로 실행하시겠습니까? (삭제 작업시 필수)"
-    )
-    @app_commands.choices(작업=[
-        app_commands.Choice(name="📊 불일치 데이터 확인만", value="check_only"),
-        app_commands.Choice(name="🧹 등록되지 않은 사용자 XP 삭제", value="cleanup_unregistered"),
-    ])
-    @app_commands.choices(확인=[
-        app_commands.Choice(name="✅ 네, 실행합니다", value="confirmed"),
-        app_commands.Choice(name="❌ 아니오", value="cancelled")
-    ])
-    async def check_xp_data_integrity(self, interaction: Interaction, 작업: str, 확인: str = "cancelled"):
-        """경험치 데이터 무결성 확인 및 정리"""
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
-        
-        guild_id = str(interaction.guild.id)
-        await interaction.response.defer(ephemeral=True)
-        
-        try:
-            if 작업 == "check_only":
-                # 📊 불일치 데이터 확인만
-                
-                # 1. user_xp에는 있지만 users에는 없는 사용자들 찾기
-                unregistered_xp_users = self.db.execute_query('''
-                    SELECT ux.user_id, ux.guild_id, ux.xp, ux.level, ux.updated_at
-                    FROM user_xp ux
-                    LEFT JOIN users u ON ux.user_id = u.user_id
-                    WHERE ux.guild_id = ? AND u.user_id IS NULL AND ux.xp > 0
-                    ORDER BY ux.xp DESC
-                ''', (guild_id,), 'all')
-                
-                # 2. users에는 있지만 user_xp에는 없는 사용자들 찾기
-                registered_no_xp = self.db.execute_query('''
-                    SELECT u.user_id, u.username, u.display_name, u.registered_at
-                    FROM users u
-                    LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
-                    WHERE ux.user_id IS NULL
-                    ORDER BY u.registered_at DESC
-                ''', (guild_id,), 'all')
-                
-                # 3. 정상 등록된 사용자 수
-                properly_registered = self.db.execute_query('''
-                    SELECT COUNT(*) as count
-                    FROM users u
-                    INNER JOIN user_xp ux ON u.user_id = ux.user_id
-                    WHERE ux.guild_id = ?
-                ''', (guild_id,), 'one')
-                
-                embed = discord.Embed(
-                    title="📊 경험치 데이터 무결성 확인 결과",
-                    color=discord.Color.blue()
-                )
-                
-                # 결과 요약
-                embed.add_field(
-                    name="📈 정상 등록된 사용자",
-                    value=f"**{properly_registered['count']}명**\n(등록 + XP 데이터 모두 있음)",
-                    inline=True
-                )
-                
-                embed.add_field(
-                    name="⚠️ 등록되지 않았지만 XP 있음",
-                    value=f"**{len(unregistered_xp_users)}명**\n(정리 대상)",
-                    inline=True
-                )
-                
-                embed.add_field(
-                    name="📋 등록되었지만 XP 없음",
-                    value=f"**{len(registered_no_xp)}명**\n(정상 - 아직 활동 안함)",
-                    inline=True
-                )
-                
-                # 상세 내역
-                if unregistered_xp_users:
-                    unregistered_text = ""
-                    total_unregistered_xp = 0
-                    for i, user in enumerate(unregistered_xp_users[:10]):  # 최대 10명까지만 표시
-                        unregistered_text += f"• `{user['user_id']}` - Lv.{user['level']} ({format_xp(user['xp'])})\n"
-                        total_unregistered_xp += user['xp']
-                    
-                    if len(unregistered_xp_users) > 10:
-                        unregistered_text += f"... 그리고 {len(unregistered_xp_users) - 10}명 더"
-                    
-                    embed.add_field(
-                        name="🔍 등록되지 않은 XP 사용자 목록",
-                        value=unregistered_text or "없음",
-                        inline=False
-                    )
-                    
-                    embed.add_field(
-                        name="📊 등록되지 않은 사용자들의 총 XP",
-                        value=f"{format_xp(total_unregistered_xp)}",
-                        inline=True
-                    )
-                
-                if len(unregistered_xp_users) > 0:
-                    embed.add_field(
-                        name="🧹 정리 방법",
-                        value="`/경험치데이터확인 작업:🧹등록되지_않은_사용자_XP_삭제 확인:✅네_실행합니다`\n"
-                              "위 명령어로 등록되지 않은 사용자들의 XP를 삭제할 수 있습니다.",
-                        inline=False
-                    )
-                else:
-                    embed.add_field(
-                        name="✅ 데이터 상태",
-                        value="모든 XP 데이터가 올바르게 등록된 사용자들에게만 있습니다!",
-                        inline=False
-                    )
-            
-            elif 작업 == "cleanup_unregistered":
-                # 🧹 등록되지 않은 사용자 XP 삭제
-                
-                if 확인 != "confirmed":
-                    return await interaction.followup.send(
-                        "❌ 삭제 작업을 실행하려면 '확인: ✅ 네, 실행합니다'를 선택해야 합니다.",
-                        ephemeral=True
-                    )
-                
-                # 삭제 전 현황 확인
-                unregistered_xp_users = self.db.execute_query('''
-                    SELECT ux.user_id, ux.guild_id, ux.xp, ux.level
-                    FROM user_xp ux
-                    LEFT JOIN users u ON ux.user_id = u.user_id AND ux.guild_id = u.guild_id
-                    WHERE ux.guild_id = ? AND u.user_id IS NULL
-                ''', (guild_id,), 'all')
-                
-                if not unregistered_xp_users:
-                    embed = discord.Embed(
-                        title="ℹ️ 정리할 데이터 없음",
-                        description="등록되지 않은 사용자의 XP 데이터가 없습니다.\n모든 XP가 등록된 사용자들에게만 있습니다!",
-                        color=discord.Color.green()
-                    )
-                else:
-                    # 삭제 실행
-                    total_deleted_xp = sum(user['xp'] for user in unregistered_xp_users)
-                    
-                    deleted_count = self.db.execute_query('''
-                        DELETE FROM user_xp 
-                        WHERE guild_id = ? AND user_id IN (
-                            SELECT ux.user_id 
-                            FROM user_xp ux
-                            LEFT JOIN users u ON ux.user_id = u.user_id AND ux.guild_id = u.guild_id
-                            WHERE ux.guild_id = ? AND u.user_id IS NULL
-                        )
-                    ''', (guild_id, guild_id), 'count')
-                    
-                    embed = discord.Embed(
-                        title="🧹 XP 데이터 정리 완료",
-                        description=f"등록되지 않은 사용자들의 XP 데이터가 정리되었습니다.",
-                        color=discord.Color.green()
-                    )
-                    
-                    embed.add_field(
-                        name="📊 정리 결과",
-                        value=f"• **삭제된 사용자**: {len(unregistered_xp_users)}명\n"
-                              f"• **삭제된 레코드**: {deleted_count}개\n"
-                              f"• **삭제된 총 XP**: {format_xp(total_deleted_xp)}",
-                        inline=False
-                    )
-                    
-                    # 상위 삭제 대상들 표시
-                    if len(unregistered_xp_users) > 0:
-                        deleted_list = ""
-                        for user in sorted(unregistered_xp_users, key=lambda x: x['xp'], reverse=True)[:5]:
-                            deleted_list += f"• `{user['user_id']}` - Lv.{user['level']} ({format_xp(user['xp'])})\n"
-                        
-                        embed.add_field(
-                            name="🗑️ 삭제된 주요 XP 데이터",
-                            value=deleted_list,
-                            inline=False
-                        )
-                    
-                    # 관리자 로그
-                    log_admin_action(f"[XP데이터정리] {interaction.user.display_name} - {len(unregistered_xp_users)}명의 등록되지 않은 XP 삭제")
-            
-            elif 작업 == "full_stats":
-                # 📋 전체 XP 통계
-                
-                # 전체 통계 수집
-                stats = self.db.execute_query('''
-                    SELECT 
-                        (SELECT COUNT(*) FROM users WHERE guild_id = ?) as total_registered,
-                        (SELECT COUNT(*) FROM user_xp WHERE guild_id = ?) as total_xp_records,
-                        (SELECT COUNT(*) FROM user_xp ux 
-                        INNER JOIN users u ON ux.user_id = u.user_id
-                        WHERE ux.guild_id = ?) as properly_linked,
-                        (SELECT COALESCE(SUM(xp), 0) FROM user_xp WHERE guild_id = ?) as total_xp,
-                        (SELECT COALESCE(AVG(xp), 0) FROM user_xp WHERE guild_id = ? AND xp > 0) as avg_xp,
-                        (SELECT COALESCE(MAX(level), 0) FROM user_xp WHERE guild_id = ?) as max_level
-                ''', (guild_id, guild_id, guild_id, guild_id, guild_id, guild_id), 'one')
-                
-                embed.add_field(
-                    name="👥 사용자 현황",
-                    value=f"• **등록된 사용자**: {stats['total_registered']}명\n"
-                          f"• **XP 레코드 수**: {stats['total_xp_records']}개\n"
-                          f"• **정상 연결**: {stats['properly_linked']}명",
-                    inline=True
-                )
-                
-                embed.add_field(
-                    name="⭐ XP 통계",
-                    value=f"• **총 XP**: {format_xp(stats['total_xp'])}\n"
-                          f"• **평균 XP**: {format_xp(int(stats['avg_xp']))}\n"
-                          f"• **최고 레벨**: Lv.{stats['max_level']}",
-                    inline=True
-                )
-                
-                # 데이터 무결성 상태
-                integrity_status = "✅ 정상" if stats['total_xp_records'] == stats['properly_linked'] else "⚠️ 불일치 발견"
-                embed.add_field(
-                    name="🔍 데이터 무결성",
-                    value=integrity_status,
-                    inline=True
-                )
-                
-                if stats['total_xp_records'] != stats['properly_linked']:
-                    unregistered_count = stats['total_xp_records'] - stats['properly_linked']
-                    embed.add_field(
-                        name="⚠️ 발견된 문제",
-                        value=f"**{unregistered_count}개**의 등록되지 않은 XP 레코드가 있습니다.\n"
-                              f"`/경험치데이터확인 작업:📊불일치_데이터_확인만`으로 상세 확인하세요.",
-                        inline=False
-                    )
-            
-            embed.set_footer(text=f"실행자: {interaction.user.display_name} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            await interaction.followup.send(embed=embed)
-            
-        except Exception as e:
-            await interaction.followup.send(f"❌ 데이터 확인 중 오류: {str(e)}", ephemeral=True)
-
-    # ===== 이벤트 핸들러 (등록 확인 추가) =====
-    
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        """메시지 이벤트로 채팅 XP 지급 (등록된 사용자만)"""
-        # 봇이 보낸 메시지나 DM, 명령어는 무시
-        if message.author.bot or message.guild is None or (self.bot.command_prefix and message.content.startswith(self.bot.command_prefix)):
-            return
-        # 길드(서버)에서 온 메시지가 아니면 무시
-        if message.guild is None:
-            return
-        # 너무 짧은 메시지는 무시
-        if len(message.content) < 5:
-            return
-    
-        user_id = str(message.author.id)
-        guild_id = str(message.guild.id)
-        
-        # 🔒 등록 확인 - 등록되지 않은 사용자는 XP를 받지 않음
-        if not is_user_registered(user_id, guild_id):
-            return
-        
-        # 쿨다운 확인
-        current_time = time.time()
-        last_xp_time = self.last_chat_xp_time.get(user_id, 0)
-        
-        if current_time - last_xp_time < self.xp_settings["chat_cooldown"]:
-            return
-        
-        # ✅ 1. 레벨업 확인을 위한 이전 레벨 저장 (XP 지급 전에 실행되어야 함)
-        old_level = self.get_user_level(user_id, guild_id)
-        
-        # 2. XP 지급
-        xp_gained = self.xp_settings["chat_xp"]
-        success = await self.add_xp(user_id, guild_id, xp_gained)
-        
-        if not success:
-            return  # XP 지급 실패 시, 여기서 함수를 종료합니다.
-        
-        # 3. 쿨다운 업데이트
-        self.last_chat_xp_time[user_id] = current_time
-        
-        # ✅ 4. 레벨업 확인: XP 지급 성공 시에만 new_level을 계산합니다.
-        new_level = self.get_user_level(user_id, guild_id)
-        
-        # 5. 레벨업 처리 (라인 1048)
-        if new_level > old_level:
-            member = message.author
-            
-            # 5-1. 레벨업 알림 전송
-            await check_and_send_levelup_notification(self.bot, member, message.guild, old_level, new_level)
-            
-            # 5-2. ✅ 역할 지급 로직
-            if ROLE_REWARD_AVAILABLE:
-                try:
-                    await role_reward_manager.check_and_assign_level_role(member, new_level, old_level)
-                    print(f"✨ 채팅 레벨업 역할 지급 성공: {member.display_name} (Lv.{old_level} → Lv.{new_level})")
-                except Exception as e:
-                    print(f"❌ 채팅 레벨업 역할 지급 오류: {e}")
-            
-# ✅ setup 함수 (확장 로드용)
+# setup 함수 (확장 로드용)
 async def setup(bot: commands.Bot):
     await bot.add_cog(XPLeaderboardCog(bot))
     print("✅ XP 리더보드 Cog 로드 완료")

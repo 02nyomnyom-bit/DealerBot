@@ -1,4 +1,4 @@
-# 🎊 Discord 서버 환영 시스템 (관리자 전용) - 중복 방지 버전
+# welcome_system.py
 from __future__ import annotations
 import discord
 from discord.ext import commands
@@ -13,29 +13,21 @@ class WelcomeSystem(commands.Cog):
     """
     Discord 서버 환영 시스템
     
-    🔒 권한 요구사항:
-    - /환영설정: 관리자 권한 필요
-    - /환영테스트: 관리자 권한 필요
-    - 새 멤버 자동 환영: 권한 불필요 (자동 실행)
-    
-    🤖 필요한 봇 권한:
-    - 메시지 보내기 (환영 메시지 전송용)
-    - 임베드 링크 (예쁜 환영 메시지 표시용)
-    - 채널 보기 (환영 채널 접근용)
-    - 역할 관리 (자동 역할 부여 기능 사용시)
-    
-    ⚠️ 권한 부족시 자동으로 감지하고 사용자에게 안내합니다.
-    ✅ 중복 메시지 방지 시스템 포함
+    주요 기능:
+    1. 새 멤버 입장 시 설정된 채널로 환영 메시지(Embed) 전송
+    2. 중복 메시지 전송 방지 로직 포함
+    3. 관리자 명령어를 통한 서버별 맞춤 설정 (메시지, 채널, 역할 등)
+    4. 입장 시 자동 역할 부여 및 개인 DM 전송 기능
     """
     def __init__(self, bot):
         self.bot = bot
-        self.welcome_config_file = "welcome_config.json"
-        self.welcome_configs = self.load_welcome_configs()
+        self.welcome_config_file = "welcome_config.json"    # 설정 저장 파일명
+        self.welcome_configs = self.load_welcome_configs()  # 설정 로드
         
-        # 🛡️ 중복 방지를 위한 처리된 멤버 추적
+        # 중복 방지를 위한 처리된 멤버 추적
         self.processed_members = set()
         
-        # 🔄 중복 방지 정리 (5분마다 오래된 데이터 정리)
+        # 중복 방지 데이터 정리 작업 시작 (백그라운드 루프)
         self.cleanup_task = None
         self.start_cleanup_task()
 
@@ -43,9 +35,8 @@ class WelcomeSystem(commands.Cog):
         """중복 방지 데이터 정리 작업 시작"""
         async def cleanup_old_members():
             while True:
-                await asyncio.sleep(300)  # 5분마다
-                # 처리된 멤버 목록 정리 (메모리 효율성)
-                if len(self.processed_members) > 1000:
+                await asyncio.sleep(300)                # 5분대기
+                if len(self.processed_members) > 1000:  # 캐시가 1000개 이상 쌓이면 초기화하여 메모리 관리
                     self.processed_members.clear()
                     print("🧹 환영 시스템: 중복 방지 캐시 정리됨")
         
@@ -53,12 +44,12 @@ class WelcomeSystem(commands.Cog):
             self.cleanup_task = asyncio.create_task(cleanup_old_members())
 
     def cog_unload(self):
-        """Cog 언로드 시 정리 작업"""
+        """Cog가 제거될 때 실행 중인 백그라운드 태스크 취소"""
         if self.cleanup_task:
             self.cleanup_task.cancel()
 
     def load_welcome_configs(self):
-        """환영 설정을 파일에서 로드"""
+        """JSON 파일에서 서버별 환영 설정을 읽어옴"""
         try:
             if os.path.exists(self.welcome_config_file):
                 with open(self.welcome_config_file, 'r', encoding='utf-8') as f:
@@ -69,7 +60,7 @@ class WelcomeSystem(commands.Cog):
             return {}
 
     def save_welcome_configs(self):
-        """환영 설정을 파일에 저장"""
+        """현재 설정을 JSON 파일에 물리적으로 저장"""
         try:
             with open(self.welcome_config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.welcome_configs, f, ensure_ascii=False, indent=2)
@@ -77,7 +68,7 @@ class WelcomeSystem(commands.Cog):
             print(f"환영 설정 저장 오류: {e}")
 
     def get_guild_config(self, guild_id: str):
-        """서버별 환영 설정 가져오기"""
+        """특정 서버의 설정을 반환, 설정이 없으면 기본값 반환"""
         return self.welcome_configs.get(guild_id, {
             "enabled": False,
             "channel_id": None,
@@ -89,23 +80,23 @@ class WelcomeSystem(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        """새 멤버가 서버에 입장했을 때 환영 메시지 전송 (중복 방지)"""
+        """새 멤버가 서버에 입장했을 때 환영 메시지 전송"""
         if member.bot:
             return
         
-        # 🛡️ 중복 처리 방지 체크
+        # 중복 처리 방지 체크
         member_key = f"{member.guild.id}-{member.id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
         if member_key in self.processed_members:
-            print(f"🚫 중복 환영 메시지 방지: {member.display_name} ({member.guild.name})")
+            print(f"❌ 중복 환영 메시지 방지: {member.display_name} ({member.guild.name})")
             return
         
-        # 처리 중임을 표시
+        # 처리 목록에 추가
         self.processed_members.add(member_key)
         
         guild_id = str(member.guild.id)
         config = self.get_guild_config(guild_id)
         
-        # 환영 시스템이 비활성화된 경우
+        # 환영 시스템이 비활성화된 경우 중단
         if not config.get("enabled", False):
             print(f"📴 환영 시스템 비활성화: {member.guild.name}")
             return
@@ -113,12 +104,12 @@ class WelcomeSystem(commands.Cog):
         try:
             print(f"🎊 새 멤버 환영 처리 시작: {member.display_name} → {member.guild.name}")
             
-            # 환영 채널 확인
+            # 채널 메시지 전송
             channel_id = config.get("channel_id")
             if channel_id:
                 channel = self.bot.get_channel(int(channel_id))
                 if channel:
-                    # 봇 권한 확인
+                    # 권한 확인 후 전송
                     bot_permissions = channel.permissions_for(member.guild.me)
                     if bot_permissions.send_messages and bot_permissions.embed_links:
                         success = await self.send_welcome_message(member, channel, config)
@@ -131,13 +122,13 @@ class WelcomeSystem(commands.Cog):
                 else:
                     print(f"❌ 환영 채널을 찾을 수 없음: ID {channel_id}")
             
-            # DM 환영 메시지
+            # 개인 DM 전송 (설정 시)
             if config.get("dm_enabled", False):
                 dm_success = await self.send_welcome_dm(member, config)
                 if dm_success:
                     print(f"✅ DM 환영 메시지 전송 완료: {member.display_name}")
             
-            # 자동 역할 부여
+            # 자동 역할 부여 (설정 시)
             auto_role_id = config.get("auto_role")
             if auto_role_id:
                 role_success = await self.assign_auto_role(member, int(auto_role_id))
@@ -145,12 +136,11 @@ class WelcomeSystem(commands.Cog):
                     print(f"✅ 자동 역할 부여 완료: {member.display_name}")
         
         except Exception as e:
-            print(f"❌ 환영 메시지 전송 오류: {e}")
-            # 오류 발생 시 처리 목록에서 제거 (재시도 가능하도록)
+            print(f"❌ 환영 메시지 전송 오류: {e}") # 실패 시 재시도 가능하게 캐시 삭제
             self.processed_members.discard(member_key)
 
     async def send_welcome_message(self, member, channel, config):
-        """채널에 환영 메시지 전송"""
+        """서버 채널에 임베드 형태의 환영 메시지 제작 및 전송"""
         try:
             # 봇 권한 확인
             bot_permissions = channel.permissions_for(channel.guild.me)
@@ -163,11 +153,9 @@ class WelcomeSystem(commands.Cog):
                 return False
             
             welcome_message = config.get("welcome_message") or self.get_default_welcome_message()
+            welcome_message = welcome_message.replace('\\n', '\n') # 사용자가 입력한 \\n을 실제 줄바꿈으로 변환
             
-            # 사용자가 입력한 \\n을 실제 줄바꿈으로 변환
-            welcome_message = welcome_message.replace('\\n', '\n')
-            
-            # 메시지 변수 치환
+            # 변수 치환 ({user}, {server} 등)
             message = welcome_message.format(
                 user=member.mention,
                 username=member.display_name,
@@ -193,8 +181,7 @@ class WelcomeSystem(commands.Cog):
                 
                 await channel.send(embed=embed)
             else:
-                # 일반 텍스트로 전송
-                await channel.send(message)
+                await channel.send(message) # 일반 텍스트로 전송
             
             return True
             
@@ -206,7 +193,7 @@ class WelcomeSystem(commands.Cog):
             return False
 
     async def send_welcome_dm(self, member, config):
-        """DM으로 환영 메시지 전송"""
+        """사용자에게 1:1 DM으로 환영 인사를 보냄"""
         try:
             dm_message = config.get("dm_message") or self.get_default_dm_message()
             
@@ -236,7 +223,7 @@ class WelcomeSystem(commands.Cog):
             return False
 
     async def assign_auto_role(self, member, role_id):
-        """새 멤버에게 자동 역할 부여"""
+        """입장한 멤버에게 자동으로 특정 역할 부여"""
         try:
             role = member.guild.get_role(role_id)
             if not role:
@@ -263,7 +250,8 @@ class WelcomeSystem(commands.Cog):
         except Exception as e:
             print(f"자동 역할 부여 오류: {e}")
             return False
-
+        
+    # 기본 템플릿 정의 (설정되지 않았을 때 사용)
     def get_default_welcome_message(self):
         """기본 환영 메시지"""
         return """안녕하세요 {user}님! 🎉
@@ -271,8 +259,8 @@ class WelcomeSystem(commands.Cog):
 **{server}**에 오신 것을 환영합니다!
 
 🔸 현재 **{member_count}번째** 멤버가 되셨어요!
-🔸 서버 규칙을 확인해주세요  
-🔸 궁금한 점이 있으시면 언제든 문의해주세요
+🔸 먼저 서버 규칙을 확인해주세요.  
+🔸 그 밖에도 궁금한 점이 있으시면 언제든 문의해주세요.
 
 즐거운 시간 보내세요! ✨"""
 
@@ -287,11 +275,11 @@ class WelcomeSystem(commands.Cog):
 
 감사합니다! ✨"""
 
-    # === 관리자 명령어 ===
+# === 슬래시 명령어: /환영설정 ===
     
-    @app_commands.command(name="환영설정", description="서버의 환영 메시지 시스템을 설정합니다")
+    @app_commands.command(name="환영설정", description="[관리자 전용] 서버의 환영 메시지 시스템을 설정합니다.")
     @app_commands.describe(
-        기능="설정할 기능을 선택하세요",
+        기능="설정할 기능을 선택하세요.",
         채널="환영 메시지를 보낼 채널",
         메시지="사용자 정의 환영 메시지",
         dm_사용="DM 환영 메시지 사용 여부",
@@ -443,8 +431,8 @@ class WelcomeSystem(commands.Cog):
                     )
                     embed.add_field(
                         name="📝 줄바꿈 팁",
-                        value="메시지에서 줄바꿈을 하려면 `\\n`을 사용하세요!\n"
-                              "예: `안녕하세요!\\n환영합니다!`",
+                        value="메시지에서 줄바꿈을 하려면 `\n`을 사용하세요!\n"
+                              "예: `안녕하세요!\n환영합니다!`",
                         inline=False
                     )
                     
@@ -687,7 +675,7 @@ class WelcomeSystem(commands.Cog):
                 f"3. 또는 서버 설정 → 역할 → 봇 역할에서 기본 권한 활성화"
             )
         
-        # 🧪 테스트 환영 메시지 전송 (중복 방지 우회)
+        # 테스트 환영 메시지 전송 (중복 방지 우회)
         try:
             # 테스트는 중복 방지를 우회하여 항상 전송
             print(f"🧪 환영 메시지 테스트 시작: {interaction.user.display_name}")
@@ -727,7 +715,7 @@ class WelcomeSystem(commands.Cog):
             
             if "50013" in str(e):
                 embed.add_field(
-                    name="🚫 권한 부족",
+                    name="❌ 권한 부족",
                     value="봇에게 **메시지 보내기** 및 **링크 첨부** 권한을 부여해주세요.",
                     inline=False
                 )
@@ -752,7 +740,5 @@ class WelcomeSystem(commands.Cog):
         
         await interaction.followup.send(embed=embed)
 
-# ✅ setup 함수
 async def setup(bot: commands.Bot):
     await bot.add_cog(WelcomeSystem(bot))
-    print("✅ Discord 서버 환영 시스템 로드 완료 (중복 방지 기능 포함)")

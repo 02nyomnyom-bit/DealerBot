@@ -563,7 +563,7 @@ class HorseRacingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="경마", description="경마 게임을 생성합니다.")
+    @app_commands.command(name="경마", description="[관리자 전용] 경마 게임을 생성합니다.")
     @app_commands.describe(
         모드="경마 모드를 선택하세요",
         인원="수동 모드: 최대 참가자 수 / 자동 모드: 참가자 이름 (쉼표로 구분)"
@@ -576,7 +576,7 @@ class HorseRacingCog(commands.Cog):
         try:
             # 관리자 권한 확인
             if not interaction.user.guild_permissions.administrator:
-                return await interaction.response.send_message("🚫 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True)
+                return await interaction.response.send_message("❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True)
             
             if 모드 == "수동":
                 # 수동 모드: 참가자 모집

@@ -1,4 +1,4 @@
-# statistics_system.py - 완전한 통계 시스템 (디버깅 기능 추가)
+# statistics_system.py
 from __future__ import annotations
 import os
 import json

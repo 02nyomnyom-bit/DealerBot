@@ -11,7 +11,7 @@ class LadderGameCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="사다리타기", description="사다리타기 게임을 합니다.")
+    @commands.hybrid_command(name="제비뽑기", description="제비뽑기를 합니다.")
     @app_commands.describe(
         인원="쉼표로 구분된 참여자 목록 (예: 철수,영희,아영)",
         결과="쉼표로 구분된 결과 목록 (예: 당첨,꽝,꽝)"
@@ -68,14 +68,14 @@ class LadderGameCog(commands.Cog):
                     [f"{i+1}. {name} → 🎯 **{res}**" for i, (name, res) in enumerate(result_map.items())]
                 )
                 embed = discord.Embed(
-                    title="🪜 사다리타기 결과",
+                    title="✉️ 제비뽑기 결과",
                     description=result_text,
                     color=discord.Color.orange()
                 )
                 await interaction_button.response.send_message(embed=embed)
 
         await ctx.send(
-            content="🎮 **사다리타기 시작!** 아래 버튼을 눌러 결과를 확인하세요.",
+            content="🎮 **제비뽑기 시작!** 아래 버튼을 눌러 결과를 확인하세요.",
             view=LadderView()
         )
 

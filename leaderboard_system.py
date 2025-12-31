@@ -44,7 +44,7 @@ class IntegratedLeaderboardCog(commands.Cog):
 
     # ===== 통합 리더보드 명령어들 =====
 
-    @app_commands.command(name="통합리더보드", description="통합 리더보드를 확인합니다 (현금+XP)")
+    @app_commands.command(name="통합리더보드", description="통합 리더보드를 확인합니다. (현금+XP)")
     @app_commands.describe(
         타입="확인할 리더보드 타입",
         페이지="페이지 번호 (기본: 1)"
@@ -146,18 +146,18 @@ class IntegratedLeaderboardCog(commands.Cog):
                 SELECT u.user_id, u.username, u.display_name, x.xp, x.level
                 FROM user_xp x
                 JOIN users u ON x.user_id = u.user_id
-                WHERE x.xp > 0
+                WHERE u.guild_id = ? AND x.xp > 0
                 ORDER BY x.xp DESC
                 LIMIT 10
-            ''', (guild_id,), 'all') # Add guild_id to params
+            ''', (guild_id,), 'all')
             
             if not leaderboard_data:
                 embed = discord.Embed(
                     title="✨ XP 리더보드",
                     description="아직 XP 기록이 없습니다.",
                     color=discord.Color.purple()
-            )
-            return await interaction.followup.send(embed=embed)
+                    )
+                return await interaction.followup.send(embed=embed)
             
             embed = discord.Embed(
                 title=f"✨ XP 리더보드 (페이지 {page})",
@@ -274,12 +274,12 @@ class IntegratedLeaderboardCog(commands.Cog):
 
     # ===== 관리자 명령어들 =====
 
-    @app_commands.command(name="리더보드관리", description="리더보드 시스템 통합 관리 (환전/통계) (관리자 전용)")
+    @app_commands.command(name="리더보드관리", description="[관리자 전용] 리더보드 시스템 통합 관리 (환전/통계)")
     async def leaderboard_management(self, interaction: discord.Interaction):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
             )
         
         if not DATABASE_AVAILABLE:
@@ -313,7 +313,7 @@ class IntegratedLeaderboardCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
-    @app_commands.command(name="리더보드설정", description="출석 및 환전 등 리더보드 시스템의 모든 설정을 확인하고 수정합니다 (관리자 전용)")
+    @app_commands.command(name="리더보드설정", description="[관리자 전용] 출석 및 환전 등 리더보드 시스템의 모든 설정을 확인하고 수정합니다.")
     @app_commands.describe(
         설정="변경할 설정 항목",
         값="새로운 값"
@@ -335,7 +335,7 @@ class IntegratedLeaderboardCog(commands.Cog):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
             )
         
         if not DATABASE_AVAILABLE:

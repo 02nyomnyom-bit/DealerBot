@@ -1,3 +1,4 @@
+# exchange_system.py
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -8,8 +9,6 @@ import os
 import asyncio
 from typing import Optional, Dict, Any
 import logging
-# Removed direct imports of PointManager and DatabaseManager classes as they are guild-specific
-# and will be retrieved per interaction.
 
 # ✅ 로깅 설정
 def setup_logging():
@@ -36,7 +35,6 @@ def setup_logging():
 logger = setup_logging()
 
 # 안전한 의존성 import
-# Changed to import get_guild_db_manager
 def safe_import_database():
     try:
         from database_manager import get_guild_db_manager
@@ -66,9 +64,9 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 class ExchangeSystem:
     def __init__(self):
-        self.exchange_history = {}
-        self.settings_file = "data/exchange_settings.json"
+        self.settings_file = EXCHANGE_SETTINGS_FILE
         self.settings = self.load_settings()
+        self.exchange_history = self.load_history() 
         self.cooldowns = {}
 
     def load_settings(self) -> Dict[str, Any]:
@@ -108,7 +106,7 @@ class ExchangeSystem:
         """설정 파일 저장"""
         try:
             with open(self.settings_file, 'w', encoding='utf-8') as f:
-                json.dump(settings_data, f, indent=4)
+                json.dump(settings_data, f, indent=4, ensure_ascii=False) # indent와 ensure_ascii 추가
         except Exception as e:
             logger.error(f"❌ 설정 파일 저장 중 오류 발생: {e}")
 
@@ -169,12 +167,6 @@ class ExchangeCog(commands.Cog):
         self.bot = bot
         self.exchange_system = ExchangeSystem()
         logger.info("✅ 통합 교환 시스템 v6 로드 완료")
-        
-        # These checks are now done per interaction as managers are guild-specific
-        # if not DATABASE_AVAILABLE:
-        #     logger.error("❌ database_manager가 없어 교환 시스템이 정상 작동하지 않습니다.")
-        # if not POINT_MANAGER_AVAILABLE:
-        #     logger.error("❌ point_manager가 없어 교환 시스템이 정상 작동하지 않습니다.")
 
     # XP를 현금으로 교환
     @app_commands.command(name="현금교환", description="XP를 현금으로 교환합니다. 수수료가 부과됩니다.")
@@ -200,7 +192,7 @@ class ExchangeCog(commands.Cog):
 
         db = get_guild_db_manager_func(str(interaction.guild.id))
         user_xp_data = db.get_user_xp(user_id)
-        current_xp = user_xp_data.get('xp', 0)
+        current_xp = user_xp_data.get('xp', 0) if user_xp_data else 0
         
         if current_xp < xp_amount:
             return await interaction.followup.send(f"❌ 보유 XP가 부족합니다. 현재 XP: {db.format_xp(current_xp)}")
@@ -294,7 +286,7 @@ class ExchangeCog(commands.Cog):
             logger.error(f"❌ 현금 to XP 교환 중 오류 발생: {e}")
             await interaction.followup.send("❌ 교환 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.")
 
-    @app_commands.command(name="교환설정", description="교환 시스템 설정을 변경합니다. (관리자 전용)")
+    @app_commands.command(name="교환설정", description="[관리자 전용] 교환 시스템 설정을 변경합니다.")
     @app_commands.describe(
         현금수수료="현금 교환시 차감할 수수료율 (%)",
         경험치수수료="XP 교환시 차감할 수수료율 (%)",
@@ -414,15 +406,11 @@ class ExchangeCog(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot: commands.Bot):
-    # Get the PointManager cog instance, which holds a reference to the database manager.
     point_manager_cog = bot.get_cog("PointManager")
     if not point_manager_cog:
-        # This error can happen if point_manager.py is not loaded or is loaded after this cog.
         logger.error("❌ 'PointManager' cog not found. It must be loaded before 'exchange_system'.")
         return
 
-    # Create an instance of the ExchangeCog class, passing the required managers.
-    # The log error indicates that ExchangeCog's __init__ method expects these arguments directly.
     cog = ExchangeCog(bot)
     await bot.add_cog(cog)
     logger.info("✅ Exchange System (ExchangeCog) 로드 완료.")

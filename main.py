@@ -200,10 +200,10 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'enhancement_system',        # 강화 시스템
         'slot_machine',              # 슬롯머신
         'blackjack',                 # 블랙잭
-        'dice_game',                 # 주사위 게임 - 모션빠짐
+        'dice_game',                 # 주사위 게임
         'yabawi_game',               # 야바위 게임
         "rock_paper_scissors",       # 가위바위보
-        'odd_even_game',             # 홀짝  - 모션빠짐
+        'odd_even_game',             # 홀짝
         'ladder_game',               # 사다리타기
     ]
     
@@ -278,7 +278,7 @@ class EnhancedBot(commands.Bot):
             help_command=None,
             case_insensitive=True,
             strip_after_prefix=True,
-            activity=discord.Game(name="딜러양 v7 | /안녕"),
+            activity=discord.Game(name="딜러양 v1.5.7 | /안녕"),
             status=discord.Status.online
         )
         
@@ -322,13 +322,13 @@ class EnhancedBot(commands.Bot):
         
         # 허용된 서버 목록 확인
         if guild.id not in Config.MAIN_GUILD_IDS:
-            self.logger.warning(f"🚫 무허가 서버 참여 감지: {guild.name} (ID: {guild.id})")
+            self.logger.warning(f"❌ 무허가 서버 참여 감지: {guild.name} (ID: {guild.id})")
             
             # 서버 소유자나 관리자에게 알림 전송 시도
             try:
                 if guild.system_channel:
                     embed = discord.Embed(
-                        title="🚫 허가되지 않은 서버",
+                        title="❌ 허가되지 않은 서버",
                         description=f"안녕하세요! **딜러양**은 현재 특정 서버에서만 운영되고 있습니다.",
                         color=discord.Color.red()
                     )
@@ -342,7 +342,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="딜러양 v7 - 서버 제한 시스템")
+                    embed.set_footer(text="딜러양 v1.5.7 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -381,11 +381,11 @@ class EnhancedBot(commands.Bot):
             self.logger.error(f"❌ 봇 소유자에게 알림 전송 실패: {e}")
     
     # ✅ 서버 제한 상태 확인 명령어 추가
-    @app_commands.command(name="서버제한상태", description="현재 서버 제한 설정 상태를 확인합니다 (관리자 전용)")
+    @app_commands.command(name="서버제한상태", description="[관리자 전용] 현재 서버 제한 설정 상태를 확인합니다.")
     async def server_restriction_status(self, interaction: discord.Interaction):
         """서버 제한 설정 상태 확인"""
         if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("🚫 관리자만 사용할 수 있습니다.", ephemeral=True)
+            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         embed = discord.Embed(
             title="🔒 서버 제한 설정 상태",
@@ -447,15 +447,15 @@ class EnhancedBot(commands.Bot):
                 inline=False
             )
         
-        embed.set_footer(text="딜러양 v7 - 서버 제한 시스템")
+        embed.set_footer(text="딜러양 v1.5.7 - 서버 제한 시스템")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="시스템상태", description="봇의 현재 시스템 상태를 확인합니다 (관리자 전용)")
+    @app_commands.command(name="시스템상태", description="[관리자 전용] 봇의 현재 시스템 상태를 확인합니다.")
     async def system_status_slash(self, interaction: discord.Interaction):
         """시스템 상태 확인 (슬래시 명령어 버전)"""
         if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("🚫 관리자만 사용할 수 있습니다.", ephemeral=True)
+            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         # 시스템 정보 수집
         process = psutil.Process()
@@ -491,7 +491,7 @@ class EnhancedBot(commands.Bot):
             inline=True
         )
         
-        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v7")
+        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.5.7")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -570,7 +570,7 @@ class EnhancedBot(commands.Bot):
             asyncio.create_task(self.delayed_sync(60))
 
         print("=" * 50)
-        print("🎉 딜러양 v7 구동 중 (60초 후 명령어 동기화 예정)")
+        print("🎉 딜러양 v1.5.7 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
 
@@ -654,7 +654,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 딜러양 v7 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 딜러양 v1.5.7 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

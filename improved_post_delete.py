@@ -1,4 +1,4 @@
-# improved_post_delete.py - 완전 작동 글삭제 시스템 (모든 기능 구현)
+# improved_post_delete.py
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, TextChannel
@@ -467,12 +467,12 @@ class ImprovedPostDeleteCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="글삭제", description="메시지를 삭제합니다 (관리자 전용)")
+    @app_commands.command(name="글삭제", description="[관리자 전용] 메시지를 삭제합니다.")
     async def delete_posts(self, interaction: Interaction):
         # 관리자 권한 체크
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
-                "🚫 이 명령어는 관리자만 사용할 수 있습니다.", 
+                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
                 ephemeral=True
             )
         

@@ -19,9 +19,9 @@ except ImportError:
     STATS_AVAILABLE = False
 
 # 상수 및 데이터
-MAX_BET = 5000  # 최대 배팅금: 5천 원
-PUSH_RETENTION = 0.95 # 무승부 시 5% 수수료 제외 (95%만 지급)
-WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
+MAX_BET = 5000              # 최대 배팅금
+PUSH_RETENTION = 0.95       # 무승부 시 5% 수수료 제외 (95%만 지급)
+WINNER_RETENTION = 0.95     # 승리 시 5% 수수료 제외 (95%만 지급)
 RPS_EMOJIS = {"가위": "✌️", "바위": "✊", "보": "✋"}
 
 def record_rps_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
@@ -30,7 +30,7 @@ def record_rps_game(user_id: str, username: str, bet: int, payout: int, is_win: 
             stats_manager.record_game(user_id, username, "가위바위보", bet, payout, is_win)
         except: pass
 
-# --- 1단계: 모드 선택 View ---
+# --- [상호작용 1단계] 초기 모드 선택창 ---
 class RPSModeSelectView(View):
     def __init__(self, bot, user, bet):
         super().__init__(timeout=60)
@@ -56,7 +56,7 @@ class RPSModeSelectView(View):
         embed = discord.Embed(title="👥 멀티플레이 설정", description="대결 방식을 선택하세요.", color=discord.Color.green())
         await interaction.response.edit_message(embed=embed, view=MultiSetupView(self.bot, self.user, self.bet))
 
-# --- 2단계: 싱글 게임 진행 View ---
+# --- [싱글 모드 로직] ---
 class SingleRPSView(View):
     def __init__(self, bot, user, bet):
         super().__init__(timeout=60)
@@ -96,8 +96,9 @@ class SingleRPSView(View):
         
         await interaction.response.edit_message(embed=embed, view=None)
 
-# --- 3단계: 멀티 게임 진행 View (핵심 개선) ---
+# --- [멀티 모드 로직] ---
 class MultiSetupView(View):
+    """두 명의 유저가 각자 비밀리에 선택한 후 결과를 비교"""
     def __init__(self, bot, user, bet):
         super().__init__(timeout=60)
         self.bot, self.user, self.bet = bot, user, bet
@@ -263,7 +264,7 @@ class RPSCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="가위바위보", description="가위바위보 게임을 시작합니다.(최대 5,000원)")
+    @app_commands.command(name="가위바위보", description="가위바위보 게임을 시작합니다. (100원 ~ 5,000원)")
     async def rps(self, interaction: discord.Interaction, 배팅: int = 100):
         if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터 가능합니다.", ephemeral=True)
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)

@@ -1,4 +1,4 @@
-# enhancement_system.py - 순수 강화 시스템 (보상 없음, 기존 시스템 독립)\
+# enhancement_system.py
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -841,7 +841,7 @@ class EnhancementSystemCog(commands.Cog):
         
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="강화초기화", description="모든 강화 데이터를 초기화합니다. (관리자 전용)")
+    @app_commands.command(name="강화초기화", description="[관리자 전용] 모든 강화 데이터를 초기화합니다.")
     async def reset_enhancement(self, interaction: discord.Interaction):
         # 관리자 권한 확인
         if not interaction.user.guild_permissions.administrator:
