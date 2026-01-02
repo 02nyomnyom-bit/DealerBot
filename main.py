@@ -278,7 +278,7 @@ class EnhancedBot(commands.Bot):
             help_command=None,
             case_insensitive=True,
             strip_after_prefix=True,
-            activity=discord.Game(name="딜러양 v1.5.8 | /안녕"),
+            activity=discord.Game(name="딜러양 v1.5.9 | /안녕"),
             status=discord.Status.online
         )
         
@@ -342,7 +342,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="딜러양 v1.5.8 - 서버 제한 시스템")
+                    embed.set_footer(text="딜러양 v1.5.9 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -447,7 +447,7 @@ class EnhancedBot(commands.Bot):
                 inline=False
             )
         
-        embed.set_footer(text="딜러양 v1.5.8 - 서버 제한 시스템")
+        embed.set_footer(text="딜러양 v1.5.9 - 서버 제한 시스템")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -491,7 +491,7 @@ class EnhancedBot(commands.Bot):
             inline=True
         )
         
-        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.5.8")
+        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.5.9")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -570,7 +570,7 @@ class EnhancedBot(commands.Bot):
             asyncio.create_task(self.delayed_sync(60))
 
         print("=" * 50)
-        print("🎉 딜러양 v1.5.8 구동 중 (60초 후 명령어 동기화 예정)")
+        print("🎉 딜러양 v1.5.9 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
 
@@ -654,7 +654,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 딜러양 v1.5.8 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 딜러양 v1.5.9 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

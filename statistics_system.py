@@ -238,6 +238,19 @@ class StatisticsManager:
         except Exception as e:
             logger.error(f"통계 저장 실패: {e}")
             return False
+        
+    def record_game(self, user_id, user_name, game_name, bet, reward, is_win):
+        """슬롯머신 등 외부 호출용 호환 메서드"""
+        self.record_game_play(
+            user_id=str(user_id),
+            username=user_name,
+            game_name="slot_machine", # 통계 시스템에 등록된 이름
+            is_win=is_win,
+            bet_amount=bet,
+            payout=reward
+        )
+        print(f"[기록] {user_name}: {game_name} 결과 - 배팅: {bet}, 획득: {reward}, 승리: {is_win}")
+    
 
     def record_game_play(self, user_id: str, username: str, game_name: str, is_win: bool, bet_amount: int = 0, payout: int = 0):
         """게임 플레이 기록 (안전성 강화 + 디버깅)"""

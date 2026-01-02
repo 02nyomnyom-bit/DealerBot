@@ -28,14 +28,12 @@ WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
 
 # --- 애니메이션 유틸리티 ---
 async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
-    """주사위 굴리는 애니메이션 효과"""
     dice_faces = list(DICE_EMOJIS.values())
-    for i in range(5): 
+    for _ in range(3):  # 횟수를 줄여 속도 향상
         current_face = random.choice(dice_faces)
-        base_embed.description = f"🎲 **주사위가 굴러가고 있습니다...** {current_face}"
-        # view=None을 제거하여 애니메이션 도중 View 구조가 깨지는 것을 방지
-        await message.edit(embed=base_embed) 
-        await asyncio.sleep(0.4)
+        base_embed.description = f"🎲 **주사위를 굴리는 중...** {current_face}"
+        await message.edit(embed=base_embed) # 애니메이션 도중 view를 건드리지 않음
+        await asyncio.sleep(0.5)
 
 # 통계 기록 헬퍼 함수
 def record_dice_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
@@ -59,32 +57,41 @@ class DiceModeSelectView(View):
 
     @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if POINT_MANAGER_AVAILABLE:
-            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
-        
-        # 싱글 모드는 즉시 주사위를 굴립니다.
+        # 1. 응답 먼저 지연 (3초 초과 대비)
         await interaction.response.defer()
         message = await interaction.original_response()
         
-        # 애니메이션 시작
+        # 2. 포인트 확인 및 차감
+        if POINT_MANAGER_AVAILABLE:
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(self.user.id))
+            if balance < self.bet:
+                return await interaction.followup.send("❌ 잔액이 부족합니다.", ephemeral=True)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+    
+        message = await interaction.original_response()
+
+        # 3. 애니메이션 실행
         anim_embed = discord.Embed(title="🤖 주사위: 싱글 모드", color=discord.Color.blue())
         await play_dice_animation(message, anim_embed)
         
-        # 결과 계산
+        # 4. 결과 계산 (4 이상 승리)
         dice_val = random.randint(1, 6)
-        payout = self.bet * 2 if dice_val >= 4 else 0 # 4 이상 승리 예시
+        is_win = dice_val >= 4
+        payout = int(self.bet * 2 * WINNER_RETENTION) if is_win else 0
 
+        # 5. 포인트 지급 및 통계 기록
         if POINT_MANAGER_AVAILABLE and payout > 0:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
-        
-        is_win = payout > 0
-        if STATS_AVAILABLE:
-            stats_manager.record_game(str(self.user.id), self.user.display_name, "주사위", self.bet, payout, is_win)
 
-        embed = discord.Embed(title="🎲 주사위 결과", color=discord.Color.gold() if is_win else discord.Color.red())
+        # 직접 구현하신 record_dice_game 헬퍼 함수 사용 권장
+        record_dice_game(str(self.user.id), self.user.display_name, self.bet, payout, is_win)
+
+        # 6. 최종 결과 표시
+        result_embed = discord.Embed(title="🎲 주사위 결과", color=discord.Color.gold() if is_win else discord.Color.red())
         result_text = "🏆 승리!" if is_win else "💀 패배..."
-        embed.description = f"결과: {DICE_EMOJIS[dice_val]} ({dice_val})\n\n**{result_text}**\n정산: {payout:,}원"
-        await message.edit(embed=embed, view=None)
+        result_embed.description = f"결과: {DICE_EMOJIS[dice_val]} ({dice_val})\n\n**{result_text}**\n정산: {payout:,}원"
+
+        await message.edit(embed=result_embed, view=None)
 
     @discord.ui.button(label="👥 멀티 모드", style=discord.ButtonStyle.primary, emoji="⚔️")
     async def multi_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -162,15 +169,14 @@ class MultiDiceView(View):
             await interaction.response.send_message("🎲 이미 주사위가 굴러가고 있습니다!", ephemeral=True)
 
     async def finish_game_logic(self):
-        # 결과 선계산
         p1_roll = random.randint(1, 6)
         p2_roll = random.randint(1, 6)
         guild_id = self.message.guild.id
         
-        # 애니메이션 실행 (기존 베이스 임베드 활용)
+        # 애니메이션 실행
         anim_embed = discord.Embed(title="⚔️ 주사위 대결 진행 중", color=discord.Color.yellow())
         await play_dice_animation(self.message, anim_embed)
-        
+
         # 결과 판정
         if p1_roll > p2_roll:
             winner, res_msg = self.p1, f"🏆 {self.p1.mention} 승리!"
@@ -198,12 +204,12 @@ class MultiDiceView(View):
 
         # 최종 임베드 출력
         self.game_completed = True
-        embed = discord.Embed(title="🎲 최종 결과", color=discord.Color.purple())
-        embed.description = f"{res_msg}{reward_text}"
-        embed.add_field(name=f"{self.p1.display_name}", value=f"{DICE_EMOJIS[p1_roll]} ({p1_roll})", inline=True)
-        embed.add_field(name=f"{self.p2.display_name}", value=f"{DICE_EMOJIS[p2_roll]} ({p2_roll})", inline=True)
-        
-        await self.message.edit(embed=embed, view=None)
+        result_embed = discord.Embed(title="🎲 최종 결과", color=discord.Color.purple())
+        result_embed.description = f"{res_msg}{reward_text}"
+        result_embed.add_field(name=f"{self.p1.display_name}", value=f"{DICE_EMOJIS[p1_roll]} ({p1_roll})", inline=True)
+        result_embed.add_field(name=f"{self.p2.display_name}", value=f"{DICE_EMOJIS[p2_roll]} ({p2_roll})", inline=True)
+    
+        await self.message.edit(embed=result_embed, view=None)
 
 # --- Cog 클래스 ---
 class DiceCog(commands.Cog):

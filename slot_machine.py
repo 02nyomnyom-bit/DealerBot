@@ -161,7 +161,7 @@ class SlotMachineView(discord.ui.View):
                         await self.message.edit(content=f"❌ 오류가 발생하여 환불되었습니다. (사유: {e})", embed=None, view=None)
                     except:
                         pass
-                    
+
 # --- 슬롯머신 명령어 등록 ---
 class SlotMachineCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
