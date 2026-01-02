@@ -47,7 +47,7 @@ def record_enhancement_attempt(user_id: str, username: str, is_success: bool):
 ENHANCEMENT_CONFIG = {
     "data_file": 'data/enhancement_data.json',
     "cooldown_time": 15,  # 강화 쿨다운 15초
-    "max_level": 500,     # 최대 레벨
+    "max_level": 1000,     # 최대 레벨
     "min_safe_level": 10, # 강등 방지 최소 레벨
     "level_change_range": (1, 10),  # 레벨 변동 범위
     "backup_interval": 50  # 50회마다 백업
@@ -63,12 +63,12 @@ def get_success_rate(level: int) -> float:
         return 100.0
     
     # 레벨이 높을수록 성공률 감소
-    max_level = 500
+    max_level = 1000
     min_rate = 0.5
     max_rate = 100.0
     
     # 2차 함수로 감소
-    rate = max_rate * ((1 - level / max_level) ** 2)
+    rate = max_rate * ((1 - level / max_level) ** 3)
     return max(rate, min_rate)
 
 def get_downgrade_rate(level: int) -> float:
@@ -77,7 +77,7 @@ def get_downgrade_rate(level: int) -> float:
         return 0.0  # 안전구간에서는 강등 없음
     
     # 레벨이 높을수록 강등 확률 증가
-    max_level = 500
+    max_level = 1000
     min_rate = 2.0
     max_rate = 40.0
     
@@ -94,7 +94,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "⚪",
             "tier": "기본"
         }
-    elif level <= 10:
+    elif level <= 50:
         # 기본 등급
         tier_names = ["9등급", "8등급", "7등급", "6등급", "5등급", "4등급", "3등급", "디럭스", "2등급", "1등급"]
         return {
@@ -103,7 +103,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "🟢",
             "tier": "기본"
         }
-    elif level <= 50:
+    elif level <= 150:
         # 아이언 등급
         return {
             "name": f"아이언 {level}",
@@ -111,7 +111,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "🔵",
             "tier": "아이언"
         }
-    elif level <= 100:
+    elif level <= 250:
         # 브론즈 등급
         return {
             "name": f"브론즈 {level}",
@@ -119,7 +119,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "🟣",
             "tier": "브론즈"
         }
-    elif level <= 200:
+    elif level <= 350:
         # 실버 등급
         return {
             "name": f"실버 {level}",
@@ -127,7 +127,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "🟠",
             "tier": "실버"
         }
-    elif level <= 300:
+    elif level <= 450:
         # 골드 등급
         return {
             "name": f"골드 {level}",
@@ -135,7 +135,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "🔴",
             "tier": "골드"
         }
-    elif level <= 400:
+    elif level <= 600:
         # 플래티넘 등급
         return {
             "name": f"플래티넘 {level}",
@@ -143,7 +143,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "🟡",
             "tier": "플래티넘"
         }
-    elif level <= 450:
+    elif level <= 750:
         # 마스터 등급
         return {
             "name": f"마스터 {level}",
@@ -151,7 +151,7 @@ def get_level_tier_info(level: int) -> Dict:
             "emoji": "🍯",
             "tier": "마스터"
         }
-    elif level <= 499:
+    elif level <= 950:
         # 그랜드마스터 등급
         return {
             "name": f"그랜드마스터 {level}",
@@ -160,9 +160,9 @@ def get_level_tier_info(level: int) -> Dict:
             "tier": "그랜드마스터"
         }
     else:
-        # 챌린저 등급 (500레벨)
+        # 챌린저 등급 (1000레벨)
         return {
-            "name": "챌린저 500",
+            "name": "챌린저 1000",
             "color": 0xFFFFFF,
             "emoji": "👑",
             "tier": "챌린저"
@@ -512,6 +512,11 @@ class EnhancementSystemCog(commands.Cog):
     @app_commands.command(name="강화", description="아이템을 강화합니다.")
     @app_commands.describe(아이템명="강화할 아이템의 이름")
     async def enhance_item(self, interaction: discord.Interaction, 아이템명: str):
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
+
         user_id = str(interaction.user.id)
         username = interaction.user.display_name
         
@@ -799,6 +804,120 @@ class EnhancementSystemCog(commands.Cog):
             print(f"❌ 강화순위 명령어 오류: {e}")
             await interaction.response.send_message("❌ 순위 조회 중 오류가 발생했습니다.", ephemeral=True)
 
+    @app_commands.command(name="공격", description="상대방의 아이템을 공격합니다. (등급별 일일 횟수 제한)")
+    @app_commands.describe(내아이템="내가 사용할 아이템 이름", 상대방="공격할 대상 유저", 상대아이템="상대방의 아이템 이름")
+    async def attack_item(self, interaction: discord.Interaction, 내아이템: str, 상대방: discord.Member, 상대아이템: str):
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
+            
+        user_id = str(interaction.user.id)
+        target_id = str(상대방.id)
+        
+        if user_id == target_id:
+            return await interaction.response.send_message("❌ 본인의 아이템은 공격할 수 없습니다!", ephemeral=True)
+
+        # 1. 데이터 가져오기
+        my_item = self.enhancement_data.get_item_data(내아이템, user_id, interaction.user.display_name)
+        target_item = self.enhancement_data.get_item_data(상대아이템, target_id, 상대방.display_name)
+
+        if my_item['level'] <= 0:
+            return await interaction.response.send_message(f"❌ Lv.0 아이템으로는 공격할 수 없습니다.", ephemeral=True)
+
+        # 2. 등급 정보 및 일일 횟수 제한 체크
+        tier_info = get_level_tier_info(my_item['level'])
+        tier_name = tier_info['tier']
+        
+        # 등급별 최대 공격 횟수 설정
+        attack_limits = {
+            "챌린저": 1,
+            "그랜드마스터": 2,
+            "마스터": 2,
+            "플래티넘": 3,
+            "골드": 5
+        }
+        
+        # 제한 대상 등급인지 확인 (골드 이상)
+        if tier_name in attack_limits:
+            max_daily = attack_limits[tier_name]
+            today = datetime.now().strftime("%Y-%m-%d")
+            
+            if "last_attack_date" not in my_item: my_item["last_attack_date"] = today
+            if "daily_attack_count" not in my_item: my_item["daily_attack_count"] = 0
+            
+            # 날짜 바뀌면 초기화
+            if my_item["last_attack_date"] != today:
+                my_item["last_attack_date"] = today
+                my_item["daily_attack_count"] = 0
+            
+            if my_item["daily_attack_count"] >= max_daily:
+                return await interaction.response.send_message(
+                    f"🚫 **공격 제한:** {tier_name} 등급은 하루에 **{max_daily}회**만 공격 가능합니다.\n내일 다시 시도하세요!", 
+                    ephemeral=True
+                )
+
+        # 3. 확률 계산
+        my_success_rate = get_success_rate(my_item['level'])
+        attack_success_rate = 100.0 - my_success_rate 
+        
+        # 실패 스택 및 등급 유지 관리
+        if "attack_fail_stack" not in my_item: my_item["attack_fail_stack"] = 0
+        if "last_tier" not in my_item: my_item["last_tier"] = tier_name
+
+        # 등급 변경 시 스택 초기화
+        if my_item["last_tier"] != tier_name:
+            my_item["attack_fail_stack"] = 0
+            my_item["last_tier"] = tier_name
+
+        roll = random.uniform(0, 100)
+        level_change = random.randint(1, 10)
+        embed = discord.Embed(title="⚔️ 아이템 공격 결과", color=discord.Color.red())
+        
+        # 4. 공격 실행
+        if roll <= attack_success_rate:
+            # 공격 성공
+            old_target_level = target_item['level']
+            target_item['level'] = max(0, target_item['level'] - level_change)
+            my_item["attack_fail_stack"] = 0 
+            
+            result_msg = f"💥 **공격 성공!**\n**{상대방.display_name}**의 **{상대아이템}** 레벨이 **-{level_change}** 하락했습니다."
+            
+            if old_target_level <= 1 and target_item['level'] <= 0:
+                item_key = f"{target_id}_{상대아이템.lower()}"
+                if item_key in self.enhancement_data.data["items"]:
+                    del self.enhancement_data.data["items"][item_key]
+                result_msg += f"\n💀 **[파괴]** 레벨이 너무 낮아진 아이템이 소멸했습니다!"
+            
+            embed.add_field(name="✅ 결과: 성공", value=result_msg, inline=False)
+            embed.color = discord.Color.green()
+        else:
+            # 공격 실패
+            my_item['level'] = max(0, my_item['level'] - level_change)
+            my_item["attack_fail_stack"] += 1
+            
+            fail_msg = f"🛡️ **공격 실패 (반동 저항)**\n내 **{내아이템}** 레벨이 **-{level_change}** 하락했습니다."
+            
+            if my_item["attack_fail_stack"] >= 5:
+                item_key = f"{user_id}_{내아이템.lower()}"
+                if item_key in self.enhancement_data.data["items"]:
+                    del self.enhancement_data.data["items"][item_key]
+                fail_msg = f"💀 **[아이템 파괴]**\n공격 연속 **5회 실패**로 아이템이 파괴되었습니다!"
+                embed.color = discord.Color.dark_red()
+            else:
+                embed.add_field(name="⚠️ 파괴 경고", value=f"현재 등급 내 연속 실패: **{my_item['attack_fail_stack']}/5**", inline=False)
+            
+            embed.add_field(name="❌ 결과: 실패", value=fail_msg, inline=False)
+
+        # 5. 횟수 차감 및 저장
+        if tier_name in attack_limits:
+            my_item["daily_attack_count"] += 1
+            embed.add_field(name="📅 남은 공격 횟수", value=f"**{max_daily - my_item['daily_attack_count']}회** / {max_daily}회", inline=True)
+
+        embed.add_field(name="📊 확률", value=f"성공률: **{attack_success_rate:.1f}%**", inline=True)
+        self.enhancement_data.save_data()
+        await interaction.response.send_message(embed=embed)
+
     @app_commands.command(name="강화정보", description="강화 시스템에 대한 정보를 확인합니다.")
     async def enhancement_info(self, interaction: discord.Interaction):
         embed = discord.Embed(
@@ -809,7 +928,7 @@ class EnhancementSystemCog(commands.Cog):
         
         embed.add_field(
             name="🎯 기본 규칙",
-            value="• 각 아이템별로 독립적인 강화\n• 30초 쿨다운 (아이템별)\n• 1~10레벨 랜덤 변동\n• **완전 무료, 보상 없음**",
+            value="• 각 아이템별로 독립적인 강화\n• 15초 쿨다운 (아이템별)\n• 1~10레벨 랜덤 변동\n• **완전 무료, 보상 없음**",
             inline=False
         )
         
@@ -821,7 +940,7 @@ class EnhancementSystemCog(commands.Cog):
         
         embed.add_field(
             name="🏆 등급 시스템",
-            value="• **기본** (1-10): 9등급~1등급\n• **아이언** (11-50)\n• **브론즈** (51-100)\n• **실버** (101-200)\n• **골드** (201-300)\n• **플래티넘** (301-400)\n• **마스터** (401-450)\n• **그랜드마스터** (451-499)\n• **챌린저** (500): 최고 등급",
+            value="• **기본** (1-50): 9등급~1등급\n• **아이언** (51-150)\n• **브론즈** (151-250)\n• **실버** (251-350)\n• **골드** (351-450)\n• **플래티넘** (451-600)\n• **마스터** (601-750)\n• **그랜드마스터** (751-950)\n• **챌린저** (951~1000): 최고 등급",
             inline=False
         )
         

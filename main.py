@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands, Member
+from datetime import datetime, timedelta, timezone
 
 # 프로젝트 루트 디렉토리 설정
 PROJECT_ROOT = Path(__file__).parent.absolute()
@@ -264,13 +265,20 @@ class EnhancedBot(commands.Bot):
     """서버 제한 기능이 추가된 향상된 봇 클래스"""
     
     def __init__(self):
-        # 인텐트 설정
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
         intents.guilds = True
         intents.voice_states = True
-        self.is_synced = False  # 동기화 여부 플래그 추가
+        self.is_synced = False 
+
+        # 초기 설정값들을 여기서 먼저 초기화합니다 (중요!)
+        self.startup_time: Optional[datetime] = None
+        self.logger = logging.getLogger('enhanced_bot')
+        self.update_system_available = False
+        self.exit_logger_available = False
+        self.command_usage: Dict[str, int] = {}
+        self.error_count: int = 0
 
         super().__init__(
             command_prefix="IGNORE_PREFIX",
@@ -278,7 +286,8 @@ class EnhancedBot(commands.Bot):
             help_command=None,
             case_insensitive=True,
             strip_after_prefix=True,
-            activity=discord.Game(name="딜러양 v1.5.10 | /안녕"),
+            # 시작할 때 보여줄 초기 상태
+            activity=discord.CustomActivity(name="시스템 부팅 중... 🕒"),
             status=discord.Status.online
         )
         
@@ -296,6 +305,41 @@ class EnhancedBot(commands.Bot):
         
         # 백업 시스템
         self.backup_system = None
+
+    # --- 실시간 상태 업데이트 루프 ---
+    @tasks.loop(minutes=30)
+    async def update_daily_status(self):
+        """오늘 날짜와 시간대별 인삿말을 상태 메시지에 표시"""
+        KST = timezone(timedelta(hours=9))
+        now = datetime.now(KST)
+        date_str = now.strftime("%Y년 %m월 %d일")
+        hour = now.hour
+        
+        if 5 <= hour < 9:
+            greeting = "“행운으로 하루를 시작하시기 바랍니다.”"
+        elif 9 <= hour < 12:
+            greeting = "“오전 테이블이 조용히 열립니다.”"
+        elif 12 <= hour < 13:
+            greeting = "“점심 시간, 여유로운 플레이를 즐기시기 바랍니다.”"
+        elif 13 <= hour < 18:
+            greeting = "“오후 테이블이 준비되었습니다.”"
+        elif 18 <= hour < 20:
+            greeting = "“저녁 메인 테이블이 가동됩니다.”"
+        elif 20 <= hour < 23:
+            greeting = "“나이트 테이블이 시작됩니다.”"
+        else: # 24시 ~ 5시
+            greeting = "“새벽의 깊은 승부가 이어집니다.”"
+
+        status_text = f"📅{date_str} | {greeting} | (v1.6.1)"
+        
+        await self.change_presence(
+            activity=discord.CustomActivity(name=status_text),
+            status=discord.Status.online
+        )
+
+    @update_daily_status.before_loop
+    async def before_daily_status(self):
+        await self.wait_until_ready()
 
     def _get_safe_latency(self) -> str:
         """안전한 지연시간 조회"""
@@ -342,7 +386,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="딜러양 v1.5.10 - 서버 제한 시스템")
+                    embed.set_footer(text="딜러양 v1.6.1 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -447,7 +491,7 @@ class EnhancedBot(commands.Bot):
                 inline=False
             )
         
-        embed.set_footer(text="딜러양 v1.5.10 - 서버 제한 시스템")
+        embed.set_footer(text="딜러양 v1.6.1 - 서버 제한 시스템")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -491,7 +535,7 @@ class EnhancedBot(commands.Bot):
             inline=True
         )
         
-        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.5.10")
+        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.6.1")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -542,6 +586,10 @@ class EnhancedBot(commands.Bot):
         """봇 설정 후크"""
         self.startup_time = datetime.now(timezone.utc)
         
+        # ✅ 여기서 루프를 시작해야 합니다!
+        if not self.update_daily_status.is_running():
+            self.update_daily_status.start()
+
         # 확장 모듈 로딩은 그대로 유지
         await self.load_extensions()
 
@@ -570,7 +618,7 @@ class EnhancedBot(commands.Bot):
             asyncio.create_task(self.delayed_sync(60))
 
         print("=" * 50)
-        print("🎉 딜러양 v1.5.10 구동 중 (60초 후 명령어 동기화 예정)")
+        print("🎉 딜러양 v1.6.1 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
 
@@ -654,7 +702,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 딜러양 v1.5.10 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 딜러양 v1.6.1 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

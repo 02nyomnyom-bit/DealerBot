@@ -79,6 +79,7 @@ def load_xp_settings():
             "chat_cooldown": 30,        # 채팅 XP 쿨다운 (초)
             "voice_xp_per_minute": 10,  # 음성 채널 분당 XP
             "chat_xp": 5,               # 채팅 XP
+            "command_xp": 2,           # 명령어 xp
             "attendance_xp": 100,       # 출석체크 XP
         }
     try:
@@ -1029,8 +1030,8 @@ class XPLeaderboardCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """메시지 이벤트로 채팅 XP 지급 (등록된 사용자만)"""
-        # 봇이 보낸 메시지나 DM, 명령어는 무시
-        if message.author.bot or message.guild is None or (self.bot.command_prefix and message.content.startswith(self.bot.command_prefix)):
+        # 봇이 보낸 메시지나 DM 무시
+        if message.author.bot or message.guild is None:
             return
         # 길드(서버)에서 온 메시지가 아니면 무시
         if message.guild is None:
@@ -1083,6 +1084,33 @@ class XPLeaderboardCog(commands.Cog):
                     print(f"✨ 채팅 레벨업 역할 지급 성공: {member.display_name} (Lv.{old_level} → Lv.{new_level})")
                 except Exception as e:
                     print(f"❌ 채팅 레벨업 역할 지급 오류: {e}")
+
+    async def process_command_xp(self, interaction: discord.Interaction):
+        """명령어 사용 시 XP를 지급하는 공통 로직"""
+        user_id = str(interaction.user.id)
+        guild_id = str(interaction.guild.id)
+
+        # 1. 등록된 사용자인지 확인
+        if not is_user_registered(user_id, guild_id):
+            return
+
+        # 2. 이전 레벨 저장
+        old_level = self.get_user_level(user_id, guild_id)
+
+        # 3. XP 지급 (설정된 채팅 XP 값 사용)
+        xp_amount = self.xp_settings.get("command_xp", 5)
+        success = await self.add_xp(user_id, guild_id, xp_amount)
+
+        if success:
+            # 4. 레벨업 확인 및 처리
+            new_level = self.get_user_level(user_id, guild_id)
+            if new_level > old_level:
+                await check_and_send_levelup_notification(self.bot, interaction.user, interaction.guild, old_level, new_level)
+                if ROLE_REWARD_AVAILABLE:
+                    try:
+                        await role_reward_manager.check_and_assign_level_role(interaction.user, new_level, old_level)
+                    except Exception as e:
+                        print(f"❌ 명령어 레벨업 역할 지급 오류: {e}")
             
 # setup 함수 (확장 로드용)
 async def setup(bot: commands.Bot):

@@ -91,18 +91,31 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
 # ============================================
 
 class AnonymousAdminView(discord.ui.View):
-    def __init__(self, db_manager, current_pw):
+    def __init__(self, db_manager): # current_pw 인자 제거
         super().__init__(timeout=None)
         self.db = db_manager
-        self.current_pw = current_pw
 
     @discord.ui.button(label="기록 조회하기", style=discord.ButtonStyle.primary, emoji="🔍")
     async def track(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AnonymousAuthModal(self.db, self.current_pw, "track"))
+        # 클릭 시점에 최신 비번 조회
+        query = "SELECT value FROM guild_settings WHERE guild_id = ? AND key = 'admin_password'"
+        result = self.db.execute_query(query, (str(interaction.guild.id),), 'one')
+        
+        if result:
+            await interaction.response.send_modal(AnonymousAuthModal(self.db, result['value'], "track"))
+        else:
+            await interaction.response.send_message("❌ 설정된 비밀번호가 없습니다. 다시 시도해주세요.", ephemeral=True)
 
     @discord.ui.button(label="비밀번호 변경", style=discord.ButtonStyle.secondary, emoji="⚙️")
     async def change(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AnonymousAuthModal(self.db, self.current_pw, "change"))
+        # 클릭 시점에 최신 비번 조회
+        query = "SELECT value FROM guild_settings WHERE guild_id = ? AND key = 'admin_password'"
+        result = self.db.execute_query(query, (str(interaction.guild.id),), 'one')
+        
+        if result:
+            await interaction.response.send_modal(AnonymousAuthModal(self.db, result['value'], "change"))
+        else:
+            await interaction.response.send_message("❌ 설정된 비밀번호가 없습니다. 다시 시도해주세요.", ephemeral=True)
 
 class AnonymousSystem(commands.Cog):
     def __init__(self, bot):
@@ -114,6 +127,11 @@ class AnonymousSystem(commands.Cog):
 
     @app_commands.command(name="익명", description="익명 메시지를 보냅니다.")
     async def anonymous_send(self, interaction: discord.Interaction, 대화: str):
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
+            
         msg_id = f"{random.randint(100, 999)}.{random.randint(100, 999)}"
         db = self.get_db(interaction.guild.id)
         
@@ -132,26 +150,23 @@ class AnonymousSystem(commands.Cog):
             return await interaction.response.send_message("❌ 서버 관리자 권한이 필요합니다.", ephemeral=True)
         
         db = self.get_db(interaction.guild.id)
-        # 테이블 자동 생성
         db.execute_query("CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT, key TEXT, value TEXT, PRIMARY KEY (guild_id, key))")
         
-        # 비밀번호 데이터 조회
         query = "SELECT value FROM guild_settings WHERE guild_id = ? AND key = 'admin_password'"
         result = db.execute_query(query, (str(interaction.guild.id),), 'one')
-        
+
         if not result:
-            # 설정된 비밀번호가 없으면 바로 초기 설정창
             await interaction.response.send_modal(AnonymousSetPWModal(db))
         else:
-            # 비밀번호가 있으면 버튼 메뉴 전송
             embed = discord.Embed(
                 title="🌲 대나무숲 관리 센터",
                 description="수행할 작업을 선택하세요. 모든 작업은 인증이 필요합니다.",
                 color=discord.Color.green()
             )
+            # View 생성 시 db만 넘겨줌
             await interaction.response.send_message(
                 embed=embed, 
-                view=AnonymousAdminView(db, result['value']), 
+                view=AnonymousAdminView(db), 
                 ephemeral=True
             )
 

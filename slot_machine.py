@@ -169,6 +169,11 @@ class SlotMachineCog(commands.Cog):
 
     @app_commands.command(name="슬롯머신", description="🎰 화끈한 한방! 슬롯머신 (100원 ~ 10,000원)")
     async def slot_command(self, interaction: discord.Interaction, 배팅: int = 100):
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
+            
         # 1. 확률 설명 자동화 (유지보수 용이)
         total_w = sum(SLOT_WEIGHTS.values())
         prob_info = " | ".join([f"{s} x{SLOT_MULTIPLIERS[s]}" for s in SLOT_SYMBOLS if SLOT_MULTIPLIERS[s] > 0])

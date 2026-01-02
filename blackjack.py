@@ -397,6 +397,10 @@ class BlackjackCog(commands.Cog):
     @app_commands.command(name="블랙잭", description="🃏 블랙잭을 시작합니다.(100원 ~ 6,000원)")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
         # 1. 배팅 금액 제한 체크
         if 배팅 < 100:
             return await interaction.response.send_message("❌ 최소 배팅 금액은 100원입니다.", ephemeral=True)
@@ -410,6 +414,5 @@ class BlackjackCog(commands.Cog):
 
         view = BlackjackModeSelectView(self.bot, interaction.user, 배팅)
         await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
-
 async def setup(bot):
     await bot.add_cog(BlackjackCog(bot))

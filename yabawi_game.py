@@ -218,6 +218,11 @@ class YabawiGameCog(commands.Cog):
     @app_commands.command(name="야바위", description="야바위 게임을 시작합니다.")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 3,000원)")
     async def yabawi_game(self, interaction: discord.Interaction, 배팅: int = 100): # 기본값을 100으로 변경 권장
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
+            
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild_id)
 

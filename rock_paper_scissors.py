@@ -266,6 +266,11 @@ class RPSCog(commands.Cog):
 
     @app_commands.command(name="가위바위보", description="가위바위보 게임을 시작합니다. (100원 ~ 5,000원)")
     async def rps(self, interaction: discord.Interaction, 배팅: int = 100):
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
+            
         if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터 가능합니다.", ephemeral=True)
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
         
