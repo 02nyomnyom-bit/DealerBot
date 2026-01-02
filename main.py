@@ -190,38 +190,38 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'attendance_master',         # 출석 시스템
         'voice_tracker',             # 음성 추적
         'improved_post_delete',      # 글 삭제
-        'help_command',              # 도움말
+        'help_comma nd',              # 도움말
         'update_system',             # 업데이트 시스템
         'improved_user_management',  # 향상된 사용자 관리
     ]
     
     # 게임 시스템
     game_extensions = [
-        'horse_racing',              # 경마 게임
-        'enhancement_system',        # 강화 시스템
-        'slot_machine',              # 슬롯머신
-        'blackjack',                 # 블랙잭
-        'dice_game',                 # 주사위 게임
-        'yabawi_game',               # 야바위 게임
-        "rock_paper_scissors",       # 가위바위보
-        'odd_even_game',             # 홀짝
-        'ladder_game',               # 사다리타기
+        'horse_racing',                 # 경마 게임
+        'enhancement_system',           # 강화 시스템
+        'slot_machine',                 # 슬롯머신
+        'blackjack',                    # 블랙잭
+        'dice_game',                    # 주사위 게임
+        'yabawi_game',                  # 야바위 게임
+        "rock_paper_scissors",          # 가위바위보
+        'odd_even_game',                # 홀짝
+        'ladder_game',                  # 사다리타기
     ]
     
     # 관리 도구
     admin_extensions = [
-        'tax_system',                # 세금 시스템
-        'role_reward_system',        # 역할 보상 시스템
-        'welcome_system',            # 환영 시스템
+        'tax_system',                   # 세금 시스템
+        'role_reward_system',           # 역할 보상 시스템
+        'welcome_system',               # 환영 시스템
+        'anonymous',                    # 익명 시스템 추가
     ]
     
     # 유틸리티
     utility_extensions = [
-        'common_utils',              # 공통 유틸리티
-        'database_manager',          # 데이터베이스 관리
-        'utility_commands',          # 유틸리티 명령어
-        'error_handler',             # 통합 에러 처리 시스템
-        'anonymous',  # ✅ 익명 시스템 추가
+        'common_utils',                 # 공통 유틸리티
+        'database_manager',             # 데이터베이스 관리
+        'statistics_system',            # 통계 명령어
+        'error_handler',                # 통합 에러 처리 시스템
     ]
     
     # ✨ 새로운 시스템들 (선택적 로드)
