@@ -53,12 +53,12 @@ except ImportError:
 
 class SlotMachineView(discord.ui.View):
     def __init__(self, bot: commands.Bot, guild_id: str, user: discord.User, bet: int):
-        super().__init__(timeout=60)    # 60초간 응답 없으면 버튼 만료
+        super().__init__(timeout=60)
         self.bot = bot
         self.guild_id = str(guild_id)
         self.user = user
         self.bet = bet
-        self.is_spinning = False        #현재 슬롯이 돌아가는 중인지 확인 (중복 클릭 방지)
+        self.is_spinning = False
         self.message = None
 
     @discord.ui.button(label="🎰 슬롯 돌리기!", style=discord.ButtonStyle.primary)
@@ -72,44 +72,47 @@ class SlotMachineView(discord.ui.View):
         # 이미 실행 중인 경우 중단
         if self.is_spinning:
             return await interaction.response.send_message("⚠️ 이미 슬롯이 돌아가고 있습니다.", ephemeral=True)
-
+        
         # 2. 초기 응답 및 상태 잠금 (Race Condition 방지)
         self.is_spinning = True
         
         try:
-            # 유저의 현재 잔액 확인
+            # 1. 포인트 체크 및 선차감
             current_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
             if current_balance < self.bet:
                 self.is_spinning = False
                 return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
             
-            # 포인트 선 차감: 결과 조작/강제 종료 방지
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, self.guild_id, uid, -self.bet)
 
-            # 버튼을 비활성화 상태로 바꾸어 중복 클릭 방지
+            # 2. 버튼 비활성화 및 초기 응답
             button.disabled = True
             button.label = "🎰 돌리는 중..."
+            # interaction.response.edit_message를 사용해 즉시 반영
             await interaction.response.edit_message(view=self)
             self.message = await interaction.original_response()
 
-            # 3. 결과 계산: 애니메이션을 보여주기 전에 미리 내부적으로 결과 확정
+            # 3. 결과 미리 계산
             weighted_symbols = list(SLOT_WEIGHTS.keys())
             weights = list(SLOT_WEIGHTS.values())
             final_result = random.choices(weighted_symbols, weights=weights, k=3)
 
-            # 4. 슬롯 애니메이션 (0.5초 간격으로 4번 가짜 기호를 보여줌)
-            for i in range(4):
+            # 4. 안전한 애니메이션 (횟수 조절 및 예외 처리 강화)
+            for i in range(3): # 4번에서 3번으로 줄여 API 부담 감소
                 temp_spin = random.choices(weighted_symbols, weights=weights, k=3)
-                embed = discord.Embed(
+                anim_embed = discord.Embed(
                     title="🎰 슬롯머신 돌리는 중...",
                     description=f"**{' | '.join(temp_spin)}**",
                     color=discord.Color.yellow()
                 )
-                await self.message.edit(embed=embed)
-                await asyncio.sleep(0.5)
+                try:
+                    await self.message.edit(embed=anim_embed)
+                    await asyncio.sleep(0.7) # 간격을 조금 더 늘려 안정성 확보
+                except discord.NotFound: # 메시지가 삭제된 경우 중단
+                    break
 
-            # 5. 최종 결과 처리 및 당첨금 계산
+            # 5. 결과 계산
             symbol_counts = Counter(final_result)
             most_common, count = symbol_counts.most_common(1)[0]
             reward = 0
@@ -117,43 +120,48 @@ class SlotMachineView(discord.ui.View):
             # 3개 모두 일치할 경우
             if count == 3:
                 mult = SLOT_MULTIPLIERS[most_common]
-                reward = int(self.bet * mult) if mult > 0 else 0
+                reward = int(self.bet * mult)
+            
             # 2개만 일치할 경우 (❌는 제외
             elif count == 2 and most_common != "❌":
                 reward = int(self.bet * TWO_MATCH_MULTIPLIER)
 
-            # 통계 시스템에 게임 기록 저장
+            # 6. 정산 및 기록
             is_win = reward > self.bet
             if STATS_AVAILABLE:
                 stats_manager.record_game(uid, self.user.display_name, "슬롯머신", self.bet, reward, is_win)
-            
+
             # 당첨금(보상) 지급
             if reward > 0 and POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, self.guild_id, uid, reward)
-
+            
             # 최종 잔액 조회
             final_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
             
-            # 결과 화면 임베드 구성 (이겼을 땐 초록, 졌을 땐 빨강)
+            # 7. 최종 결과 출력
             result_color = discord.Color.green() if reward > self.bet else discord.Color.red()
-            embed = discord.Embed(title="🎰 슬롯머신 결과", color=result_color)
-            embed.add_field(name="🎯 결과", value=f"**{' | '.join(final_result)}**", inline=False)
-            embed.add_field(name="손익", value=f"{reward - self.bet:+,}원", inline=True)
-            embed.add_field(name="💳 잔액", value=f"{final_balance:,}원", inline=True)
+            end_embed = discord.Embed(title="🎰 슬롯머신 결과", color=result_color)
+            end_embed.add_field(name="🎯 결과", value=f"**{' | '.join(final_result)}**", inline=False)
+            end_embed.add_field(name="손익", value=f"{reward - self.bet:+,}원", inline=True)
+            end_embed.add_field(name="💳 잔액", value=f"{final_balance:,}원", inline=True)
             
             button.label = "게임 종료"
-            await self.message.edit(embed=embed, view=self)
+            await self.message.edit(embed=end_embed, view=self)
             self.stop()
 
         except Exception as e:
-            print(f"오류 발생: {e}")
-            # 에러 발생 시에만 복구 시도 (이미 차감된 경우)
-            if POINT_MANAGER_AVAILABLE:
+            print(f"Slot Machine Error: {e}")
+            # 이미 포인트가 차감된 경우에만 환불
+            if self.is_spinning and POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, self.guild_id, uid, self.bet)
-            self.is_spinning = False
-            if self.message:
-                await self.message.edit(content="❌ 게임 중 오류가 발생하여 배팅액이 환불되었습니다.", view=None)
 
+                self.is_spinning = False
+                if self.message:
+                    try:
+                        await self.message.edit(content=f"❌ 오류가 발생하여 환불되었습니다. (사유: {e})", embed=None, view=None)
+                    except:
+                        pass
+                    
 # --- 슬롯머신 명령어 등록 ---
 class SlotMachineCog(commands.Cog):
     def __init__(self, bot: commands.Bot):

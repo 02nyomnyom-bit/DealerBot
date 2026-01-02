@@ -28,12 +28,13 @@ DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
 # --- 애니메이션 유틸리티 ---
 async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
-    """주사위 굴리는 애니메이션 효과를 줍니다."""
+    """주사위 굴리는 애니메이션 효과"""
     dice_faces = list(DICE_EMOJIS.values())
-    for _ in range(4): # 4회 반복
+    for _ in range(4):
         current_face = random.choice(dice_faces)
         base_embed.description = f"🎲 **주사위를 굴리는 중...** {current_face}"
-        await message.edit(embed=base_embed, view=None)
+        # view=None을 삭제하여 View 상태를 유지합니다.
+        await message.edit(embed=base_embed) 
         await asyncio.sleep(0.3)
 
 # --- 1단계: 모드 선택 View ---
@@ -76,13 +77,18 @@ class SingleOddEvenView(View):
         await self.process_game(interaction, "짝")
 
     async def process_game(self, interaction: discord.Interaction, user_choice):
+        # 1. 즉시 응답 지연 처리
         await interaction.response.defer()
         message = await interaction.original_response()
 
-        # 애니메이션 실행
+        # 2. 중복 클릭 방지를 위해 버튼 제거 후 애니메이션 시작
         anim_embed = discord.Embed(title="🎲 결과 확인 중...", color=discord.Color.light_grey())
+        await message.edit(embed=anim_embed, view=None)
+
+        # 3. 애니메이션 실행 (위에서 수정한 함수 호출)
         await play_dice_animation(message, anim_embed)
 
+        # 4. 결과 계산 및 정산 로직 (기존과 동일)
         dice_val = random.randint(1, 6)
         actual = "홀" if dice_val % 2 != 0 else "짝"
         
@@ -94,10 +100,11 @@ class SingleOddEvenView(View):
         if STATS_AVAILABLE:
             stats_manager.record_game(str(self.user.id), self.user.display_name, "홀짝", self.bet, payout, is_win)
 
+        # 5. 최종 결과 출력
         embed = discord.Embed(title="🎲 홀짝 결과", color=discord.Color.gold() if is_win else discord.Color.red())
         result_text = "🏆 맞췄습니다!" if is_win else "💀 틀렸습니다..."
         embed.description = f"선택: **{user_choice}**\n결과: {DICE_EMOJIS[dice_val]} ({dice_val}) -> **{actual}**\n\n**{result_text}**\n정산: {payout:,}원"
-        await message.edit(embed=embed, view=None)
+        await message.edit(embed=embed) # 이미 view는 None이므로 생략 가능
 
 # --- 3단계: 멀티 세부 설정 View ---
 class MultiSetupView(View):
@@ -178,10 +185,13 @@ class MultiOddEvenView(View):
     async def finish_game_logic(self):
         self.game_completed = True
         
-        # 애니메이션 실행
+        # 애니메이션 시작 전 버튼 제거
         anim_embed = discord.Embed(title="🎲 결과 확인 중...", color=discord.Color.light_grey())
-        await play_dice_animation(self.message, anim_embed)
+        await self.message.edit(embed=anim_embed, view=None)
 
+        # 애니메이션 실행
+        await play_dice_animation(self.message, anim_embed)
+        
         dice_val = random.randint(1, 6)
         actual = "홀" if dice_val % 2 != 0 else "짝"
         guild_id = self.message.guild.id
@@ -208,7 +218,9 @@ class MultiOddEvenView(View):
         embed = discord.Embed(title="🎲 홀짝 대결 결과", color=discord.Color.purple())
         embed.description = f"결과: {DICE_EMOJIS[dice_val]} ({dice_val}) -> **{actual}**\n\n**{res_msg}**\n"
         embed.description += f"{self.p1.mention}: {self.choices[self.p1.id]}\n{self.p2.mention}: {self.choices[self.p2.id]}"
-        await self.message.edit(embed=embed, view=None)
+        
+        # 최종 결과 출력
+        await self.message.edit(embed=embed)
 
 # --- Cog 클래스 ---
 class OddEvenCog(commands.Cog):

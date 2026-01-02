@@ -28,12 +28,13 @@ WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
 
 # --- 애니메이션 유틸리티 ---
 async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
-    """주사위 애니메이션: 임베드의 내용을 유지하며 주사위 눈금만 변경합니다."""
+    """주사위 굴리는 애니메이션 효과"""
     dice_faces = list(DICE_EMOJIS.values())
-    for i in range(5):  # 5회 회전
+    for i in range(5): 
         current_face = random.choice(dice_faces)
         base_embed.description = f"🎲 **주사위가 굴러가고 있습니다...** {current_face}"
-        await message.edit(embed=base_embed, view=None)
+        # view=None을 제거하여 애니메이션 도중 View 구조가 깨지는 것을 방지
+        await message.edit(embed=base_embed) 
         await asyncio.sleep(0.4)
 
 # 통계 기록 헬퍼 함수
