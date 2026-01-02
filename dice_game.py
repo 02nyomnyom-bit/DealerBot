@@ -57,11 +57,10 @@ class DiceModeSelectView(View):
 
     @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 1. 응답 먼저 지연 (3초 초과 대비)
         await interaction.response.defer()
         message = await interaction.original_response()
         
-        # 2. 포인트 확인 및 차감
+        # 포인트 차감
         if POINT_MANAGER_AVAILABLE:
             balance = await point_manager.get_point(self.bot, interaction.guild_id, str(self.user.id))
             if balance < self.bet:
@@ -70,26 +69,37 @@ class DiceModeSelectView(View):
     
         message = await interaction.original_response()
 
-        # 3. 애니메이션 실행
-        anim_embed = discord.Embed(title="🤖 주사위: 싱글 모드", color=discord.Color.blue())
+        # 애니메이션 실행
+        anim_embed = discord.Embed(title="🤖 주사위: 싱글 모드 (vs 봇)", color=discord.Color.blue())
         await play_dice_animation(message, anim_embed)
-        
-        # 4. 결과 계산 (4 이상 승리)
-        dice_val = random.randint(1, 6)
-        is_win = dice_val >= 4
-        payout = int(self.bet * 2 * WINNER_RETENTION) if is_win else 0
+
+        user_roll = random.randint(1, 6) # 사용자 주사위
+        bot_roll = random.randint(1, 6)  # 봇 주사위
+
+        if user_roll > bot_roll:
+            is_win = True
+            res_msg = "🏆 승리!"
+            payout = int(self.bet * 2 * WINNER_RETENTION)
+        elif user_roll < bot_roll:
+            is_win = False
+            res_msg = "💀 패배..."
+            payout = 0
+        else:
+            is_win = False # 무승부는 승리가 아님
+            res_msg = "🤝 무승부!"
+            payout = int(self.bet * PUSH_RETENTION) # 무승부 환불 로직 적용
 
         # 5. 포인트 지급 및 통계 기록
         if POINT_MANAGER_AVAILABLE and payout > 0:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
 
-        # 직접 구현하신 record_dice_game 헬퍼 함수 사용 권장
         record_dice_game(str(self.user.id), self.user.display_name, self.bet, payout, is_win)
 
         # 6. 최종 결과 표시
         result_embed = discord.Embed(title="🎲 주사위 결과", color=discord.Color.gold() if is_win else discord.Color.red())
-        result_text = "🏆 승리!" if is_win else "💀 패배..."
-        result_embed.description = f"결과: {DICE_EMOJIS[dice_val]} ({dice_val})\n\n**{result_text}**\n정산: {payout:,}원"
+        result_embed.description = f"**{res_msg}**\n정산: {payout:,}원"
+        result_embed.add_field(name=f"👤 {self.user.display_name}", value=f"{DICE_EMOJIS[user_roll]} ({user_roll})", inline=True)
+        result_embed.add_field(name="🤖 봇", value=f"{DICE_EMOJIS[bot_roll]} ({bot_roll})", inline=True)
 
         await message.edit(embed=result_embed, view=None)
 
