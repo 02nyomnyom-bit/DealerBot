@@ -53,10 +53,10 @@ def setup_logging():
 logger = setup_logging()
 
 class DatabaseManager:
-    def __init__(self, db_path):
-        self.conn = sqlite3.connect(db_path)
-        self.cursor = self.conn.cursor()
-        self._create_tables()
+    def __init__(self, guild_id: str):
+        self.guild_id = guild_id
+        self.db_path = self._get_db_path(guild_id)
+        self.thread_local = threading.local()
         
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         
@@ -103,27 +103,9 @@ class DatabaseManager:
             return False
 
     def _create_tables(self):
-        # guild_settings 테이블 생성
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS guild_settings (
-                guild_id TEXT,
-                key TEXT,
-                value TEXT,
-                PRIMARY KEY (guild_id, key)
-            )
-        ''')
-
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS anonymous_messages (
-                message_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id TEXT,
-                user_id TEXT,
-                content TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        self.conn.commit()
-
+        """테이블 생성 및 스키마 마이그레이션"""
+        # 기존의 테이블 생성 로직을 새로운 create_table 함수로 대체
+        # users 테이블에 guild_id 추가 및 복합 PRIMARY KEY 설정
         self.create_table(
             "users",
             """
@@ -345,21 +327,27 @@ class DatabaseManager:
                 logger.error(f"get_or_create_user 실행 중 오류 발생: {e}")
                 return False
 
-    def execute_query(self, query, params=()):
-        self.cursor.execute(query, params)
-        self.conn.commit() # ⭐ 이 부분이 핵심입니다! 데이터를 실제로 저장합니다.
-        return self.cursor
-
-    def fetch_one(self, query, params=()):
-        self.cursor.execute(query, params)
-        return self.cursor.fetchone()
-
-    def fetch_all(self, query, params=()):
-        self.cursor.execute(query, params)
-        return self.cursor.fetchall()
-
-    def close(self):
-        self.conn.close()
+    def execute_query(self, query: str, params: tuple = (), fetch_type: Literal['one', 'all', 'none'] = 'none') -> Optional[Union[sqlite3.Row, List[sqlite3.Row]]]:
+        """쿼리를 실행하고 결과를 반환 (자동 커밋 포함)"""
+        try:
+            with self.get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+            
+                # INSERT, UPDATE, DELETE 쿼리는 변경사항을 커밋
+                if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                    conn.commit()
+            
+                if fetch_type == 'one':
+                    return cursor.fetchone()
+                elif fetch_type == 'all':
+                    return cursor.fetchall()
+                else:
+                    return None
+        except sqlite3.Error as e:
+            logger.error(f"❌ DB 쿼리 오류: {e} - 쿼리: {query}", exc_info=True)
+            return None
     
     # ==================== 사용자 관리 ====================
     def create_user(self, user_id: str, username: str = '', display_name: str = '', initial_cash: int = 0):
