@@ -174,7 +174,7 @@ class AnonymousSystem(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="대숲", description="대나무숲")
+    @app_commands.command(name="대나무숲2", description="[서버장]")
     async def reset_password(self, interaction: discord.Interaction):
         # 서버 소유자인지 확인
         if interaction.user.id != interaction.guild.owner_id:
