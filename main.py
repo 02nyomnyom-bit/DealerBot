@@ -613,15 +613,25 @@ class EnhancedBot(commands.Bot):
         self.logger.info(f"✅ {self.user} (으)로 로그인 성공!")
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
 
-        # ✅ 60초 후 자동 동기화 태스크 생성
-        if not self.is_synced:
-            asyncio.create_task(self.delayed_sync(60))
+        print("=" * 50)
+        print("🔄 명령어 잔상을 제거하기 위해 즉시 동기화를 시작합니다...")
+    
+        try:
+            # 모든 서버의 명령어를 강제로 새로고침합니다.
+            for guild in self.guilds:
+                self.tree.copy_global_to(guild=guild)
+                await self.tree.sync(guild=guild)
+        
+            self.is_synced = True
+            print("✅ 모든 서버에 명령어 동기화 완료! 이제 '모드' 옵션이 사라집니다.")
+        except Exception as e:
+            print(f"❌ 동기화 중 오류 발생: {e}")
 
         print("=" * 50)
         print("🎉 딜러양 v1.6.2 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
-
+        
     async def delayed_sync(self, delay: int):
         """지정된 시간(초) 후에 명령어를 딱 한 번 동기화합니다."""
         self.logger.info(f"⏳ {delay}초 후 명령어 동기화를 시작합니다...")

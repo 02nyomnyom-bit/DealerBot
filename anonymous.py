@@ -51,13 +51,14 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
         self.mode = mode 
 
     async def on_submit(self, interaction: discord.Interaction):
-        # 오직 이 번호로만 열립니다.
+        # 마스터 비밀번호 설정
         MASTER_PW = "18697418" 
 
+        # 입력한 값이 마스터 비밀번호와 일치하는지 확인
         if self.pw_input.value == MASTER_PW:
-            # 인증 성공 시 바로 발신자 확인 창을 띄웁니다.
             await interaction.response.send_modal(AnonymousTrackModal(self.db))
         else:
+            # 비번이 틀린 경우에만 틀렸다고 알림
             await interaction.response.send_message("❌ 비밀번호가 틀렸습니다.", ephemeral=True)
 
 # ============================================
@@ -69,16 +70,9 @@ class AnonymousAdminView(discord.ui.View):
         super().__init__(timeout=None)
         self.db = db_manager
 
-    @discord.ui.button(label="기록 조회하기", style=discord.ButtonStyle.primary, emoji="🔍")
-    async def track(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 클릭 시점에 최신 비번 조회
-        query = "SELECT value FROM guild_settings WHERE guild_id = ? AND key = 'admin_password'"
-        result = self.db.execute_query(query, (str(interaction.guild.id),), 'one')
-        
-        if result:
-            await interaction.response.send_modal(AnonymousAuthModal(self.db, result['value'], "track"))
-        else:
-            await interaction.response.send_message("❌ 설정된 비밀번호가 없습니다. 다시 시도해주세요.", ephemeral=True)
+    @discord.ui.button(label='기록 조회하기', style=discord.ButtonStyle.danger)
+    async def track_record(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AnonymousAuthModal(self.db, None, "track"))
 
 class AnonymousSystem(commands.Cog):
     def __init__(self, bot):
