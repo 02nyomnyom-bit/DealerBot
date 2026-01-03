@@ -612,11 +612,7 @@ class EnhancedBot(commands.Bot):
         """봇 준비 완료 시 실행"""
         self.logger.info(f"✅ {self.user} (으)로 로그인 성공!")
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
-
-        # ✅ 60초 후 자동 동기화 태스크 생성
-        if not self.is_synced:
-            asyncio.create_task(self.delayed_sync(60))
-
+        
         print("=" * 50)
         print("🎉 딜러양 v1.6.2 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
