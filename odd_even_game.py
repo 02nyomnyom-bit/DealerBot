@@ -96,7 +96,6 @@ class SingleOddEvenView(View):
         dice_val = random.randint(1, 6)
         actual = "홀" if dice_val % 2 != 0 else "짝"
         is_win = (user_choice == actual)
-        is_win = (user_choice == actual)
         
         # 배팅금의 2배 정산 (승리 시)
         payout = int(self.bet * 2 * WINNER_RETENTION) if is_win else 0

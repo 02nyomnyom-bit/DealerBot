@@ -76,17 +76,24 @@ class YabawiGameView(View):
             self.ended = True
             active_games_by_user.discard(self.user_id)
             
-            # 배팅이 이미 나갔고, 승리가 0회인 경우(첫 판에서 잠수) 환불
-            if self.initial_bet_deducted and self.wins == 0:
-                await point_manager.add_point(self.bot, self.guild_id, self.user_id, self.base_bet)
-                refund_msg = f"⏰ 시간 초과! 활동이 없어 {self.base_bet:,}원이 환불되었습니다."
+            if self.initial_bet_deducted:
+                if self.wins > 0:
+                    # 1승 이상이면 현재까지의 보상 지급
+                    payout = int(self.current_pot * WINNER_RETENTION)
+                    await point_manager.add_point(self.bot, self.guild_id, self.user_id, payout)
+                    record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, payout, True)
+                    timeout_msg = f"⏰ 시간 초과! 현재까지의 보상 {payout:,}원이 지급되었습니다."
+                else:
+                    # 첫 판에서 잠수 시 원금 환불
+                    await point_manager.add_point(self.bot, self.guild_id, self.user_id, self.base_bet)
+                    timeout_msg = f"⏰ 시간 초과! 활동이 없어 {self.base_bet:,}원이 환불되었습니다."
             else:
-                refund_msg = "⏰ 시간 초과로 게임이 종료되었습니다."
+                timeout_msg = "⏰ 시간 초과로 게임이 종료되었습니다."
 
             try:
                 for item in self.children: # 모든 버튼 비활성화
                     item.disabled = True
-                await self.message.edit(content=refund_msg, view=self)
+                await self.message.edit(content=timeout_msg, view=self)
             except: pass
 
     def reset_for_next(self):
@@ -94,52 +101,47 @@ class YabawiGameView(View):
         self.real_position = random.randint(0, 2)
         self.processing = False
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user.id:
-            await interaction.response.send_message("❌ 이 게임의 플레이어만 조작할 수 있습니다.", ephemeral=True)
-            return False
-        return True
-
     async def handle_choice(self, interaction: discord.Interaction, chosen_idx: int):
         """사용자가 컵을 선택했을 때의 메인 로직"""
         self.processing = True
         
         # 게임 시작 시 첫 회에만 포인트 차감
         if not self.initial_bet_deducted:
-            # 잔액 확인
             current_balance = await point_manager.get_point(self.bot, self.guild_id, self.user_id)
             if current_balance < self.base_bet:
                 self.processing = False
+                active_games_by_user.discard(self.user_id) # 게임 해제
                 return await interaction.response.send_message("❌ 잔액이 부족합니다!", ephemeral=True)
-    
+            
             # 모든 조건 통과 시 포인트 차감
             await point_manager.add_point(self.bot, self.guild_id, self.user_id, -self.base_bet)
             self.initial_bet_deducted = True
 
-        # 정답 여부 확인 (단순화: 위치가 같으면 무조건 성공)
-        is_correct = (chosen_idx == self.real_position)
+        # 2. 확률 판정 로직 적용
+        # SUCCESS_RATES = [0.6, 0.55, 0.5, 0.45, 0.4] 활용
+        current_rate = SUCCESS_RATES[min(self.wins, len(SUCCESS_RATES)-1)]
+        is_correct = (chosen_idx == self.real_position) and (random.random() < current_rate)
         
-        # 결과 시각화 (선택한 컵, 실제 위치 표시)
-        cups = []
-        for i in range(3):
-            if i == chosen_idx:
-                cups.append("👑" if is_correct else "❌")
-            elif i == self.real_position:
-                cups.append("💰")
-            else:
-                cups.append("⬜")
-        cups_display = " ".join(cups)
+        # 컵 표시 로직
+        display_cups = ["⬜", "⬜", "⬜"]
+        if is_correct:
+            display_cups[chosen_idx] = "👑"
+        else:
+            display_cups[chosen_idx] = "❌"
+            display_cups[self.real_position] = "💰"
+        cups_display = " ".join(display_cups)
 
         if is_correct:
             self.wins += 1
-            self.current_pot *= 2 # 승리 시 보상 2배
+            self.current_pot = self.base_bet * (2 ** self.wins)
             
             if self.wins >= MAX_CHALLENGES:
                 # 5연승 달성 시 강제 종료 및 보상 지급
                 final_payout = int(self.current_pot * WINNER_RETENTION)
                 await point_manager.add_point(self.bot, self.guild_id, self.user_id, final_payout)
                 record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, final_payout, True)
-                
+                self.processing = False # 해제
+
                 self.ended = True
                 active_games_by_user.discard(self.user_id)
                 
@@ -154,8 +156,10 @@ class YabawiGameView(View):
                 self.clear_items()
                 self.add_item(ContinueButton()) # 다음 단계 버튼
                 self.add_item(StopButton())     # 중단 버튼
+                self.processing = False
                 await interaction.response.edit_message(embed=embed, view=self)
         else:
+            
             # 틀렸을 경우: 전액 상실 및 종료
             self.ended = True
             active_games_by_user.discard(self.user_id)
@@ -190,7 +194,7 @@ class StopButton(discord.ui.Button):
         active_games_by_user.discard(view.user_id)
         
         embed = discord.Embed(title="💰 게임 종료", description=f"보상을 수령했습니다.", color=discord.Color.blue())
-        embed.add_field(name="💵 최종 수령액", value=f"{final_payout:,}원 (5% 수수료)")
+        embed.add_field(name="💵 최종 수령액", value=f"{final_payout:,}원 (5% 수수료 제외)")
         await interaction.response.edit_message(embed=embed, view=None)
 
 class ContinueButton(discord.ui.Button):

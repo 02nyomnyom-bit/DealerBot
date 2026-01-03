@@ -95,10 +95,9 @@ def get_level_tier_info(level: int) -> Dict:
             "tier": "기본"
         }
     elif level <= 50:
-        # 기본 등급
-        tier_names = ["9등급", "8등급", "7등급", "6등급", "5등급", "4등급", "3등급", "디럭스", "2등급", "1등급"]
+        # 기본 등급 (1-50)
         return {
-            "name": f"{tier_names[level-1]} {level}",
+            "name": f"기본 {level}",
             "color": 0x00FF00,
             "emoji": "🟢",
             "tier": "기본"
@@ -300,6 +299,14 @@ class EnhancementDataManager:
             self.data["items"][item_key]["downgrade_count"] = 0
             
         return self.data["items"][item_key]
+
+    def get_existing_item_data(self, item_name: str, owner_id: str) -> Optional[Dict]:
+        """아이템 데이터 조회 (존재하지 않으면 None 반환)"""
+        item_key = f"{owner_id}_{item_name.lower()}"
+        items = self.data.get("items", {})
+        if isinstance(items, dict) and item_key in items:
+            return items[item_key]
+        return None
 
     def attempt_enhancement(self, item_name: str, owner_id: str, owner_name: str) -> Tuple[bool, int, int, float, float, str, int, int]:
         """강화 시도 (안전성 강화)"""
@@ -680,7 +687,7 @@ class EnhancementSystemCog(commands.Cog):
                 value=f"📈 성공률: **{next_success_rate:.1f}%**\n" +
                       f"📉 강등률: **{next_downgrade_rate:.1f}%**\n" +
                       f"💰 강화비: **무료**\n" +
-                      f"⏰ 쿨타임: *15초**",
+                      f"⏰ 쿨타임: **15초**",
                 inline=True
             )
             
@@ -818,9 +825,14 @@ class EnhancementSystemCog(commands.Cog):
         if user_id == target_id:
             return await interaction.response.send_message("❌ 본인의 아이템은 공격할 수 없습니다!", ephemeral=True)
 
-        # 1. 데이터 가져오기
-        my_item = self.enhancement_data.get_item_data(내아이템, user_id, interaction.user.display_name)
-        target_item = self.enhancement_data.get_item_data(상대아이템, target_id, 상대방.display_name)
+        # 1. 데이터 가져오기 (존재하는 아이템인지 확인)
+        my_item = self.enhancement_data.get_existing_item_data(내아이템, user_id)
+        if not my_item:
+            return await interaction.response.send_message(f"❌ **{내아이템}** 아이템을 소유하고 있지 않습니다.", ephemeral=True)
+
+        target_item = self.enhancement_data.get_existing_item_data(상대아이템, target_id)
+        if not target_item:
+            return await interaction.response.send_message(f"❌ **{상대방.display_name}**님은 **{상대아이템}** 아이템을 소유하고 있지 않습니다.", ephemeral=True)
 
         if my_item['level'] <= 0:
             return await interaction.response.send_message(f"❌ Lv.0 아이템으로는 공격할 수 없습니다.", ephemeral=True)
@@ -883,11 +895,12 @@ class EnhancementSystemCog(commands.Cog):
             
             result_msg = f"💥 **공격 성공!**\n**{상대방.display_name}**의 **{상대아이템}** 레벨이 **-{level_change}** 하락했습니다."
             
-            if old_target_level <= 1 and target_item['level'] <= 0:
+            # [수정] 아이템 파괴 로직: 레벨이 0 이하로 떨어지면 파괴
+            if old_target_level > 0 and target_item['level'] <= 0:
                 item_key = f"{target_id}_{상대아이템.lower()}"
                 if item_key in self.enhancement_data.data["items"]:
                     del self.enhancement_data.data["items"][item_key]
-                result_msg += f"\n💀 **[파괴]** 레벨이 너무 낮아진 아이템이 소멸했습니다!"
+                result_msg += f"\n💀 **[파괴]** 레벨이 0이 되어 아이템이 소멸했습니다!"
             
             embed.add_field(name="✅ 결과: 성공", value=result_msg, inline=False)
             embed.color = discord.Color.green()
@@ -934,7 +947,7 @@ class EnhancementSystemCog(commands.Cog):
         
         embed.add_field(
             name="📊 확률 시스템",
-            value="• 레벨이 높을수록 성공률 감소\n• 레벨 10 이하는 강등 없음 (안전구간)\n• 연속 5회 실패 시 다음은 성공/강등 보장",
+            value="• 레벨이 높을수록 성공률 감소\n• 레벨 10 이하는 강등 없음 (안전구간)\n• 연속 5회 실패 시 다음 강화는 **성공 보장**",
             inline=False
         )
         

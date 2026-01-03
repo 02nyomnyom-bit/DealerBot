@@ -56,7 +56,8 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
 
         # 입력한 값이 마스터 비밀번호와 일치하는지 확인
         if self.pw_input.value == MASTER_PW:
-            await interaction.response.send_modal(AnonymousTrackModal(self.db))
+            view = discord.ui.View()
+            await interaction.response.send_message("✅ 인증 성공! 아래 버튼을 클릭하여 조회를 진행하세요.", view=view, ephemeral=True)
         else:
             # 비번이 틀린 경우에만 틀렸다고 알림
             await interaction.response.send_message("❌ 비밀번호가 틀렸습니다.", ephemeral=True)

@@ -66,8 +66,6 @@ class DiceModeSelectView(View):
             if balance < self.bet:
                 return await interaction.followup.send("❌ 잔액이 부족합니다.", ephemeral=True)
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
-    
-        message = await interaction.original_response()
 
         # 애니메이션 실행
         anim_embed = discord.Embed(title="🤖 주사위: 싱글 모드 (vs 봇)", color=discord.Color.blue())
@@ -150,35 +148,62 @@ class MultiDiceView(View):
         self.bot, self.p1, self.bet, self.p2 = bot, p1, bet, p2
         self.message = None
         self.game_completed = False
-        self.rolling = False # 애니메이션 중복 실행 방지 플래그
-
-    @discord.ui.button(label="🎲 주사위 던지기", style=discord.ButtonStyle.danger)
-    async def roll_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 1. 메시지 객체 확보 (self.message가 없을 경우를 대비)
-        if not self.message:
-            self.message = await interaction.original_response()
-
-        # 2. 참가자 확인 및 P2 등록
-        if self.p2 is None and interaction.user.id != self.p1.id:
-            self.p2 = interaction.user
-            if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
         
-        if interaction.user.id not in [self.p1.id, self.p2.id if self.p2 else None]:
-            return await interaction.response.send_message("❌ 대결 참가자가 아닙니다.", ephemeral=True)
+        # p2가 정해졌는지 여부에 따라 버튼 라벨을 다르게 설정
+        button_label = "🎲 주사위 던지기" if self.p2 else "⚔️ 참가하기"
+        self.add_item(self.ActionButton(label=button_label))
 
-        if self.p2 is None:
-            return await interaction.response.send_message("⌛ 상대방을 기다리는 중입니다.", ephemeral=True)
+    async def on_timeout(self):
+        if self.game_completed:
+            return
+        
+        # 게임이 완료되지 않고 타임아웃되면, 베팅 금액을 환불합니다.
+        if POINT_MANAGER_AVAILABLE:
+            await point_manager.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
+            if self.p2:
+                await point_manager.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
 
-        # 3. 게임 실행 (애니메이션 및 정산)
-        if not self.rolling:
-            self.rolling = True
-            await interaction.response.defer() # 응답 지연 처리
-            await self.finish_game_logic()
-        else:
-            await interaction.response.send_message("🎲 이미 주사위가 굴러가고 있습니다!", ephemeral=True)
+        embed = discord.Embed(title="⏰ 시간 초과", description="게임이 취소되어 배팅금이 환불되었습니다.", color=discord.Color.red())
+        try:
+            await self.message.edit(embed=embed, view=None)
+        except discord.NotFound:
+            pass # 메시지가 이미 삭제된 경우
+
+    class ActionButton(discord.ui.Button):
+        async def callback(self, interaction: discord.Interaction):
+            view: MultiDiceView = self.view
+            user = interaction.user
+
+            if view.game_completed:
+                return await interaction.response.send_message("이미 종료된 게임입니다.", ephemeral=True)
+
+            # 공개 대전: P2 참가 처리
+            if view.p2 is None:
+                if user.id == view.p1.id:
+                    return await interaction.response.send_message("자신과의 대결에는 참가할 수 없습니다.", ephemeral=True)
+                
+                view.p2 = user
+                if POINT_MANAGER_AVAILABLE:
+                    balance = await point_manager.get_point(view.bot, interaction.guild_id, str(user.id))
+                    if balance < view.bet:
+                        view.p2 = None # 참가 자격 박탈
+                        return await interaction.response.send_message("❌ 잔액이 부족하여 참가할 수 없습니다.", ephemeral=True)
+                    await point_manager.add_point(view.bot, interaction.guild_id, str(user.id), -view.bet)
+                
+                # P2 참가 후 즉시 게임 시작
+                await interaction.response.defer()
+                await view.finish_game_logic()
+
+            # 지정 대전: P1 또는 P2가 버튼을 눌러 게임 시작
+            else:
+                if user.id not in [view.p1.id, view.p2.id]:
+                    return await interaction.response.send_message("❌ 대결 참가자가 아닙니다.", ephemeral=True)
+                
+                await interaction.response.defer()
+                await view.finish_game_logic()
 
     async def finish_game_logic(self):
+        self.game_completed = True
         p1_roll = random.randint(1, 6)
         p2_roll = random.randint(1, 6)
         guild_id = self.message.guild.id
@@ -197,23 +222,28 @@ class MultiDiceView(View):
 
         # 포인트 정산 로직
         reward_text = ""
+        p1_payout, p2_payout = 0, 0
         if winner:
             reward = int(self.bet * 2 * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             reward_text = f"\n수수료 제외 **{reward:,}원** 획득!"
-            if STATS_AVAILABLE: # 통계 기록
-                stats_manager.record_game(str(self.p1.id), self.p1.display_name, "주사위", self.bet, reward if winner == self.p1 else 0, winner == self.p1)
-                stats_manager.record_game(str(self.p2.id), self.p2.display_name, "주사위", self.bet, reward if winner == self.p2 else 0, winner == self.p2)
-        else:
+            if winner == self.p1: p1_payout = reward
+            else: p2_payout = reward
+        else: # 무승부
             refund = int(self.bet * PUSH_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
             reward_text = f"\n각자 5% 제외 **{refund:,}원** 환불"
+            p1_payout = p2_payout = refund
+
+        # 통계 기록 (무승부 포함)
+        if STATS_AVAILABLE:
+            stats_manager.record_game(str(self.p1.id), self.p1.display_name, "주사위", self.bet, p1_payout, winner == self.p1)
+            stats_manager.record_game(str(self.p2.id), self.p2.display_name, "주사위", self.bet, p2_payout, winner == self.p2)
 
         # 최종 임베드 출력
-        self.game_completed = True
         result_embed = discord.Embed(title="🎲 최종 결과", color=discord.Color.purple())
         result_embed.description = f"{res_msg}{reward_text}"
         result_embed.add_field(name=f"{self.p1.display_name}", value=f"{DICE_EMOJIS[p1_roll]} ({p1_roll})", inline=True)

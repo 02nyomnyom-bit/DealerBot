@@ -122,7 +122,7 @@ class SlotMachineView(discord.ui.View):
                 mult = SLOT_MULTIPLIERS[most_common]
                 reward = int(self.bet * mult)
             
-            # 2개만 일치할 경우 (❌는 제외
+            # 2개만 일치할 경우 (❌는 제외)
             elif count == 2 and most_common != "❌":
                 reward = int(self.bet * TWO_MATCH_MULTIPLIER)
 
@@ -139,7 +139,13 @@ class SlotMachineView(discord.ui.View):
             final_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
             
             # 7. 최종 결과 출력
-            result_color = discord.Color.green() if reward > self.bet else discord.Color.red()
+            if reward > self.bet:
+                result_color = discord.Color.green() # 이득
+            elif reward > 0:
+                result_color = discord.Color.yellow() # 일부 환급
+            else:
+                result_color = discord.Color.red() # 손해
+
             end_embed = discord.Embed(title="🎰 슬롯머신 결과", color=result_color)
             end_embed.add_field(name="🎯 결과", value=f"**{' | '.join(final_result)}**", inline=False)
             end_embed.add_field(name="손익", value=f"{reward - self.bet:+,}원", inline=True)
@@ -174,10 +180,6 @@ class SlotMachineCog(commands.Cog):
         if xp_cog:
             await xp_cog.process_command_xp(interaction)
             
-        # 1. 확률 설명 자동화 (유지보수 용이)
-        total_w = sum(SLOT_WEIGHTS.values())
-        prob_info = " | ".join([f"{s} x{SLOT_MULTIPLIERS[s]}" for s in SLOT_SYMBOLS if SLOT_MULTIPLIERS[s] > 0])
-
         try:
             uid = str(interaction.user.id)
             guild_id = str(interaction.guild.id)
@@ -204,10 +206,17 @@ class SlotMachineCog(commands.Cog):
             embed.add_field(name="💰 배팅 금액", value=f"{배팅:,}원", inline=True)
             embed.add_field(name="💳 현재 잔액", value=f"{current_balance:,}원", inline=True)
 
-            # 각 심볼별 확률 및 배당 안내
+            # 확률 정보 동적 생성
+            total_weight = sum(SLOT_WEIGHTS.values())
+            prob_lines = []
+            for symbol, multiplier in sorted(SLOT_MULTIPLIERS.items(), key=lambda item: item[1], reverse=True):
+                if multiplier > 0:
+                    prob = (SLOT_WEIGHTS[symbol] / total_weight) ** 3
+                    prob_lines.append(f"{symbol} x{multiplier} ({prob:.2%})")
+            
             embed.add_field(
                 name="🎰 심볼 배당률 & 3연속 확률",
-                value="🍀 x100 (0.04%) | 🍋 x10 (0.1%) | 🍒 x5 (0.34%) | 🔔 x2 (0.54%) | ❌ x0 (12.5%)",
+                value=" | ".join(prob_lines),
                 inline=False
             )
 
