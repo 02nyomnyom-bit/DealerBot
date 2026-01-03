@@ -79,8 +79,6 @@ class AttendanceMasterCog(commands.Cog):
             return 0, True
 
     @app_commands.command(name="출석체크", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
-    @app_commands.command(name="출첵", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
-    @app_commands.command(name="ㅊㅊ", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
     async def attendance_check_v2(self, interaction: discord.Interaction):
         await interaction.response.defer()
         
