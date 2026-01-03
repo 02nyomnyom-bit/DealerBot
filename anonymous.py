@@ -41,51 +41,22 @@ class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인
         else:
             await interaction.response.send_message(f"❓ `{self.msg_num.value}` 번호를 찾을 수 없습니다.", ephemeral=True)
 
-# [설정] 초기 비밀번호 설정창
-class AnonymousSetPWModal(discord.ui.Modal, title='관리자 비밀번호 초기 설정'):
-    new_pw = discord.ui.TextInput(label='새 비밀번호', placeholder='사용할 비밀번호를 입력하세요.', required=True)
-
-    def __init__(self, db_manager):
-        super().__init__()
-        self.db = db_manager
-
-    async def on_submit(self, interaction: discord.Interaction):
-        query = "INSERT OR REPLACE INTO guild_settings (guild_id, key, value) VALUES (?, 'admin_password', ?)"
-        self.db.execute_query(query, (str(interaction.guild.id), self.new_pw.value))
-        await interaction.response.send_message(f"✅ 비밀번호가 `{self.new_pw.value}`로 설정되었습니다. 다시 `/대나무숲`을 입력해주세요.", ephemeral=True)
-
-# [변경] 비밀번호 변경창
-class PasswordChangeModal(discord.ui.Modal, title='비밀번호 변경'):
-    new_pw = discord.ui.TextInput(label='새 비밀번호', placeholder='변경할 비밀번호를 입력하세요.', required=True)
-
-    def __init__(self, db_manager):
-        super().__init__()
-        self.db = db_manager
-
-    async def on_submit(self, interaction: discord.Interaction):
-        query = "UPDATE guild_settings SET value = ? WHERE guild_id = ? AND key = 'admin_password'"
-        self.db.execute_query(query, (self.new_pw.value, str(interaction.guild.id)))
-        await interaction.response.send_message(f"✅ 비밀번호가 `{self.new_pw.value}`로 변경되었습니다.", ephemeral=True)
-
-# [인증] 버튼 클릭 시 나타나는 비밀번호 입력창
 class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
     pw_input = discord.ui.TextInput(label='관리자 비밀번호', placeholder='비밀번호를 입력하세요.', required=True)
 
     def __init__(self, db_manager, current_pw, mode):
         super().__init__()
         self.db = db_manager
-        self.current_pw = current_pw  # DB에서 가져온 비번 (없을 수도 있음)
+        # current_pw는 이제 사용하지 않지만 호환성을 위해 유지합니다.
         self.mode = mode 
 
     async def on_submit(self, interaction: discord.Interaction):
-        MASTER_PW = "18697418"
+        # 오직 이 번호로만 열립니다.
+        MASTER_PW = "18697418" 
 
-        # 입력한 비번이 실제 비번과 맞거나, 혹은 마스터 비번과 맞으면 통과
-        if self.pw_input.value == self.current_pw or self.pw_input.value == MASTER_PW:
-            if self.mode == "track":
-                await interaction.response.send_modal(AnonymousTrackModal(self.db))
-            else:
-                await interaction.response.send_modal(PasswordChangeModal(self.db))
+        if self.pw_input.value == MASTER_PW:
+            # 인증 성공 시 바로 발신자 확인 창을 띄웁니다.
+            await interaction.response.send_modal(AnonymousTrackModal(self.db))
         else:
             await interaction.response.send_message("❌ 비밀번호가 틀렸습니다.", ephemeral=True)
 
@@ -106,17 +77,6 @@ class AnonymousAdminView(discord.ui.View):
         
         if result:
             await interaction.response.send_modal(AnonymousAuthModal(self.db, result['value'], "track"))
-        else:
-            await interaction.response.send_message("❌ 설정된 비밀번호가 없습니다. 다시 시도해주세요.", ephemeral=True)
-
-    @discord.ui.button(label="비밀번호 변경", style=discord.ButtonStyle.secondary, emoji="⚙️")
-    async def change(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 클릭 시점에 최신 비번 조회
-        query = "SELECT value FROM guild_settings WHERE guild_id = ? AND key = 'admin_password'"
-        result = self.db.execute_query(query, (str(interaction.guild.id),), 'one')
-        
-        if result:
-            await interaction.response.send_modal(AnonymousAuthModal(self.db, result['value'], "change"))
         else:
             await interaction.response.send_message("❌ 설정된 비밀번호가 없습니다. 다시 시도해주세요.", ephemeral=True)
 
@@ -147,31 +107,24 @@ class AnonymousSystem(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"❌ 오류: {e}", ephemeral=True)
 
-    @app_commands.command(name="대나무숲", description="[관리자 전용]")
+    @app_commands.command(name="대나무숲", description="-")
     async def anonymous_admin(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ 서버 관리자 권한이 필요합니다.", ephemeral=True)
         
         db = self.get_db(interaction.guild.id)
-        db.execute_query("CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT, key TEXT, value TEXT, PRIMARY KEY (guild_id, key))")
         
-        query = "SELECT value FROM guild_settings WHERE guild_id = ? AND key = 'admin_password'"
-        result = db.execute_query(query, (str(interaction.guild.id),), 'one')
-
-        if not result:
-            await interaction.response.send_modal(AnonymousSetPWModal(db))
-        else:
-            embed = discord.Embed(
-                title="🌲 대나무숲 관리 센터",
-                description="수행할 작업을 선택하세요. 모든 작업은 인증이 필요합니다.",
-                color=discord.Color.green()
-            )
-            # View 생성 시 db만 넘겨줌
-            await interaction.response.send_message(
-                embed=embed, 
-                view=AnonymousAdminView(db), 
-                ephemeral=True
-            )
+        # 비번 설정 여부 확인 없이 바로 관리 센터 메시지를 보냅니다.
+        embed = discord.Embed(
+            title="🌲 대나무숲 관리 센터",
+            description="수행할 작업을 선택하세요. 모든 작업은 인증 비밀번호가 필요합니다.",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(
+            embed=embed, 
+            view=AnonymousAdminView(db), 
+            ephemeral=True
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AnonymousSystem(bot))
