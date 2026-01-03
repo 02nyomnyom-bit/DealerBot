@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Literal, Union
 import math
 from datetime import datetime, date, timedelta
 from pathlib import Path
+from discord.ext import commands
 
 # ✅ 기본 리더보드 설정 (다른 모듈에서 참조 가능)
 DEFAULT_LEADERBOARD_SETTINGS = {
@@ -978,7 +979,23 @@ if __name__ == "__main__":
     logger.info(f"User1 in Guild2: {user2}")
     logger.info(f"Stats for Guild2: {db2.get_database_stats()}")
 
-    # 기존 전역 db_manager 사용 시 경고/오류 발생 확인
-    # db_manager = DatabaseManager() # 이 라인은 이제 guild_id가 없으므로 기본 DB를 사용합니다.
-    # db_manager.create_user("global_user", "GlobalUser", "글로벌유저") # 이 경우 guild_id가 None이므로 오류 발생
-    # logger.info(f"Global DB stats: {db_manager.get_database_stats()}")
+class DatabaseCog(commands.Cog, name="DatabaseManager"):
+    def __init__(self, bot):
+        self.bot = bot
+        # 길드별 매니저 인스턴스를 저장하여 중복 생성을 방지합니다.
+        self._managers: Dict[str, DatabaseManager] = {}
+
+    def get_manager(self, guild_id: Union[str, int]) -> DatabaseManager:
+        """
+        특정 길드의 데이터베이스 매니저 인스턴스를 반환합니다.
+        인스턴스가 없으면 새로 생성하여 반환합니다.
+        """
+        gid_str = str(guild_id)
+        if gid_str not in self._managers:
+            self._managers[gid_str] = DatabaseManager(gid_str)
+        return self._managers[gid_str]
+
+async def setup(bot):
+    # Cog 등록
+    await bot.add_cog(DatabaseCog(bot))
+    logger.info("✅ DatabaseManager Cog가 로드되었습니다.")
