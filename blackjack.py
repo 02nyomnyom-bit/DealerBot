@@ -502,8 +502,9 @@ class MultiBlackjackView(View):
 # --- 기존 BlackjackView 및 Cog (일부 수정) ---
 
 class BlackjackView(View):
-    def __init__(self, user: discord.User, bet: int, bot: commands.Bot):
+    def __init__(self, cog, user: discord.User, bet: int, bot: commands.Bot):
         super().__init__(timeout=120)
+        self.cog = cog  
         self.user, self.bet, self.bot = user, bet, bot
         self.game = BlackjackGame(bet)
         self.message = None
@@ -562,11 +563,12 @@ class BlackjackView(View):
             result_text = f"BLACKJACK! {result_text}"
         final_embed.add_field(name="결과", value=result_text, inline=False)
         
-        if interaction: await interaction.response.edit_message(embed=final_embed, view=None)
-        else: await self.message.edit(embed=final_embed, view=None)
-        self.stop()
+        if interaction: 
+            await interaction.response.edit_message(embed=final_embed, view=None)
+        else: 
+            await self.message.edit(embed=final_embed, view=None)
 
-# --- [수정] BlackjackCog 명령어 부분 ---
+# --- BlackjackCog 명령어 부분 ---
 class BlackjackCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -602,5 +604,7 @@ class BlackjackCog(commands.Cog):
         
         view = BlackjackModeSelectView(self, self.bot, interaction.user, 배팅) # self (Cog) 전달
         await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
+        view.message = await interaction.original_response()
+        
 async def setup(bot):
     await bot.add_cog(BlackjackCog(bot))

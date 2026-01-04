@@ -584,28 +584,25 @@ class EnhancedBot(commands.Bot):
     async def setup_hook(self):
         """봇 설정 후크"""
         self.startup_time = datetime.now(timezone.utc)
-        
-        # ✅ 여기서 루프를 시작해야 합니다!
+    
         if not self.update_daily_status.is_running():
             self.update_daily_status.start()
 
-        # 확장 모듈 로딩은 그대로 유지
         await self.load_extensions()
 
-        # 특정 길드에만 슬래시 명령어 동기화 (빠른 반영을 위해)
+        # ✅ 수정: delayed_sync를 실제로 실행하도록 추가
+        self.loop.create_task(self.delayed_sync(10)) # 60초는 너무 기므로 10초로 테스트 권장
+
+        # 특정 길드 동기화 로직 (유지하되 ID 확인 필수)
         if Config.MAIN_GUILD_IDS:
-            self.logger.info(f"🔧 설정된 {len(Config.MAIN_GUILD_IDS)}개의 서버에 명령어 동기화를 시도합니다...")
             for guild_id in Config.MAIN_GUILD_IDS:
                 try:
                     guild = discord.Object(id=guild_id)
                     self.tree.copy_global_to(guild=guild)
                     await self.tree.sync(guild=guild)
-                    self.logger.info(f"  ✅ 서버 ID {guild_id}에 명령어 동기화 완료.")
+                    self.logger.info(f"✅ 서버 ID {guild_id} 즉시 동기화 완료.")
                 except Exception as e:
-                    self.logger.error(f"  ❌ 서버 ID {guild_id}에 명령어 동기화 실패: {e}")
-
-        # 백업 시스템 초기화는 BackupCog에서 처리
-        pass
+                    self.logger.error(f"❌ 서버 ID {guild_id} 동기화 실패: {e}")
             
     async def on_ready(self):
         """봇 준비 완료 시 실행"""

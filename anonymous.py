@@ -51,15 +51,28 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
         self.mode = mode 
 
     async def on_submit(self, interaction: discord.Interaction):
-        # 마스터 비밀번호 설정
         MASTER_PW = "18697418" 
 
-        # 입력한 값이 마스터 비밀번호와 일치하는지 확인
         if self.pw_input.value == MASTER_PW:
+            # 인증 성공 시, 실제 조회를 실행할 버튼이 포함된 View를 생성합니다.
             view = discord.ui.View()
-            await interaction.response.send_message("✅ 인증 성공! 아래 버튼을 클릭하여 조회를 진행하세요.", view=view, ephemeral=True)
+        
+            # 버튼 생성 및 콜백 설정
+            search_button = discord.ui.Button(label="메시지 번호 입력", style=discord.ButtonStyle.primary)
+        
+            async def search_button_callback(btn_interaction: discord.Interaction):
+                # 이 버튼을 눌러야 검색창(모달)이 뜹니다.
+                await btn_interaction.response.send_modal(AnonymousTrackModal(self.db))
+            
+            search_button.callback = search_button_callback
+            view.add_item(search_button)
+
+            await interaction.response.send_message(
+                "✅ 인증 성공! 아래 버튼을 클릭하여 조회를 진행하세요.", 
+                view=view, 
+                ephemeral=True
+            )
         else:
-            # 비번이 틀린 경우에만 틀렸다고 알림
             await interaction.response.send_message("❌ 비밀번호가 틀렸습니다.", ephemeral=True)
 
 # ============================================

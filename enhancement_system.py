@@ -252,7 +252,7 @@ class EnhancementDataManager:
             print(f"❌ 강화 데이터 저장 실패: {e}")
             return False
 
-    def get_item_data(self, item_name: str, owner_id: str, owner_name: str) -> Dict:
+    def get_item_data(self, item_name: str, owner_id: str, owner_name: str, guild_id: str) -> Dict:
         """아이템 데이터 조회/생성 (완전 수정)"""
         item_key = f"{owner_id}_{item_name.lower()}"
         
@@ -276,6 +276,7 @@ class EnhancementDataManager:
             self.data["items"][item_key] = {
                 "item_name": item_name,
                 "owner_id": owner_id,
+                "guild_id": guild_id,
                 "owner_name": owner_name,
                 "level": 0,
                 "total_attempts": 0,
@@ -462,22 +463,22 @@ class EnhancementDataManager:
                 "total_users": 0
             }
 
-    def get_top_items(self, limit: int = 10) -> List[Dict]:
-        """전체 상위 아이템 목록 (안전성 강화)"""
+    def get_top_items(self, guild_id: str, limit: int = 10) -> List[Dict]:
+        """해당 서버(guild_id)의 상위 아이템 목록 조회"""
         try:
             all_items = []
             items = self.data.get("items", {})
-            
+        
             if isinstance(items, dict):
                 for item_data in items.values():
-                    if isinstance(item_data, dict):
+                    # 해당 서버의 데이터만 리스트에 추가
+                    if isinstance(item_data, dict) and item_data.get("guild_id") == guild_id:
                         all_items.append(item_data)
-            
-            # 레벨순으로 정렬 (안전한 정렬)
+        
             def safe_level_sort(item):
                 level = item.get("level", 0)
                 return int(level) if isinstance(level, (int, float)) else 0
-            
+        
             all_items.sort(key=safe_level_sort, reverse=True)
             return all_items[:limit]
         except Exception as e:
@@ -763,6 +764,7 @@ class EnhancementSystemCog(commands.Cog):
     @app_commands.command(name="강화순위", description="전체 강화 순위를 확인합니다.")
     async def enhancement_ranking(self, interaction: discord.Interaction):
         try:
+            guild_id = str(interaction.guild_id)
             top_items = self.enhancement_data.get_top_items(10)
             server_stats = self.enhancement_data.get_server_stats()
             

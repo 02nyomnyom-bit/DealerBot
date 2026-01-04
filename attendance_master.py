@@ -98,17 +98,16 @@ class AttendanceMasterCog(commands.Cog):
         username = interaction.user.display_name
         guild_id = str(interaction.guild.id)
 
-        if not self.db_cog: # self.db_available 대신 self.db_cog 확인
+        if not self.db_cog:
             embed = discord.Embed(
                 title="❌ 시스템 오류",
-                description="데이터베이스 시스템을 불러오는 데 실패하여 출석체크 기능이 비활성화되었습니다. 관리자에게 문의해주세요.",
+                description="데이터베이스 시스템을 불러오는 데 실패했습니다.",
                 color=discord.Color.red()
             )
             return await interaction.followup.send(embed=embed)
 
-        db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
+        db = self.db_cog.get_manager(guild_id)
         
-        # 1. 사용자 등록 여부 확인
         if not db.get_user(user_id):
             embed = discord.Embed(
                 title="❌ 미등록 사용자",
@@ -118,17 +117,27 @@ class AttendanceMasterCog(commands.Cog):
             return await interaction.followup.send(embed=embed)
         
         try:
-            # 설정 로드 (관리자가 변경했을 수 있으므로)
+            # 1. 설정 로드 및 병합
             settings = db.get_leaderboard_settings()
-
-            # 기본 설정과 관리자 설정을 병합하여 최종 유효 설정 생성
-            effective_settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS.copy() # self.db_cog에서 DEFAULT_LEADERBOARD_SETTINGS 가져오기
+            default_settings = getattr(self.db_cog, 'DEFAULT_LEADERBOARD_SETTINGS', {
+                'attendance_cash': 1000, 
+                'attendance_xp': 100,
+                'streak_cash_per_day': 100,
+                'streak_xp_per_day': 10,
+                'max_streak_bonus_days': 7,
+                'weekly_cash_bonus': 5000,
+                'weekly_xp_bonus': 500,
+                'monthly_cash_bonus': 20000,
+                'monthly_xp_bonus': 2000,
+                'exchange_fee_percent': 5,
+                'daily_exchange_limit': 10
+            })
+            effective_settings = default_settings.copy()
             effective_settings.update(settings)
 
             # 2. 연속 출석일 및 오늘 출석 가능 여부 확인
             current_streak, can_attend_today = self.calculate_attendance_streak(guild_id, user_id)
             
-            # 3. 이미 출석한 경우 처리
             if not can_attend_today:
                 embed = discord.Embed(
                     title="⚠️ 이미 출석완료",
@@ -139,22 +148,12 @@ class AttendanceMasterCog(commands.Cog):
                 embed.add_field(name="🔥 현재 연속 출석", value=f"{current_streak}일")
                 return await interaction.followup.send(embed=embed)
             
-            # 4. 출석 기록 저장
-            today_str = self.get_korean_date_string()
-            
-            # 👈 추가: KST 날짜 객체를 준비합니다.
+            # 3. 출석 기록 저장
             today_date = self.get_korean_date_object()
-            
-            # database_manager의 출석 기록 함수 호출
-            # 👇 수정: today_date 인자 전달
+            today_str = self.get_korean_date_string()
             record_result = db.record_attendance(user_id, today_date)
 
-            # 5. 새로운 연속 출석일 계산 (오늘 포함)
-            # db.record_attendance 결과에서 새로운 연속 출석일을 가져오는 것이 더 정확합니다.
-            # new_streak = current_streak + 1 # 이 로직 대신 아래처럼 수정합니다.
             if not record_result['success']:
-                # 이미 출석한 경우, record_attendance 함수는 여기서 이미 처리되었어야 합니다.
-                # 그러나 혹시 모를 에러 방지를 위해 record_attendance 함수의 리턴 값을 사용합니다.
                 new_streak = record_result.get('streak', current_streak)
             else:
                 new_streak = record_result['streak']
@@ -246,13 +245,8 @@ class AttendanceMasterCog(commands.Cog):
             print(f"출석체크 처리 중 심각한 오류 발생: {e}")
             import traceback
             traceback.print_exc()
-            
-            embed = discord.Embed(
-                title="❌ 출석체크 오류",
-                description="출석체크 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.",
-                color=discord.Color.red()
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            # 에러 발생 시 사용자에게 알림
+            await interaction.followup.send("출석체크 중 오류가 발생했습니다.", ephemeral=True)
 
     @app_commands.command(name="출석현황", description="나의 현재 출석 현황을 확인합니다.")
     async def attendance_status(self, interaction: discord.Interaction):
