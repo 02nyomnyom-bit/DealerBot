@@ -5,14 +5,9 @@ from discord import app_commands, Interaction, Member
 from discord.ext import commands
 from datetime import datetime, timezone
 import asyncio
+from typing import Optional, Any
 
-# 데이터베이스 매니저 임포트
-try:
-    from database_manager import get_guild_db_manager
-    DATABASE_AVAILABLE = True
-except ImportError:
-    DATABASE_AVAILABLE = False
-    print("⚠️ database_manager 모듈을 찾을 수 없습니다.")
+# 데이터베이스 매니저 임포트는 더 이상 필요 없습니다. cog_load에서 가져옵니다.
 
 # 유틸리티 함수들
 def format_money(amount):
@@ -30,13 +25,13 @@ def log_admin_action(message):
 
 class UserDeleteConfirmView(discord.ui.View):
     """사용자 삭제 확인 UI"""
-    def __init__(self, target_user: Member, admin_user: Member, db=None):
+    def __init__(self, target_user: Member, admin_user: Member, db_cog: Any): # db_cog 인자 추가
         super().__init__(timeout=60)
         self.target_user = target_user
         self.admin_user = admin_user
         self.target_id = str(target_user.id)
         self.target_name = target_user.display_name
-        self.db = db or get_guild_db_manager(str(target_user.guild.id))  # db 인수를 받거나 기본값 사용
+        self.db_cog = db_cog # db_cog 저장
 
     @discord.ui.button(label="✅ 탈퇴 확정", style=discord.ButtonStyle.danger)
     async def confirm_delete(self, interaction: Interaction, button: discord.ui.Button):
@@ -49,8 +44,9 @@ class UserDeleteConfirmView(discord.ui.View):
         await interaction.response.defer()
         
         try:
+            db = self.db_cog.get_manager(str(self.target_user.guild.id)) # db_cog를 통해 manager 가져오기
             # 사용자 데이터 삭제
-            deleted_counts = self.db.delete_user(self.target_id)
+            deleted_counts = db.delete_user(self.target_id)
             
             for item in self.children:
                 item.disabled = True
@@ -126,16 +122,22 @@ class UserManagementCog(commands.Cog):
     
     def __init__(self, bot):
         self.bot = bot
-        self.db = None # db_manager를 직접 사용하지 않고, 각 명령어에서 get_guild_db_manager를 통해 인스턴스를 얻습니다.
-        if not DATABASE_AVAILABLE:
-            print("⚠️ 데이터베이스 연결 실패 - 사용자 관리 기능이 제한됩니다.")
+        self.db_cog: Optional[Any] = None # DatabaseCog 인스턴스를 저장할 변수
     
-    def cog_check(self, ctx):
-        """Cog 레벨 체크 - 데이터베이스 사용 가능성 확인"""
-        return DATABASE_AVAILABLE
+    async def cog_load(self):
+        """Cog가 로드된 후 DatabaseManager Cog를 가져옵니다."""
+        self.db_cog = self.bot.get_cog("DatabaseManager")
+        if not self.db_cog:
+            print("❌ DatabaseManager Cog를 찾을 수 없습니다. 사용자 관리 기능이 제한됩니다.")
+        else:
+            print("✅ DatabaseManager Cog 연결 성공.")
 
     @app_commands.command(name="사용자관리", description="[관리자 전용] 통합 사용자 관리 패널을 표시합니다.")
     async def user_management_panel(self, interaction: Interaction):
+        # DatabaseCog 로드 여부 확인
+        if not self.db_cog:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
+
         # 관리자 권한 체크
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
@@ -147,7 +149,7 @@ class UserManagementCog(commands.Cog):
         
         try:
             guild_id = str(interaction.guild.id)
-            db = get_guild_db_manager(guild_id)
+            db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
             
             # 총 사용자 수
             total_users_result = db.execute_query('SELECT COUNT(*) FROM users WHERE guild_id = ?', (guild_id,), 'one')
@@ -253,6 +255,10 @@ class UserManagementCog(commands.Cog):
     @app_commands.command(name="등록목록", description="[관리자 전용] 등록된 사용자 목록을 확인합니다.")
     @app_commands.describe(페이지="확인할 페이지 번호 (기본값: 1)")
     async def list_registered_users(self, interaction: Interaction, 페이지: int = 1):
+        # DatabaseCog 로드 여부 확인
+        if not self.db_cog:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
+
         # 관리자 권한 체크
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message(
@@ -264,7 +270,7 @@ class UserManagementCog(commands.Cog):
         
         try:
             guild_id = str(interaction.guild.id)
-            db = get_guild_db_manager(guild_id)
+            db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
             
             # 페이지 설정 (1페이지당 10명)
             page_size = 10
@@ -340,6 +346,10 @@ class UserManagementCog(commands.Cog):
     @app_commands.command(name="사용자정보", description="[관리자 전용] 특정 사용자의 상세 정보를 확인합니다.")
     @app_commands.describe(대상="정보를 확인할 사용자")
     async def user_info(self, interaction: Interaction, 대상: Member):
+        # DatabaseCog 로드 여부 확인
+        if not self.db_cog:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
+
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True)
         
@@ -348,7 +358,7 @@ class UserManagementCog(commands.Cog):
         try:
             target_id = str(대상.id)
             guild_id = str(interaction.guild.id)
-            db = get_guild_db_manager(guild_id)
+            db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
             
             # 기본 사용자 정보
             user_data = db.get_user(target_id)
@@ -443,12 +453,16 @@ class UserManagementCog(commands.Cog):
     @app_commands.command(name="데이터초기화", description="[관리자 전용] 사용자의 모든 데이터를 초기화합니다.")
     @app_commands.describe(사용자="데이터를 초기화할 사용자")
     async def reset_user_data(self, interaction: Interaction, 사용자: Member):
+        # DatabaseCog 로드 여부 확인
+        if not self.db_cog:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
+
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         target_id = str(사용자.id)
         guild_id = str(interaction.guild.id)
-        db = get_guild_db_manager(guild_id)
+        db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
         
         # 사용자 등록 확인
         if not db.get_user(target_id):

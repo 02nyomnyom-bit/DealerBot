@@ -219,7 +219,6 @@ def get_available_extensions() -> Dict[str, List[str]]:
     # 유틸리티
     utility_extensions = [
         'common_utils',                 # 공통 유틸리티
-        'database_manager',             # 데이터베이스 관리
         'statistics_system',            # 통계 명령어
         'error_handler',                # 통합 에러 처리 시스템
     ]

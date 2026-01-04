@@ -15,23 +15,8 @@ from discord.ext import commands
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ✅ 데이터베이스 매니저 안전 임포트
-try:
-    from database_manager import db_manager
-    DATABASE_AVAILABLE = True
-except ImportError:
-    DATABASE_AVAILABLE = False
-    logger.warning("⚠️ database_manager가 없어 DB 통계가 제한됩니다.")
-    
-    # Mock database manager
-    class MockDBManager:
-        def get_total_cash_stats(self):
-            return {'total_cash': 0, 'total_users': 0, 'avg_cash': 0}
-        
-        def get_cash_leaderboard(self, limit):
-            return []
-    
-    db_manager = MockDBManager()
+# DATABASE_AVAILABLE는 이제 StatisticsCog 초기화 시점에 판단됩니다.
+# db_manager는 직접 임포트하지 않고, DatabaseCog를 통해 접근합니다.
 
 # ✅ 데이터 파일 경로 및 설정
 STATS_CONFIG = {
@@ -48,7 +33,9 @@ os.makedirs("data", exist_ok=True)
 
 # ✅ 통계 관리자 클래스 (디버깅 기능 추가)
 class StatisticsManager:
-    def __init__(self):
+    # `db_cog` 인자를 추가하여 DatabaseCog 인스턴스를 받도록 변경
+    def __init__(self, db_cog: Any): # Any 대신 DatabaseCog 타입을 사용하는 것이 더 좋습니다.
+        self.db_cog = db_cog
         self.game_stats = self.load_game_stats()
         self.user_activity = self.load_user_activity()
         self.daily_stats = self.load_daily_stats()
@@ -355,7 +342,7 @@ class StatisticsManager:
             logger.error(f"게임 플레이 기록 오류: {e}")
             print(f"❌ 게임 기록 실패: {e}")
 
-    def get_server_stats(self) -> Dict:
+    def get_server_stats(self, guild_id: int) -> Dict: # guild_id 인자 추가
         """서버 전체 통계 반환 (완전 오류 수정 및 게임 통계 정확한 카운트)"""
         try:
             # ✅ 실행 전 데이터 무결성 확인
@@ -403,6 +390,10 @@ class StatisticsManager:
             
             # 경제 통계 (안전하게)
             economy_stats = {}
+            # DatabaseCog를 통해 guild_db_manager 인스턴스 가져오기
+            guild_db_manager = self.db_cog.get_manager(str(guild_id)) # guild_id를 문자열로 변환하여 전달
+            DATABASE_AVAILABLE = guild_db_manager is not None # db_manager 인스턴스 존재 여부로 판단
+            
             try:
                 economy_stats = {
                     "total_points_consumed": total_bets,
@@ -416,14 +407,14 @@ class StatisticsManager:
                 if DATABASE_AVAILABLE:
                     try:
                         # 현금 리더보드를 통해 이 현금 계산
-                        leaderboard = db_manager.get_cash_leaderboard(1000)  # 상위 1000명
+                        leaderboard = guild_db_manager.get_cash_leaderboard(1000)  # 상위 1000명
                         if leaderboard:
                             db_total_cash = sum(user.get('cash', 0) for user in leaderboard)
                             economy_stats["db_total_cash"] = db_total_cash
                             economy_stats["db_active_users"] = len(leaderboard)
                         
                         # 데이터베이스 통계
-                        db_stats = db_manager.get_database_stats()
+                        db_stats = guild_db_manager.get_database_stats()
                         if db_stats and 'users' in db_stats:
                             economy_stats["db_total_users"] = db_stats['users']
                     except Exception as db_e:
@@ -602,23 +593,33 @@ class StatisticsManager:
             }
         }
 
-# ✅ 전역 통계 관리자 인스턴스
-stats_manager = StatisticsManager()
+# ✅ 전역 통계 관리자 인스턴스 (이제 StatisticsCog 내에서 초기화됩니다)
+# stats_manager = StatisticsManager()
 
 # ===== Discord Cog =====
 
 class StatisticsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.stats = stats_manager
+        # DatabaseCog를 bot에서 가져오기
+        self.db_cog = self.bot.get_cog("DatabaseManager")
+        
+        if not self.db_cog:
+            logger.error("❌ DatabaseManager Cog를 찾을 수 없습니다. 통계 기능이 제한됩니다.")
+            self.stats = None # 통계 관리자 초기화 실패
+        else:
+            self.stats = StatisticsManager(self.db_cog) # DatabaseCog 인스턴스를 전달
 
     @app_commands.command(name="통계", description="서버 전체 게임 통계를 확인합니다.")
     async def server_statistics(self, interaction: discord.Interaction):
+        if not self.stats:
+            return await interaction.response.send_message("❌ 통계 시스템이 초기화되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
+            
         await interaction.response.defer()
         
         try:
             # 서버 통계 가져오기 (개선된 계산 방식)
-            server_stats = self.stats.get_server_stats()
+            server_stats = self.stats.get_server_stats(interaction.guild_id) # guild_id 전달
             
             # 에러가 있는 경우 처리
             if "error" in server_stats:
@@ -695,6 +696,9 @@ class StatisticsCog(commands.Cog):
     # ✅ 디버깅 명령어 추가
     @app_commands.command(name="통계디버그", description="통계 시스템 디버깅 정보를 확인합니다.")
     async def statistics_debug(self, interaction: discord.Interaction):
+        if not self.stats:
+            return await interaction.response.send_message("❌ 통계 시스템이 초기화되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
+
         await interaction.response.defer(ephemeral=True)
         
         try:

@@ -35,14 +35,6 @@ def setup_logging():
 logger = setup_logging()
 
 # 안전한 의존성 import
-def safe_import_database():
-    try:
-        from database_manager import get_guild_db_manager
-        return get_guild_db_manager, True
-    except ImportError as e:
-        logger.warning(f"⚠️ database_manager 임포트 실패: {e}")
-        return None, False
-
 def safe_import_point_manager():
     try:
         from point_manager import get_point, add_point, set_point, is_registered
@@ -52,7 +44,6 @@ def safe_import_point_manager():
         return None, None, None, None, False
 
 # 의존성 로드
-get_guild_db_manager_func, DATABASE_AVAILABLE = safe_import_database()
 get_point, add_point, set_point, is_registered, POINT_MANAGER_AVAILABLE = safe_import_point_manager()
 
 # 설정 파일 관리
@@ -166,7 +157,16 @@ class ExchangeCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.exchange_system = ExchangeSystem()
+        self.db_cog: Optional[Any] = None # DatabaseCog 인스턴스를 저장할 변수
         logger.info("✅ 통합 교환 시스템 v6 로드 완료")
+
+    async def cog_load(self):
+        """Cog가 로드된 후 DatabaseManager Cog를 가져옵니다."""
+        self.db_cog = self.bot.get_cog("DatabaseManager")
+        if not self.db_cog:
+            logger.error("❌ DatabaseManager Cog를 찾을 수 없습니다. 교환 기능이 제한됩니다.")
+        else:
+            logger.info("✅ DatabaseManager Cog 연결 성공.")
 
     # XP를 현금으로 교환
     @app_commands.command(name="현금교환", description="XP를 현금으로 교환합니다. 수수료가 부과됩니다.")
@@ -178,7 +178,7 @@ class ExchangeCog(commands.Cog):
         if not await is_registered(self.bot, interaction.guild_id, user_id):
             return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 플레이어 등록을 해주세요!")
             
-        if not DATABASE_AVAILABLE or not POINT_MANAGER_AVAILABLE:
+        if not self.db_cog or not POINT_MANAGER_AVAILABLE:
             return await interaction.followup.send("❌ 시스템 오류: 데이터베이스 또는 포인트 관리 시스템을 불러올 수 없습니다. 관리자에게 문의해주세요.")
         
         if xp_amount <= 0:
@@ -190,7 +190,7 @@ class ExchangeCog(commands.Cog):
         if not self.exchange_system.check_cooldown(user_id):
             return await interaction.followup.send(f"❌ 쿨다운 중입니다. {self.exchange_system.settings['쿨다운_분']}분 후에 다시 시도해주세요.")
 
-        db = get_guild_db_manager_func(str(interaction.guild.id))
+        db = self.db_cog.get_manager(str(interaction.guild.id))
         user_xp_data = db.get_user_xp(user_id)
         current_xp = user_xp_data.get('xp', 0) if user_xp_data else 0
         
@@ -238,7 +238,7 @@ class ExchangeCog(commands.Cog):
         if not await is_registered(self.bot, interaction.guild_id, user_id):
             return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 플레이어 등록을 해주세요!")
             
-        if not DATABASE_AVAILABLE or not POINT_MANAGER_AVAILABLE:
+        if not self.db_cog or not POINT_MANAGER_AVAILABLE:
             return await interaction.followup.send("❌ 시스템 오류: 데이터베이스 또는 포인트 관리 시스템을 불러올 수 없습니다. 관리자에게 문의해주세요.")
         
         if cash_amount <= 0:
@@ -251,7 +251,7 @@ class ExchangeCog(commands.Cog):
             return await interaction.followup.send(f"❌ 쿨다운 중입니다. {self.exchange_system.settings['쿨다운_분']}분 후에 다시 시도해주세요.")
 
         current_cash = await get_point(self.bot, interaction.guild_id, user_id)
-        db = get_guild_db_manager_func(str(interaction.guild.id))
+        db = self.db_cog.get_manager(str(interaction.guild.id))
         if current_cash < cash_amount:
             return await interaction.followup.send(f"❌ 보유 현금이 부족합니다. 현재 현금: {db.format_money(current_cash)}")
             

@@ -3,18 +3,10 @@ import datetime
 import discord
 from discord import app_commands, Interaction, Member
 from discord.ext import commands
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import math
 
-# ✅ 안전한 의존성 import
-def safe_import_database():
-    try:
-        from database_manager import get_guild_db_manager, DEFAULT_LEADERBOARD_SETTINGS
-        return get_guild_db_manager, DEFAULT_LEADERBOARD_SETTINGS, True
-    except ImportError:
-        print("⚠️ database_manager 임포트 실패")
-        return None, None, False
-
+# ✅ 안전한 의존성 import (point_manager는 그대로 유지)
 def safe_import_point_manager():
     try:
         import point_manager
@@ -32,7 +24,6 @@ def format_xp(xp: int) -> str:
     return f"{xp:,} XP"
 
 # ✅ 의존성 로드
-get_guild_db_manager_func, DEFAULT_SETTINGS, DATABASE_AVAILABLE = safe_import_database()
 get_point, add_point, set_point, is_registered, POINT_MANAGER_AVAILABLE = safe_import_point_manager()
 
 # ===== 메인 COG 클래스 =====
@@ -40,7 +31,16 @@ get_point, add_point, set_point, is_registered, POINT_MANAGER_AVAILABLE = safe_i
 class IntegratedLeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.db_cog: Optional[Any] = None # DatabaseCog 타입을 명시하는 것이 더 좋습니다.
         print("✅ 통합 리더보드 시스템 초기화 완료")
+
+    async def cog_load(self):
+        # DatabaseCog가 로드된 후 접근
+        self.db_cog = self.bot.get_cog("DatabaseManager")
+        if not self.db_cog:
+            print("❌ DatabaseManager Cog를 찾을 수 없습니다. 리더보드 기능이 제한됩니다.")
+        else:
+            print("✅ DatabaseManager Cog 연결 성공.")
 
     # ===== 통합 리더보드 명령어들 =====
 
@@ -55,6 +55,9 @@ class IntegratedLeaderboardCog(commands.Cog):
         app_commands.Choice(name="🏆 통합 순위", value="combined")
     ])
     async def integrated_leaderboard(self, interaction: discord.Interaction, 타입: app_commands.Choice[str] = None, 페이지: int = 1):
+        if not self.db_cog:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)
+            
         await interaction.response.defer()
         
         try:
@@ -74,7 +77,7 @@ class IntegratedLeaderboardCog(commands.Cog):
 
     async def show_cash_leaderboard(self, interaction: discord.Interaction, page: int):
         """현금 리더보드 표시"""
-        if not DATABASE_AVAILABLE:
+        if not self.db_cog:
             embed = discord.Embed(
                 title="💰 현금 리더보드",
                 description="❌ 데이터베이스를 사용할 수 없습니다.",
@@ -84,7 +87,7 @@ class IntegratedLeaderboardCog(commands.Cog):
         
         try:
             guild_id = str(interaction.guild.id)
-            db = get_guild_db_manager_func(guild_id)
+            db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
             # 현금 리더보드 조회
             leaderboard = db.get_cash_leaderboard(10)
             
@@ -129,7 +132,7 @@ class IntegratedLeaderboardCog(commands.Cog):
 
     async def show_xp_leaderboard(self, interaction: discord.Interaction, page: int):
         """XP 리더보드 표시"""
-        if not DATABASE_AVAILABLE:
+        if not self.db_cog:
             embed = discord.Embed(
                 title="✨ XP 리더보드",
                 description="❌ 데이터베이스를 사용할 수 없습니다.",
@@ -139,7 +142,7 @@ class IntegratedLeaderboardCog(commands.Cog):
         
         try:
             guild_id = str(interaction.guild.id)
-            db = get_guild_db_manager_func(guild_id)
+            db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
             
             # XP 리더보드 조회
             leaderboard_data = db.execute_query('''
@@ -199,10 +202,9 @@ class IntegratedLeaderboardCog(commands.Cog):
                 color=discord.Color.gold()
             )
             
-            # 현금 TOP 5
-            if DATABASE_AVAILABLE:
+            if self.db_cog:
                 guild_id = str(interaction.guild.id)
-                db = get_guild_db_manager_func(guild_id)
+                db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
                 cash_leaderboard = db.get_cash_leaderboard(5)
                 if cash_leaderboard:
                     cash_text = ""
@@ -217,15 +219,14 @@ class IntegratedLeaderboardCog(commands.Cog):
                         inline=True
                     )
             
-            # XP TOP 5
-            if DATABASE_AVAILABLE:
+            if self.db_cog:
                 guild_id = str(interaction.guild.id)
-                db = get_guild_db_manager_func(guild_id)
+                db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
                 xp_leaderboard = db.execute_query('''
                     SELECT u.display_name, u.username, x.xp, x.level
                     FROM user_xp x
                     JOIN users u ON x.user_id = u.user_id
-                    WHERE x.xp > 0
+                    WHERE u.guild_id = ? AND x.xp > 0
                     ORDER BY x.xp DESC
                     LIMIT 5
                 ''', (guild_id,), 'all') # Add guild_id to params
@@ -242,10 +243,9 @@ class IntegratedLeaderboardCog(commands.Cog):
                         inline=True
                     )
             
-            # 서버 통계
-            if DATABASE_AVAILABLE:
+            if self.db_cog:
                 guild_id = str(interaction.guild.id)
-                db = get_guild_db_manager_func(guild_id)
+                db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
                 stats = db.get_total_cash_stats()
                 
                 total_xp_result = db.execute_query(
@@ -282,11 +282,11 @@ class IntegratedLeaderboardCog(commands.Cog):
                 "❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
             )
         
-        if not DATABASE_AVAILABLE:
-            return await interaction.response.send_message("❌ 데이터베이스를 사용할 수 없습니다.", ephemeral=True)
+        if not self.db_cog:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)
 
         guild_id = str(interaction.guild.id)
-        db = get_guild_db_manager_func(guild_id)
+        db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
         settings = db.get_leaderboard_settings()
         
         embed = discord.Embed(
@@ -296,16 +296,18 @@ class IntegratedLeaderboardCog(commands.Cog):
         )
         
         # 환전 관련 설정만 남깁니다. (출석 관련 설정 모두 제거)
-        
+        # DEFAULT_LEADERBOARD_SETTINGS는 database_manager에서 가져와야 합니다.
+        default_settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS 
+
         embed.add_field(
             name="📊 환전 수수료",
-            value=f"{settings.get('exchange_fee_percent', DEFAULT_SETTINGS['exchange_fee_percent'])}%",
+            value=f"{settings.get('exchange_fee_percent', default_settings['exchange_fee_percent'])}%",
             inline=True
         )
         
         embed.add_field(
             name="📈 일일 환전 한도",
-            value=f"{settings.get('daily_exchange_limit', DEFAULT_SETTINGS['daily_exchange_limit'])}회",
+            value=f"{settings.get('daily_exchange_limit', default_settings['daily_exchange_limit'])}회",
             inline=True
         )
         
@@ -338,13 +340,16 @@ class IntegratedLeaderboardCog(commands.Cog):
                 "❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
             )
         
-        if not DATABASE_AVAILABLE:
-            return await interaction.response.send_message("❌ 데이터베이스를 사용할 수 없습니다.", ephemeral=True)
+        if not self.db_cog:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)
 
         guild_id = str(interaction.guild.id)
-        db = get_guild_db_manager_func(guild_id)
+        db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
         settings = db.get_leaderboard_settings()
         
+        # DEFAULT_LEADERBOARD_SETTINGS는 database_manager에서 가져와야 합니다.
+        default_settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS 
+
         SETTING_NAMES_KO = {
                             "attendance_cash": "출석 현금 보상",
                             "attendance_xp": "출석 XP 보상",
@@ -396,7 +401,7 @@ class IntegratedLeaderboardCog(commands.Cog):
         
         # 설정 변경
         setting_key = 설정.value
-        if setting_key not in DEFAULT_SETTINGS:
+        if setting_key not in default_settings: # DEFAULT_SETTINGS 대신 default_settings 사용
             return await interaction.response.send_message("❌ 유효하지 않은 설정 항목입니다.", ephemeral=True)
         
         # 값 유효성 검사
@@ -407,7 +412,7 @@ class IntegratedLeaderboardCog(commands.Cog):
             return await interaction.response.send_message("❌ 환전 수수료는 50%를 초과할 수 없습니다.", ephemeral=True)
         
         # 설정 업데이트
-        old_value = settings.get(setting_key, DEFAULT_SETTINGS.get(setting_key))
+        old_value = settings.get(setting_key, default_settings.get(setting_key)) # DEFAULT_SETTINGS 대신 default_settings 사용
         
         # 업데이트할 설정 딕셔너리 생성
         updated_settings = {setting_key: 값}

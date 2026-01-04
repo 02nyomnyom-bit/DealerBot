@@ -8,28 +8,33 @@ from datetime import datetime, timedelta, timezone, date
 import random
 import os
 import json
+from typing import Optional, Any
 
-# database_manager 모듈을 안전하게 불러오는 로직 추가
-try:
-    from database_manager import get_guild_db_manager, DEFAULT_LEADERBOARD_SETTINGS
-    DB_AVAILABLE = True
-    print("✅ database_manager 모듈 로드 완료")
-except ImportError:
-    DB_AVAILABLE = False
-    print("❌ database_manager 모듈을 찾을 수 없습니다. 출석체크 기능이 비활성화됩니다.")
+# database_manager 모듈을 직접 불러오는 대신, cog_load에서 DatabaseCog를 가져옵니다.
 
 class AttendanceMasterCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_available = DB_AVAILABLE # Keep this for initial check
+        self.db_cog: Optional[Any] = None # DatabaseCog 인스턴스를 저장할 변수
 
         self.korea_tz = timezone(timedelta(hours=9))
         
         # self.settings는 이제 각 명령어에서 guild_id를 기반으로 로드됩니다.
         # 초기화 시점에는 특정 길드 ID가 없으므로 로드하지 않습니다.
-        self.settings = DEFAULT_LEADERBOARD_SETTINGS # 기본값으로 초기화
-        
+        # DEFAULT_LEADERBOARD_SETTINGS는 이제 self.db_cog에서 가져옵니다.
+        self.settings = {} # 임시 빈 딕셔너리로 초기화
+
         print("✅ 출석체크 마스터 시스템 v4.2 로드 완료 (리더보드 설정 연동)")
+    
+    async def cog_load(self):
+        """Cog가 로드된 후 DatabaseManager Cog를 가져옵니다."""
+        self.db_cog = self.bot.get_cog("DatabaseManager")
+        if not self.db_cog:
+            print("❌ DatabaseManager Cog를 찾을 수 없습니다. 출석체크 기능이 제한됩니다.")
+        else:
+            print("✅ DatabaseManager Cog 연결 성공.")
+            # db_cog가 연결되면 DEFAULT_LEADERBOARD_SETTINGS를 초기화합니다.
+            self.settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS 
 
     def get_korean_date_string(self) -> str:
         """한국 시간 기준 날짜 문자열 반환 (YYYY-MM-DD)"""
@@ -55,11 +60,11 @@ class AttendanceMasterCog(commands.Cog):
         return f"{xp:,} XP"
     
     def calculate_attendance_streak(self, guild_id: str, user_id: str) -> tuple[int, bool]:
-        if not self.db_available:
+        if not self.db_cog: # db_available 대신 db_cog 확인
             print("❌ calculate_attendance_streak: 데이터베이스를 사용할 수 없습니다.")
             return 0, True
         try:
-            db = get_guild_db_manager(guild_id)
+            db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
             
             # 👈 추가: KST 날짜 객체를 준비합니다.
             today_kst_date = self.get_korean_date_object()
@@ -86,7 +91,7 @@ class AttendanceMasterCog(commands.Cog):
         username = interaction.user.display_name
         guild_id = str(interaction.guild.id)
 
-        if not self.db_available:
+        if not self.db_cog: # self.db_available 대신 self.db_cog 확인
             embed = discord.Embed(
                 title="❌ 시스템 오류",
                 description="데이터베이스 시스템을 불러오는 데 실패하여 출석체크 기능이 비활성화되었습니다. 관리자에게 문의해주세요.",
@@ -94,7 +99,7 @@ class AttendanceMasterCog(commands.Cog):
             )
             return await interaction.followup.send(embed=embed)
 
-        db = get_guild_db_manager(guild_id)
+        db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
         
         # 1. 사용자 등록 여부 확인
         if not db.get_user(user_id):
@@ -110,7 +115,7 @@ class AttendanceMasterCog(commands.Cog):
             settings = db.get_leaderboard_settings()
 
             # 기본 설정과 관리자 설정을 병합하여 최종 유효 설정 생성
-            effective_settings = DEFAULT_LEADERBOARD_SETTINGS.copy()
+            effective_settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS.copy() # self.db_cog에서 DEFAULT_LEADERBOARD_SETTINGS 가져오기
             effective_settings.update(settings)
 
             # 2. 연속 출석일 및 오늘 출석 가능 여부 확인
@@ -249,7 +254,7 @@ class AttendanceMasterCog(commands.Cog):
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
 
-        if not self.db_available:
+        if not self.db_cog: # self.db_available 대신 self.db_cog 확인
             embed = discord.Embed(
                 title="❌ 시스템 오류",
                 description="데이터베이스 시스템을 불러오는 데 실패하여 출석체크 기능이 비활성화되었습니다. 관리자에게 문의해주세요.",
@@ -257,7 +262,7 @@ class AttendanceMasterCog(commands.Cog):
             )
             return await interaction.followup.send(embed=embed)
 
-        db = get_guild_db_manager(guild_id)
+        db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
         
         if not db.get_user(user_id):
             embed = discord.Embed(
@@ -308,7 +313,7 @@ class AttendanceMasterCog(commands.Cog):
 
         guild_id = str(interaction.guild.id)
 
-        if not self.db_available:
+        if not self.db_cog: # self.db_available 대신 self.db_cog 확인
             embed = discord.Embed(
                 title="❌ 시스템 오류",
                 description="데이터베이스 시스템을 사용할 수 없습니다.",
@@ -316,7 +321,7 @@ class AttendanceMasterCog(commands.Cog):
             )
             return await interaction.followup.send(embed=embed)
 
-        db = get_guild_db_manager(guild_id)
+        db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
         
         try:
             # 👈 추가: KST 날짜 객체를 준비합니다.
