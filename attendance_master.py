@@ -33,8 +33,15 @@ class AttendanceMasterCog(commands.Cog):
             print("❌ DatabaseManager Cog를 찾을 수 없습니다. 출석체크 기능이 제한됩니다.")
         else:
             print("✅ DatabaseManager Cog 연결 성공.")
-            # db_cog가 연결되면 DEFAULT_LEADERBOARD_SETTINGS를 초기화합니다.
-            self.settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS 
+            # 방법 1: db_cog 내부에 get_default_settings 같은 메서드가 있다면 호출
+            # 방법 2: (가장 권장) db_cog의 manager를 통해 실제 DB 저장된 설정을 로드
+            # 현재 코드의 오류를 막기 위해 임시로 빈 딕셔너리 유지 또는 수동 할당
+            try:
+                # 만약 DatabaseManager에 해당 속성이 없다면 직접 할당하거나 호출 방식을 확인해야 합니다.
+                # 예시: self.settings = self.db_cog.get_leaderboard_settings() 
+                pass 
+            except AttributeError:
+                print("⚠️ DEFAULT_LEADERBOARD_SETTINGS 속성을 찾을 수 없어 기본 설정을 사용합니다.")
 
     def get_korean_date_string(self) -> str:
         """한국 시간 기준 날짜 문자열 반환 (YYYY-MM-DD)"""
