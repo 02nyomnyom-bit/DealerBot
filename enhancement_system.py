@@ -309,10 +309,11 @@ class EnhancementDataManager:
             return items[item_key]
         return None
 
-    def attempt_enhancement(self, item_name: str, owner_id: str, owner_name: str) -> Tuple[bool, int, int, float, float, str, int, int]:
-        """강화 시도 (안전성 강화)"""
+    def attempt_enhancement(self, item_name: str, owner_id: str, owner_name: str, guild_id: str) -> Tuple:
+        """강화 시도 (guild_id 추가)"""
         try:
-            item_data = self.get_item_data(item_name, owner_id, owner_name)
+            # get_item_data 호출 시 guild_id 전달
+            item_data = self.get_item_data(item_name, owner_id, owner_name, guild_id)
             current_level = item_data.get("level", 0)
             
             # 타입 검증
@@ -518,7 +519,6 @@ class EnhancementSystemCog(commands.Cog):
         self.enhancement_data = enhancement_data
 
     @app_commands.command(name="강화", description="아이템을 강화합니다.")
-    @app_commands.describe(아이템명="강화할 아이템의 이름")
     async def enhance_item(self, interaction: discord.Interaction, 아이템명: str):
         # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
@@ -526,6 +526,7 @@ class EnhancementSystemCog(commands.Cog):
             await xp_cog.process_command_xp(interaction)
 
         user_id = str(interaction.user.id)
+        guild_id = str(interaction.guild_id) # 길드 ID 추가
         username = interaction.user.display_name
         
         try:
@@ -543,13 +544,13 @@ class EnhancementSystemCog(commands.Cog):
             
             # 강화 시도
             success, old_level, new_level, success_rate, downgrade_rate, result_type, level_change, consecutive_fails = \
-                self.enhancement_data.attempt_enhancement(아이템명, user_id, username)
+                self.enhancement_data.attempt_enhancement(아이템명, user_id, username, guild_id)
             
             # 등급 정보
             tier_info = get_level_tier_info(new_level)
             
             # 아이템 데이터 가져오기
-            item_data = self.enhancement_data.get_item_data(아이템명, user_id, username)
+            item_data = self.enhancement_data.get_item_data(아이템명, user_id, username, guild_id)
             
             # 임베드 생성 (화려한 스타일)
             if result_type == "success":
@@ -765,7 +766,8 @@ class EnhancementSystemCog(commands.Cog):
     async def enhancement_ranking(self, interaction: discord.Interaction):
         try:
             guild_id = str(interaction.guild_id)
-            top_items = self.enhancement_data.get_top_items(10)
+            # ⚠️ 이 부분의 인자를 2개로 수정했습니다.
+            top_items = self.enhancement_data.get_top_items(guild_id, 10)
             server_stats = self.enhancement_data.get_server_stats()
             
             embed = discord.Embed(
