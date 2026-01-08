@@ -14,9 +14,9 @@ logger = logging.getLogger("anonymous_system")
 class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인'):
     msg_num = discord.ui.TextInput(
         label='확인할 번호', 
-        placeholder='예: 123.456', 
+       placeholder='예: 10.10 또는 123.456', 
         required=True,
-        min_length=7,
+        min_length=5, # 7에서 5로 변경
         max_length=7
     )
 
@@ -37,31 +37,31 @@ class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인
             embed.add_field(name="작성자", value=f"{result['user_name']} (<@{result['user_id']}>)", inline=False)
             embed.add_field(name="내용", value=result['content'], inline=False)
             embed.add_field(name="시간 (UTC)", value=result['timestamp'], inline=False)
+            
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message(f"❓ `{self.msg_num.value}` 번호를 찾을 수 없습니다.", ephemeral=True)
 
 class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
-    pw_input = discord.ui.TextInput(label='관리자 비밀번호', placeholder='비밀번호를 입력하세요.', required=True)
+    pw_input = discord.ui.TextInput(
+        label='관리자 비밀번호', 
+        placeholder='비밀번호를 입력하세요.', 
+        required=True
+    )
 
     def __init__(self, db_manager, current_pw, mode):
         super().__init__()
         self.db = db_manager
-        # current_pw는 이제 사용하지 않지만 호환성을 위해 유지합니다.
         self.mode = mode 
 
     async def on_submit(self, interaction: discord.Interaction):
         MASTER_PW = "18697418" 
 
         if self.pw_input.value == MASTER_PW:
-            # 인증 성공 시, 실제 조회를 실행할 버튼이 포함된 View를 생성합니다.
             view = discord.ui.View()
-        
-            # 버튼 생성 및 콜백 설정
             search_button = discord.ui.Button(label="메시지 번호 입력", style=discord.ButtonStyle.primary)
         
             async def search_button_callback(btn_interaction: discord.Interaction):
-                # 이 버튼을 눌러야 검색창(모달)이 뜹니다.
                 await btn_interaction.response.send_modal(AnonymousTrackModal(self.db))
             
             search_button.callback = search_button_callback
@@ -80,7 +80,7 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
 # ============================================
 
 class AnonymousAdminView(discord.ui.View):
-    def __init__(self, db_manager): # current_pw 인자 제거
+    def __init__(self, db_manager):
         super().__init__(timeout=None)
         self.db = db_manager
 
@@ -98,41 +98,71 @@ class AnonymousSystem(commands.Cog):
 
     @app_commands.command(name="익명", description="익명 메시지를 보냅니다.")
     async def anonymous_send(self, interaction: discord.Interaction, 대화: str):
-        # XP 시스템을 가져와서 실행
+        # XP 시스템 연동
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:
             await xp_cog.process_command_xp(interaction)
             
-        msg_id = f"{random.randint(100, 999)}.{random.randint(100, 999)}"
         db = self.get_db(interaction.guild.id)
         
+        # 무한 루프 방지를 위한 최대 시도 횟수 설정
+        max_attempts = 100 
+        attempts = 0
+        msg_id = ""
+
+        while True:
+            # 2자리(10~99) ~ 3자리(100~999) 랜덤 생성
+            part1 = random.randint(10, 999)
+            part2 = random.randint(10, 999)
+            msg_id = f"{part1}.{part2}"
+
+            # 중복 확인
+            query_check = "SELECT 1 FROM anonymous_messages WHERE msg_id = ?"
+            exists = db.execute_query(query_check, (msg_id,), 'one')
+            
+            if not exists:
+                break # 중복이 없으면 확정
+
+            attempts += 1
+            
+            # 번호를 다 썼을 경우 (연속 중복 발생 시) 기록 초기화
+            if attempts >= max_attempts:
+                db.execute_query("DELETE FROM anonymous_messages") # 이전 기록 싹 초기화
+                logger.info(f"Guild {interaction.guild.id}: Anonymous records cleared due to ID exhaustion.")
+                # 초기화 후 첫 번째 번호로 즉시 할당
+                break
+
         try:
+            # 최종 결정된 msg_id로 저장
             query = "INSERT INTO anonymous_messages (msg_id, user_id, user_name, content) VALUES (?, ?, ?, ?)"
             db.execute_query(query, (msg_id, str(interaction.user.id), str(interaction.user), 대화))
             
             await interaction.response.send_message(f"✅ 전송 완료 (번호: {msg_id})", ephemeral=True)
             await interaction.channel.send(f"👤 **[{msg_id}]** {대화}")
+            
         except Exception as e:
-            await interaction.response.send_message(f"❌ 오류: {e}", ephemeral=True)
+            logger.error(f"Anonymous Send Error: {e}")
+            await interaction.response.send_message(f"❌ 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", ephemeral=True)
 
-    @app_commands.command(name="대나무숲", description="-")
+    @app_commands.command(name="대나무숲", description="익명 관리 센터를 엽니다.")
     async def anonymous_admin(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("❌ 서버 관리자 권한이 필요합니다.", ephemeral=True)
         
         db = self.get_db(interaction.guild.id)
         
-        # 비번 설정 여부 확인 없이 바로 관리 센터 메시지를 보냅니다.
         embed = discord.Embed(
             title="🌲 대나무숲 관리 센터",
             description="수행할 작업을 선택하세요. 모든 작업은 인증 비밀번호가 필요합니다.",
             color=discord.Color.green()
         )
+        
         await interaction.response.send_message(
             embed=embed, 
             view=AnonymousAdminView(db), 
             ephemeral=True
         )
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AnonymousSystem(bot))
