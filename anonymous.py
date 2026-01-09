@@ -163,6 +163,5 @@ class AnonymousSystem(commands.Cog):
             ephemeral=True
         )
 
-
 async def setup(bot: commands.Bot):
     await bot.add_cog(AnonymousSystem(bot))
