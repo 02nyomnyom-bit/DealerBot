@@ -582,27 +582,31 @@ class EnhancedBot(commands.Bot):
             self.logger.warning(f"⚠️ 일부 기능이 제한될 수 있습니다.")
     
     async def setup_hook(self):
-        """봇 설정 후크"""
+        """서버 재입장 시 발생하는 구버전 명령어 캐시 해결"""
         self.startup_time = datetime.now(timezone.utc)
     
         if not self.update_daily_status.is_running():
             self.update_daily_status.start()
 
+        # 1. 모든 파일(dice_game.py 등) 로드
         await self.load_extensions()
 
-        # ✅ 수정: delayed_sync를 실제로 실행하도록 추가
-        self.loop.create_task(self.delayed_sync(10)) # 60초는 너무 기므로 10초로 테스트 권장
+        # 2. 전역(Global) 명령어 완전 삭제 (가장 중요)
+        # 이 과정이 없으면 서버 재입장 시 디스코드가 옛날 명령어를 다시 보여줍니다.
+        self.logger.info("🧹 전역 명령어 캐시 삭제 중...")
+        self.tree.clear_commands(guild=None)
+        await self.tree.sync() 
 
-        # 특정 길드 동기화 로직 (유지하되 ID 확인 필수)
+        # 3. 설정된 서버(Guild)에만 현재 최신 명령어 등록
         if Config.MAIN_GUILD_IDS:
             for guild_id in Config.MAIN_GUILD_IDS:
                 try:
-                    guild = discord.Object(id=guild_id)
-                    self.tree.copy_global_to(guild=guild)
-                    await self.tree.sync(guild=guild)
-                    self.logger.info(f"✅ 서버 ID {guild_id} 즉시 동기화 완료.")
+                    guild_obj = discord.Object(id=guild_id)
+                    self.tree.copy_global_to(guild=guild_obj)
+                    await self.tree.sync(guild=guild_obj)
+                    self.logger.info(f"✅ 서버 {guild_id}에 최신 명령어 동기화 완료!")
                 except Exception as e:
-                    self.logger.error(f"❌ 서버 ID {guild_id} 동기화 실패: {e}")
+                    self.logger.error(f"❌ 서버 {guild_id} 동기화 오류: {e}")
             
     async def on_ready(self):
         """봇 준비 완료 시 실행"""
