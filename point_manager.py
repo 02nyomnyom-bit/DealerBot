@@ -260,7 +260,7 @@ class PointManager(commands.Cog):
             print(f"💰 최종 현금 확인: {final_cash}원")
             embed = discord.Embed(
                 title="🎉 환영합니다!",
-                description=f"{display_name}님이 Gamble에 성공적으로 등록되었습니다!",
+                description=f"{display_name}님이 서버에 성공적으로 등록되었습니다!",
                 color=discord.Color.green()
             )
             embed.add_field(name="💰 시작 현금", value="10,000원", inline=True)
