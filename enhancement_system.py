@@ -46,10 +46,10 @@ def record_enhancement_attempt(user_id: str, username: str, is_success: bool):
 # ✅ 강화 시스템 설정
 ENHANCEMENT_CONFIG = {
     "data_file": 'data/enhancement_data.json',
-    "cooldown_time": 15,  # 강화 쿨다운 15초
+    "cooldown_time": 30,  # 강화 쿨다운 30초
     "max_level": 1000,     # 최대 레벨
     "min_safe_level": 10, # 강등 방지 최소 레벨
-    "level_change_range": (1, 10),  # 레벨 변동 범위
+    "level_change_range": (1, 5),  # 레벨 변동 범위
     "backup_interval": 50  # 50회마다 백업
 }
 
@@ -689,7 +689,7 @@ class EnhancementSystemCog(commands.Cog):
                 value=f"📈 성공률: **{next_success_rate:.1f}%**\n" +
                       f"📉 강등률: **{next_downgrade_rate:.1f}%**\n" +
                       f"💰 강화비: **무료**\n" +
-                      f"⏰ 쿨타임: **15초**",
+                      f"⏰ 쿨타임: **30초**",
                 inline=True
             )
             
@@ -945,7 +945,7 @@ class EnhancementSystemCog(commands.Cog):
         
         embed.add_field(
             name="🎯 기본 규칙",
-            value="• 각 아이템별로 독립적인 강화\n• 15초 쿨다운 (아이템별)\n• 1~10레벨 랜덤 변동\n• **완전 무료, 보상 없음**",
+            value="• 각 아이템별로 독립적인 강화\n• 30초 쿨다운 (아이템별)\n• 1~10레벨 랜덤 변동\n• **완전 무료, 보상 없음**",
             inline=False
         )
         
