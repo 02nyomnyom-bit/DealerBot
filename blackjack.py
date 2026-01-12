@@ -126,21 +126,23 @@ class BlackjackModeSelectView(View):
         return True
 
     async def on_timeout(self):
-        # 타임아웃 시 processing_users에서 사용자 제거
-        self.cog.processing_users.discard(self.user.id)
+        self.cog.processing_users.discard(self.user.id) # 대기 목록에서 제거
         if self.message:
             try:
-                await self.message.edit(view=None) # 버튼 비활성화
-            except discord.NotFound:
-                pass # 메시지가 이미 삭제되었을 수 있음
-        self.stop()
+                await self.message.edit(content="❌ 시간 초과로 블랙잭이 취소되었습니다.", view=None)
+            except: pass
 
     @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 포인트 선차감 (싱글)
         if POINT_MANAGER_AVAILABLE:
-            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            # 잔액 부족 시 세션 풀고 종료
+            p_bal = await point_manager.get_point(self.bot, interaction.guild_id, str(self.user.id))
+            if p_bal < self.bet:
+                self.cog.processing_users.discard(self.user.id)
+                return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
         
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+    
         view = BlackjackView(self.cog, self.user, self.bet, self.bot)
         embed = view.create_game_embed()
         await interaction.response.edit_message(embed=embed, view=view)
@@ -177,9 +179,11 @@ class MultiSetupView(View):
         async def callback(inter: discord.Interaction):
             target = user_select.values[0]
             if target.id == self.user.id or target.bot:
-                # 에러 발생 시 processing_users에서 사용자 제거
                 self.cog.processing_users.discard(self.user.id)
                 return await inter.response.send_message("❌ 올바른 상대를 선택하세요.", ephemeral=True)
+            
+            if target.id in self.cog.processing_users:
+                return await inter.response.send_message("❌ 상대방이 이미 다른 게임을 진행 중입니다.", ephemeral=True)
             
             # 두 명 포인트 선차감 (먹튀 방지)
             if POINT_MANAGER_AVAILABLE:
@@ -227,206 +231,72 @@ class MultiBlackjackView(View):
         super().__init__(timeout=60)
         self.cog, self.bot, self.p1, self.bet, self.p2 = cog, bot, p1, bet, p2
         self.game_completed = False
-        
         self.game = BlackjackGame(bet) 
         self.p1_cards = [self.game.draw_card(), self.game.draw_card()]
-        self.p2_cards = [] # P2는 참가 시점에 카드를 받음
+        self.p2_cards = [] 
         self.p1_done = False
         self.p2_done = False
         self.message = None
 
     async def on_timeout(self):
-        if self.game_completed:
-            return
-            
+        if self.game_completed: return
         self.game_completed = True
-        
-        # 타임아웃 시 processing_users에서 사용자 제거
         self.cog.processing_users.discard(self.p1.id)
-        if self.p2:
-            self.cog.processing_users.discard(self.p2.id)
-
-        # 타임아웃 시 배팅금 100% 환불 로직
+        if self.p2: self.cog.processing_users.discard(self.p2.id)
+        
         if POINT_MANAGER_AVAILABLE and self.message:
-            guild_id = self.message.guild.id
-            await point_manager.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
-            if self.p2:
-                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
-
-        try:
-            embed = discord.Embed(
-                title="⏰ 게임 무효화", 
-                description="입력 시간이 초과되어 게임이 취소되었습니다. 배팅금은 전액 환불되었습니다.", 
-                color=discord.Color.red()
-            )
-            await self.message.edit(embed=embed, view=None)
-        except:
-            pass
-
-    async def check_user(self, interaction: discord.Interaction) -> bool:
-        user = interaction.user
-        # P2가 없는 공개 대전 상태
-        if self.p2 is None:
-            if user.id == self.p1.id:
-                await interaction.response.send_message("❌ 상대방을 기다리고 있습니다.", ephemeral=True)
-                return False
-            
-            # P2로 참가 처리
-            if POINT_MANAGER_AVAILABLE:
-                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user.id))
-                if (balance or 0) < self.bet:
-                    # 에러 발생 시 processing_users에서 사용자 제거
-                    self.cog.processing_users.discard(self.p1.id) # P1 (방장) 플래그도 지워야 함
-                    return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
-                # P2도 게임 시작 전에 processing_users에 추가
-                self.cog.processing_users.add(user.id)
-                await point_manager.add_point(self.bot, interaction.guild_id, str(user.id), -self.bet)
-            
-            self.p2 = user
-            self.p2_cards = [self.game.draw_card(), self.game.draw_card()]
-            await interaction.channel.send(f"🃏 {user.mention}님이 블랙잭 대결에 참가했습니다!", delete_after=10)
-            return True
-
-        # 참가자가 아닌 경우
-        if user.id not in [self.p1.id, self.p2.id]:
-            await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
-            return False
-        
-        return True
-
-    @discord.ui.button(label="🃏 히트", style=discord.ButtonStyle.primary)
-    async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not await self.check_user(interaction): return
-        
-        user_id = interaction.user.id
-        player_cards = self.p1_cards if user_id == self.p1.id else self.p2_cards
-        
-        # 이미 턴을 마친 경우
-        if (user_id == self.p1.id and self.p1_done) or (user_id == self.p2.id and self.p2_done):
-            return await interaction.response.send_message("이미 턴을 마쳤습니다.", ephemeral=True)
-
-        player_cards.append(self.game.draw_card())
-        
-        if self.game.calculate_hand_value(player_cards) > 21: # 버스트
-            if user_id == self.p1.id: self.p1_done = True
-            else: self.p2_done = True
-        
-        await interaction.response.defer()
-        if self.p1_done and self.p2_done: await self.finish_game()
-        else: await self.update_view()
-
-    @discord.ui.button(label="✋ 스탠드", style=discord.ButtonStyle.secondary)
-    async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not await self.check_user(interaction): return
-        if interaction.user.id == self.p1.id: self.p1_done = True
-        else: self.p2_done = True
-        
-        await interaction.response.defer()
-        if self.p1_done and self.p2_done: await self.finish_game()
-        else: await self.update_view()
-
-    async def update_view(self):
-        embed = discord.Embed(title="🃏 블랙잭 1:1 대결", color=discord.Color.blue())
-        p1_val = self.game.calculate_hand_value(self.p1_cards)
-        p1_status = '💥 버스트!' if p1_val > 21 else ('✋ 스탠드' if self.p1_done else '🃏 고민 중')
-        
-        embed.add_field(name=f"👤 {self.p1.display_name}", value=f"점수: {p1_val}\n상태: {p1_status}")
-
-        if self.p2:
-            p2_val = self.game.calculate_hand_value(self.p2_cards)
-            p2_status = '💥 버스트!' if p2_val > 21 else ('✋ 스탠드' if self.p2_done else '🃏 고민 중')
-            embed.add_field(name=f"👤 {self.p2.display_name}", value=f"점수: {p2_val}\n상태: {p2_status}")
-        else:
-            embed.add_field(name="👤 상대방 대기 중", value="점수: ??\n상태: ⚔️ 대기")
-            
-        await self.message.edit(embed=embed, view=self)
-
-    async def finish_game(self):
-        self.game_completed = True
-        v1 = self.game.calculate_hand_value(self.p1_cards)
-        v2 = self.game.calculate_hand_value(self.p2_cards)
-        guild_id = self.message.guild.id
-        
-        winner, p1_payout, p2_payout = None, 0, 0
-        
-        # 승패 판정 로직
-        if v1 > 21 and v2 > 21: result = "무승부 (둘 다 버스트)"
-        elif v1 > 21: winner = self.p2; result = f"{self.p2.mention} 승리!"
-        elif v2 > 21: winner = self.p1; result = f"{self.p1.mention} 승리!"
-        elif v1 > v2: winner = self.p1; result = f"{self.p1.mention} 승리!"
-        elif v2 > v1: winner = self.p2; result = f"{self.p2.mention} 승리!"
-        else: result = "무승부!"
-
-        if winner:
-            reward = int((self.bet * 2) * WINNER_RETENTION)
-            if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
-            reward_msg = f"💰 {winner.mention} 승리! 수수료 제외 **{reward:,}원** 획득!"
-            if winner.id == self.p1.id: p1_payout = reward
-            else: p2_payout = reward
-        else:
-            refund = int(self.bet * PUSH_RETENTION)
-            if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
-                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            reward_msg = f"🤝 무승부! 수수료 5%를 제외한 **{refund:,}원**이 환불되었습니다."
-            p1_payout = p2_payout = refund
-
-        record_blackjack_game(str(self.p1.id), self.p1.display_name, self.bet, p1_payout, winner == self.p1)
-        record_blackjack_game(str(self.p2.id), self.p2.display_name, self.bet, p2_payout, winner == self.p2)
-
-        final_embed = discord.Embed(title="🏁 게임 종료", description=f"**{result}**\n{reward_msg}\n\n"
-                                                                  f"{self.p1.mention}: {v1}점\n{self.p2.mention}: {v2}점", 
-                                    color=discord.Color.gold())
-        await self.message.edit(embed=final_embed, view=None)
+            try:
+                # 타임아웃 시 배팅금 환불 (수수료 없이 100% 환불)
+                await point_manager.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
+                if self.p2: await point_manager.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
+                await self.message.edit(content="⏰ 시간 초과로 게임이 무효화되어 환불되었습니다.", embed=None, view=None)
+            except: pass
         self.stop()
-        self.cog.processing_users.discard(self.p1.id)
-        if self.p2:
-            self.cog.processing_users.discard(self.p2.id)
 
     async def check_user(self, interaction: discord.Interaction) -> bool:
         user = interaction.user
-        # P2가 없는 공개 대전 상태
+        # 1. P2 참가 처리 (공개 대전 시)
         if self.p2 is None:
             if user.id == self.p1.id:
                 await interaction.response.send_message("❌ 상대방을 기다리고 있습니다.", ephemeral=True)
                 return False
             
-            # P2로 참가 처리
             if POINT_MANAGER_AVAILABLE:
-                balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user.id))
-                if (balance or 0) < self.bet:
+                bal = await point_manager.get_point(self.bot, interaction.guild_id, str(user.id))
+                if (bal or 0) < self.bet:
                     await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
                     return False
                 await point_manager.add_point(self.bot, interaction.guild_id, str(user.id), -self.bet)
             
             self.p2 = user
             self.p2_cards = [self.game.draw_card(), self.game.draw_card()]
-            await interaction.channel.send(f"🃏 {user.mention}님이 블랙잭 대결에 참가했습니다!", delete_after=10)
-            return True
+            self.cog.processing_users.add(user.id) # P2 세션 등록
+            await interaction.channel.send(f"🃏 {user.mention}님이 대결에 참가했습니다!", delete_after=5)
+            await self.update_view()
+            if not interaction.response.is_done():
+                await interaction.response.defer()
+            
+            # --- 이 부분을 True에서 False로 수정합니다 ---
+            return False 
+            # ------------------------------------------
 
-        # 참가자가 아닌 경우
+        # 2. 권한 체크
         if user.id not in [self.p1.id, self.p2.id]:
             await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
             return False
-        
         return True
 
     @discord.ui.button(label="🃏 히트", style=discord.ButtonStyle.primary)
     async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not await self.check_user(interaction): return
-        
-        user_id = interaction.user.id
-        player_cards = self.p1_cards if user_id == self.p1.id else self.p2_cards
-        
-        # 이미 턴을 마친 경우
-        if (user_id == self.p1.id and self.p1_done) or (user_id == self.p2.id and self.p2_done):
+        uid = interaction.user.id
+        if (uid == self.p1.id and self.p1_done) or (uid == self.p2.id and self.p2_done):
             return await interaction.response.send_message("이미 턴을 마쳤습니다.", ephemeral=True)
 
-        player_cards.append(self.game.draw_card())
-        
-        if self.game.calculate_hand_value(player_cards) > 21: # 버스트
-            if user_id == self.p1.id: self.p1_done = True
+        cards = self.p1_cards if uid == self.p1.id else self.p2_cards
+        cards.append(self.game.draw_card())
+        if self.game.calculate_hand_value(cards) > 21:
+            if uid == self.p1.id: self.p1_done = True
             else: self.p2_done = True
         
         await interaction.response.defer()
@@ -438,25 +308,19 @@ class MultiBlackjackView(View):
         if not await self.check_user(interaction): return
         if interaction.user.id == self.p1.id: self.p1_done = True
         else: self.p2_done = True
-        
         await interaction.response.defer()
         if self.p1_done and self.p2_done: await self.finish_game()
         else: await self.update_view()
 
     async def update_view(self):
         embed = discord.Embed(title="🃏 블랙잭 1:1 대결", color=discord.Color.blue())
-        p1_val = self.game.calculate_hand_value(self.p1_cards)
-        p1_status = '💥 버스트!' if p1_val > 21 else ('✋ 스탠드' if self.p1_done else '🃏 고민 중')
-        
-        embed.add_field(name=f"👤 {self.p1.display_name}", value=f"점수: {p1_val}\n상태: {p1_status}")
-
-        if self.p2:
-            p2_val = self.game.calculate_hand_value(self.p2_cards)
-            p2_status = '💥 버스트!' if p2_val > 21 else ('✋ 스탠드' if self.p2_done else '🃏 고민 중')
-            embed.add_field(name=f"👤 {self.p2.display_name}", value=f"점수: {p2_val}\n상태: {p2_status}")
-        else:
-            embed.add_field(name="👤 상대방 대기 중", value="점수: ??\n상태: ⚔️ 대기")
-            
+        for p, cards, done in [(self.p1, self.p1_cards, self.p1_done), (self.p2, self.p2_cards, self.p2_done)]:
+            if not p:
+                embed.add_field(name="👤 상대 대기 중", value="⚔️ 대기")
+                continue
+            val = self.game.calculate_hand_value(cards)
+            status = '💥 버스트!' if val > 21 else ('✋ 스탠드' if done else '🃏 고민 중')
+            embed.add_field(name=f"👤 {p.display_name}", value=f"점수: {val}\n상태: {status}")
         await self.message.edit(embed=embed, view=self)
 
     async def finish_game(self):
@@ -497,6 +361,11 @@ class MultiBlackjackView(View):
                                                                   f"{self.p1.mention}: {v1}점\n{self.p2.mention}: {v2}점", 
                                     color=discord.Color.gold())
         await self.message.edit(embed=final_embed, view=None)
+        
+        # [중요] 게임 종료 후 모든 참가자 세션 해제
+
+        self.cog.processing_users.discard(self.p1.id)
+        if self.p2: self.cog.processing_users.discard(self.p2.id)
         self.stop()
 
 # --- 기존 BlackjackView 및 Cog (일부 수정) ---
@@ -567,6 +436,8 @@ class BlackjackView(View):
             await interaction.response.edit_message(embed=final_embed, view=None)
         else: 
             await self.message.edit(embed=final_embed, view=None)
+        
+        self.cog.processing_users.discard(self.user.id)
 
 # --- BlackjackCog 명령어 부분 ---
 class BlackjackCog(commands.Cog):

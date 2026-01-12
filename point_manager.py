@@ -7,8 +7,11 @@ from typing import Optional, Dict, List, Union
 import asyncio
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import traceback
+
+# --- 시간대 설정 ---
+KST = timezone(timedelta(hours=9), 'KST')
 
 # 안전한 데이터베이스 매니저 import
 try:
@@ -145,7 +148,9 @@ class PointManager(commands.Cog):
         self.db_managers: Dict[str, DatabaseManager] = {}
         self.gift_settings = GiftSettings()
         self.user_cooldowns: Dict[str, datetime] = {}
-        self.daily_gift_counts: Dict[str, Dict[str, int]] = {}
+        # 일일 선물 횟수 저장을 위한 새로운 데이터 구조
+        # {'user_id': {'date': 'YYYY-MM-DD', 'count': 5}}
+        self.daily_gift_counts: Dict[str, Dict[str, Union[str, int]]] = {}
         
         # DatabaseManager 확인
         self.DATABASE_AVAILABLE = True
@@ -178,38 +183,39 @@ class PointManager(commands.Cog):
                 self.db_managers[guild_id_str] = MockDatabaseManager()
         return self.db_managers[guild_id_str]
 
-    def _check_daily_reset(self, user_id: str):
-        """일일 리셋 체크"""
-        today = datetime.now().strftime("%Y-%m-%d")
-        if user_id not in self.daily_gift_counts:
-            self.daily_gift_counts[user_id] = {}
-        if today not in self.daily_gift_counts[user_id]:
-            self.daily_gift_counts[user_id] = {today: 0}
-
     def _get_daily_count(self, user_id: str) -> int:
-        """오늘 선물 횟수 조회"""
-        self._check_daily_reset(user_id)
-        today = datetime.now().strftime("%Y-%m-%d")
-        return self.daily_gift_counts[user_id].get(today, 0)
+        """오늘 선물 횟수를 KST 기준으로 조회하고, 날짜가 바뀌었으면 초기화합니다."""
+        today_kst = datetime.now(KST).strftime('%Y-%m-%d')
+        
+        if user_id not in self.daily_gift_counts or self.daily_gift_counts[user_id].get('date') != today_kst:
+            # 날짜가 다르거나, 기록이 없으면 새로 생성
+            self.daily_gift_counts[user_id] = {'date': today_kst, 'count': 0}
+        
+        return self.daily_gift_counts[user_id]['count']
 
     def _increment_daily_count(self, user_id: str):
-        """일일 선물 횟수 증가"""
-        self._check_daily_reset(user_id)
-        today = datetime.now().strftime("%Y-%m-%d")
-        self.daily_gift_counts[user_id][today] = self.daily_gift_counts[user_id].get(today, 0) + 1
+        """일일 선물 횟수를 KST 기준으로 1 증가시킵니다."""
+        # _get_daily_count를 호출하여 리셋 로직을 먼저 수행
+        current_count = self._get_daily_count(user_id)
+        self.daily_gift_counts[user_id]['count'] = current_count + 1
 
     def _check_cooldown(self, user_id: str) -> Optional[int]:
-        """쿨다운 체크"""
+        """쿨다운 체크 (KST 기준)"""
         if user_id in self.user_cooldowns:
-            elapsed = datetime.now() - self.user_cooldowns[user_id]
-            cooldown_seconds = self.gift_settings.settings["cooldown_minutes"] * 60
-            if elapsed.total_seconds() < cooldown_seconds:
-                return int(cooldown_seconds - elapsed.total_seconds())
+            # 모든 시간을 KST 기준으로 통일하여 계산
+            now_kst = datetime.now(KST)
+            cooldown_end_time = self.user_cooldowns[user_id]
+            
+            if now_kst < cooldown_end_time:
+                remaining = cooldown_end_time - now_kst
+                return int(remaining.total_seconds())
         return None
 
     def _set_cooldown(self, user_id: str):
-        """쿨다운 설정"""
-        self.user_cooldowns[user_id] = datetime.now()
+        """쿨다운 설정 (KST 기준)"""
+        now_kst = datetime.now(KST)
+        cooldown_duration = timedelta(minutes=self.gift_settings.settings["cooldown_minutes"])
+        self.user_cooldowns[user_id] = now_kst + cooldown_duration
 
     # 기본 포인트 관리 명령어들
     # point_manager.py - updated register command
@@ -348,7 +354,7 @@ class PointManager(commands.Cog):
     @app_commands.command(name="선물", description="다른 사용자에게 현금을 선물합니다.")
     @app_commands.describe(
         받는사람="현금을 받을 사용자",
-        금액="선물할 현금 (100원 ~ 1,000,000원)"
+        금액="선물할 현금 최소현금과 최대현금은 바뀔수있습니다."
     )
     async def gift(self, interaction: Interaction, 받는사람: Member, 금액: int):
         sender_id = str(interaction.user.id)

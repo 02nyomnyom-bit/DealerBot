@@ -7,7 +7,7 @@ import datetime
 import json
 import os
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import logging
 
 # ✅ 로깅 설정
@@ -57,6 +57,7 @@ class ExchangeSystem:
     def __init__(self):
         self.settings_file = EXCHANGE_SETTINGS_FILE
         self.settings = self.load_settings()
+        # 변경된 데이터 구조: 모든 기록을 하나의 리스트로 관리
         self.exchange_history = self.load_history() 
         self.cooldowns = {}
 
@@ -101,21 +102,31 @@ class ExchangeSystem:
         except Exception as e:
             logger.error(f"❌ 설정 파일 저장 중 오류 발생: {e}")
 
-    def load_history(self) -> Dict[str, Any]:
-        """교환 기록 로드"""
+    def load_history(self) -> List[Dict[str, Any]]:
+        """교환 기록 로드 (리스트 형식)"""
         if not os.path.exists(EXCHANGE_HISTORY_FILE):
-            self.save_history({})
+            self.save_history([])
             logger.info("✅ 교환 기록 파일이 없어 새로 생성했습니다.")
-            return {}
+            return []
         try:
             with open(EXCHANGE_HISTORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                history = json.load(f)
+                # 이전 dict 형식 호환
+                if isinstance(history, dict):
+                    new_history = []
+                    for user_id, records in history.items():
+                        for record in records:
+                            record['user_id'] = user_id
+                            new_history.append(record)
+                    self.save_history(new_history)
+                    return new_history
+                return history
         except Exception as e:
             logger.error(f"❌ 교환 기록 로드 오류: {e}")
-            return {}
+            return []
 
-    def save_history(self, history: Dict[str, Any]):
-        """교환 기록 저장"""
+    def save_history(self, history: List[Dict[str, Any]]):
+        """교환 기록 저장 (리스트 형식)"""
         try:
             with open(EXCHANGE_HISTORY_FILE, "w", encoding="utf-8") as f:
                 json.dump(history, f, indent=4)
@@ -125,7 +136,7 @@ class ExchangeSystem:
     def get_user_daily_exchanges(self, user_id: str) -> int:
         """오늘 교환 횟수 계산"""
         today_str = datetime.datetime.now().date().isoformat()
-        return sum(1 for entry in self.exchange_history.get(user_id, []) if entry['date'].startswith(today_str))
+        return sum(1 for entry in self.exchange_history if entry.get('user_id') == user_id and entry['date'].startswith(today_str))
 
     def check_cooldown(self, user_id: str) -> bool:
         """쿨다운 체크"""
@@ -140,13 +151,12 @@ class ExchangeSystem:
         """쿨다운 업데이트"""
         self.cooldowns[user_id] = datetime.datetime.now()
 
-    def record_exchange(self, user_id: str, exchange_type: str, amount: int, result: int):
+    def record_exchange(self, interaction: discord.Interaction, exchange_type: str, amount: int, result: int):
         """교환 기록 저장"""
-        if user_id not in self.exchange_history:
-            self.exchange_history[user_id] = []
-        
-        self.exchange_history[user_id].append({
+        self.exchange_history.append({
             "date": datetime.datetime.now().isoformat(),
+            "user_id": str(interaction.user.id),
+            "guild_id": str(interaction.guild.id),
             "type": exchange_type,
             "amount": amount,
             "result": result
@@ -204,7 +214,7 @@ class ExchangeCog(commands.Cog):
             db.add_user_xp(user_id, -xp_amount)
             new_cash = await add_point(self.bot, interaction.guild.id, user_id, cash_gained)
 
-            self.exchange_system.record_exchange(user_id, "xp_to_cash", xp_amount, cash_gained)
+            self.exchange_system.record_exchange(interaction, "xp_to_cash", xp_amount, cash_gained)
             self.exchange_system.update_cooldown(user_id)
             
             embed = discord.Embed(
@@ -262,7 +272,7 @@ class ExchangeCog(commands.Cog):
             new_cash = await add_point(self.bot, interaction.guild_id, user_id, -cash_amount)
             db.add_user_xp(user_id, xp_gained)
             
-            self.exchange_system.record_exchange(user_id, "cash_to_xp", cash_amount, xp_gained)
+            self.exchange_system.record_exchange(interaction, "cash_to_xp", cash_amount, xp_gained)
             self.exchange_system.update_cooldown(user_id)
             
             embed = discord.Embed(
@@ -349,10 +359,10 @@ class ExchangeCog(commands.Cog):
         logger.info(f"✅ {interaction.user.display_name}님이 교환 설정을 변경했습니다.")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="교환현황", description="XP/현금 교환 시스템의 현재 상태를 확인합니다.")
-    
+    @app_commands.command(name="교환현황", description="XP/현금 교환 시스템의 현재 상태와 서버의 주간 교환 기록을 확인합니다.")
     async def exchange_status(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
+        guild_id = str(interaction.guild.id)
         
         # 시스템 설정
         embed = discord.Embed(
@@ -366,44 +376,69 @@ class ExchangeCog(commands.Cog):
                   f"**XP→현금 수수료**: {self.exchange_system.settings['XP_수수료율']:.1f}%\n"
                   f"**일일 제한**: {self.exchange_system.settings['일일_제한']}회\n"
                   f"**쿨다운**: {self.exchange_system.settings['쿨다운_분']}분",
-            inline=True
+            inline=False
         )
         
         # 내 교환 현황
         daily_count = self.exchange_system.get_user_daily_exchanges(user_id)
-        user_history = self.exchange_system.exchange_history.get(user_id, [])
-        total_exchanges = len(user_history)
-        
+        total_exchanges = sum(1 for e in self.exchange_system.exchange_history if e.get('user_id') == user_id)
+
         embed.add_field(
-            name="📈 내 교환 현황",
+            name=f"📈 {interaction.user.display_name}님의 교환 현황",
             value=f"**오늘 교환**: {daily_count}/{self.exchange_system.settings['일일_제한']}회\n"
                   f"**총 교환 횟수**: {total_exchanges}회\n"
-                  f"**남은 횟수**: {max(0, self.exchange_system.settings['일일_제한'] - daily_count)}회",
+                  f"**오늘 남은 횟수**: {max(0, self.exchange_system.settings['일일_제한'] - daily_count)}회",
             inline=False
         )
         
-        # 최근 교환 기록 (최대 3개)
-        if user_history:
-            recent_exchanges = sorted(user_history, key=lambda x: x['date'], reverse=True)[:3]
-            history_text = ""
+        # 서버의 주간 교환 기록 (최대 25개)
+        now = datetime.datetime.now()
+        one_week_ago = now - datetime.timedelta(days=7)
+        
+        guild_history = [e for e in self.exchange_system.exchange_history if e.get('guild_id') == guild_id]
+        
+        # 주간 기록 필터링
+        weekly_guild_history = []
+        for e in guild_history:
+            try:
+                # naive datetime으로 변환하여 비교
+                record_date = datetime.datetime.fromisoformat(e['date'])
+                if record_date > one_week_ago:
+                    weekly_guild_history.append(e)
+            except (ValueError, KeyError):
+                continue # 날짜 형식이 잘못된 기록은 건너뜀
+
+        history_text = ""
+        if weekly_guild_history:
+            # 날짜순으로 정렬 (최신이 위로)
+            recent_exchanges = sorted(weekly_guild_history, key=lambda x: x['date'], reverse=True)
+            
+            truncated = len(recent_exchanges) > 25
+            if truncated:
+                recent_exchanges = recent_exchanges[:25]
+
             for exchange in recent_exchanges:
+                ex_user_id = exchange.get('user_id')
+                member = interaction.guild.get_member(int(ex_user_id)) if ex_user_id else None
+                user_name = member.display_name if member else f"ID: {ex_user_id}"
+                
                 date = datetime.datetime.fromisoformat(exchange['date']).strftime('%m/%d %H:%M')
                 type_emoji = "💰→✨" if exchange['type'] == "cash_to_xp" else "✨→💰"
-                history_text += f"{type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})\n"
+                history_text += f"👤 **{user_name}**: {type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})\n"
             
-            embed.add_field(
-                name="⏳ 최근 교환 기록",
-                value=history_text,
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="⏳ 최근 교환 기록",
-                value="아직 교환 기록이 없습니다.",
-                inline=False
-            )
+            if truncated:
+                history_text += f"\n... (최근 25건만 표시)"
+
+        if not history_text:
+            history_text = "지난 일주일간 교환 기록이 없습니다."
+
+        embed.add_field(
+            name="⏳ 서버 주간 교환 기록",
+            value=history_text,
+            inline=False
+        )
             
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=False)
 
 async def setup(bot: commands.Bot):
     point_manager_cog = bot.get_cog("PointManager")

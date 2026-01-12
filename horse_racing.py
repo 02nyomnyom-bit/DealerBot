@@ -346,23 +346,26 @@ class AutoHorseRacingView(discord.ui.View):
             # 경주 진행
             race_turn = 1
             while not self.racing.is_race_finished():
-                # ... (생략: 경주 진행 로직)
-                
+                # 이 부분이 누락되어 있었습니다!
+                self.racing.move_horses() 
+            
+                content = f"🏁 **경주 진행 중... (턴 {race_turn})**\n"
+                content += f"```\n{self.racing.generate_track_display()}\n```"
+            
                 try:
                     await self.message.edit(content=content, view=self)
                 except:
                     break
-                
-                await asyncio.sleep(0.3)  # <-- **1.5초를 0.3초로 수정 (빠른 경주 진행)**
-                race_turn += 1
-                
-                # 무한루프 방지 (최대 50턴)
-                if race_turn > 50:
-                    break
             
+                await asyncio.sleep(0.3) # 빠른 진행을 위해 설정하신 0.3초
+                race_turn += 1
+            
+                if race_turn > 50: # 무한루프 방지
+                    break
+        
             # 최종 결과 표시
             await self.show_final_results()
-            
+        
         except Exception as e:
             print(f"자동 경마 게임 오류: {e}")
     

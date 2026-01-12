@@ -258,28 +258,6 @@ class VoiceTracker(commands.Cog):
         except Exception as e:
             logger.error(f"❌ 동기화 루프 중 오류 발생: {e}")
 
-    @app_commands.command(name="보이스시간", description="통화방에서 보낸 총 시간을 확인합니다.")
-    async def voice_time_command(self, interaction: discord.Interaction, 사용자: Optional[Member] = None):
-        target_member = 사용자 or interaction.user
-        user_id = str(target_member.id)
-        guild_id = str(interaction.guild.id)
-            
-        await interaction.response.defer(ephemeral=False)
-
-        total_seconds = await self.get_user_total_voice_time(guild_id, user_id)
-            
-        formatted_time = self.format_duration(total_seconds)
-            
-        embed = discord.Embed(
-            title=f"🎧 {target_member.display_name}님의 통화 시간",
-            description=f"총 통화 시간: **{formatted_time}**",
-            color=discord.Color.dark_orange()
-        )
-        embed.set_thumbnail(url=target_member.display_avatar.url)
-        embed.set_footer(text=f"요청자: {interaction.user.display_name}")
-            
-        await interaction.followup.send(embed=embed)
-
     @app_commands.command(name="보이스랭크", description="사용자의 통화 시간을 공개적으로 확인합니다.")
     @app_commands.describe(사용자="확인할 사용자")
     async def voice_rank(self, interaction: discord.Interaction, 사용자: discord.Member):
@@ -441,63 +419,6 @@ class VoiceTracker(commands.Cog):
         except Exception as e:
             logger.error(f"보이스초기화 명령어 오류: {e}")
             await interaction.response.send_message("❌ 명령어 처리 중 오류가 발생했습니다.", ephemeral=True)
-
-    @app_commands.command(name="보이스현황", description="현재 음성 채널 활동 현황을 확인합니다.")
-    async def voice_status(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-            
-        try:
-            current_users = []
-            for user_id, session in self.active_sessions.items():
-                if session.get("is_speaking", False):
-                    guild = self.bot.get_guild(int(session["guild_id"]))
-                    member = guild.get_member(int(user_id)) if guild else None
-                    if member:
-                        # 총 활동 시간 계산
-                        duration = time.time() - session["join_time"]
-                        current_users.append({
-                            "username": member.display_name,
-                            "channel_name": session["channel_name"],
-                            "duration": duration
-                        })
-            
-            embed = discord.Embed(
-                title="🎧 음성 채널 활동 현황",
-                color=discord.Color.blue()
-            )
-                
-            if not current_users:
-                embed.description = "현재 마이크를 켜고 대화 중인 사용자가 없습니다."
-                embed.add_field(
-                    name="⏰ XP 정보",
-                    value="**마이크를 켜고 대화 시** **1분마다 10 XP**를 자동으로 획득합니다!",
-                    inline=False
-                )
-            else:
-                embed.description = f"**{len(current_users)}명**이 현재 **마이크를 켜고** 대화 중입니다."
-                    
-                status_text = ""
-                for i, user in enumerate(current_users, 1):
-                    status_text += f"**{i}. {user['username']}**\n"
-                    status_text += f"📢 채널: {user['channel_name']}\n"
-                    status_text += f"⏱️ 시간: {self.format_duration(user['duration'])}\n\n"
-                    
-                if len(status_text) > 1024:
-                    status_text = status_text[:1000] + "...\n*(일부 생략)*"
-                    
-                embed.add_field(name="📋 대화 중인 사용자 (마이크 ON)", value=status_text, inline=False)
-                embed.add_field(
-                    name="⏰ XP 정보",
-                    value="**마이크를 켜고 대화 시 1분마다 10 XP** 자동 지급",
-                    inline=False
-                )
-                
-            embed.set_footer(text=f"확인자: {interaction.user.display_name} | {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            await interaction.followup.send(embed=embed)
-                
-        except Exception as e:
-            logger.error(f"음성현황 명령어 처리 중 오류 발생: {e}")
-            await interaction.followup.send("❌ 명령어 처리 중 오류가 발생했습니다.", ephemeral=True)
 
     def format_duration(self, seconds: int) -> str:
         """초를 'HH시간 MM분' 형식으로 변환"""

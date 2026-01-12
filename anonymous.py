@@ -3,13 +3,21 @@ from discord import app_commands
 from discord.ext import commands
 import random
 import logging
+from database_manager import DatabaseManager
 
 logger = logging.getLogger("anonymous_system")
 
 # ============================================
 # 1. 모달(Modal) 클래스 정의
 # ============================================
+class AnonymousSystem(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
 
+    def get_db(self, guild_id: int):
+        # 매번 import 하지 않고 미리 정의된 클래스를 사용합니다.
+        return DatabaseManager(str(guild_id))
+    
 # [조회] 확인할 메시지 번호 입력창
 class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인'):
     msg_num = discord.ui.TextInput(
