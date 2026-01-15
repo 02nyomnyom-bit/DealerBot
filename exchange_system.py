@@ -415,7 +415,7 @@ class ExchangeCog(commands.Cog):
             
             truncated = len(recent_exchanges) > 25
             if truncated:
-                recent_exchanges = recent_exchanges[:25]
+                recent_exchanges = recent_exchanges[:15]
 
             for exchange in recent_exchanges:
                 ex_user_id = exchange.get('user_id')
@@ -426,9 +426,14 @@ class ExchangeCog(commands.Cog):
                 type_emoji = "💰→✨" if exchange['type'] == "cash_to_xp" else "✨→💰"
                 history_text += f"👤 **{user_name}**: {type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})\n"
             
-            if truncated:
-                history_text += f"\n... (최근 25건만 표시)"
-
+            new_line = f"👤 **{user_name}**: {type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})\n"
+                
+            # 🔥 중요: 1000자가 넘어가면 추가를 중단하고 생략 표기
+            if len(history_text) + len(new_line) > 1000:
+                history_text += "\n... (데이터가 너무 많아 생략되었습니다.)"
+            
+            history_text += new_line
+            
         if not history_text:
             history_text = "지난 일주일간 교환 기록이 없습니다."
 

@@ -129,7 +129,7 @@ class BlackjackModeSelectView(View):
         self.cog.processing_users.discard(self.user.id) # 대기 목록에서 제거
         if self.message:
             try:
-                await self.message.edit(content="❌ 시간 초과로 블랙잭이 취소되었습니다.", view=None)
+                await self.message.edit(content="완전 종료된 게임", view=None)
             except: pass
 
     @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")

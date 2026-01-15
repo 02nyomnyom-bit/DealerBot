@@ -197,6 +197,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
     
     # 게임 시스템
     game_extensions = [
+        'lottery_system',               # 로또 시스템
         'horse_racing',                 # 경마 게임
         'enhancement_system',           # 강화 시스템
         'slot_machine',                 # 슬롯머신
