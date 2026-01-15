@@ -1,7 +1,6 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from point_manager import db_manager
 import random
 import json
 import os
@@ -238,12 +237,20 @@ class LotterySystem(commands.Cog):
 async def setup(bot):
     """봇에 LotterySystem Cog를 추가하는 함수"""
     try:
-        # 2. 로또 시스템을 등록하면서 공유된 db_manager를 전달합니다.
-        await bot.add_cog(LotterySystem(bot, db_manager))
-        print("✅ 로또 시스템이 성공적으로 로드되었습니다. (공유 DB 매니저 사용)")
+        import point_manager
+        target_db = getattr(point_manager, 'db_manager', None)
+
+        if target_db is None:
+            point_cog = bot.get_cog('PointManager')
+            if point_cog and hasattr(point_cog, 'db_manager'):
+                target_db = point_cog.db_manager
         
-    except ImportError:
-        # point_manager가 없을 경우를 대비한 예외 처리
-        print("⚠️ 경고: point_manager를 찾을 수 없어 로또 시스템 로드에 실패했습니다.")
+        if target_db is None:
+            print("⚠️ 경고: db_manager를 찾을 수 없습니다. 시스템이 정상 작동하지 않을 수 있습니다.")
+
+        await bot.add_cog(LotterySystem(bot, target_db))
+        print("✅ 로또 시스템이 성공적으로 로드되었습니다.")
+        
     except Exception as e:
         print(f"❌ 로또 시스템 로드 중 오류 발생: {e}")
+        traceback.print_exc()
