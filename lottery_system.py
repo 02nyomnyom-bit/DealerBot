@@ -126,6 +126,53 @@ class PurchaseConfirmView(discord.ui.View):
             print(f"Purchase Error: {e}\n{traceback.format_exc()}")
             await interaction.response.edit_message(content="구매 처리 중 오류가 발생했습니다.", view=None)
 
+class TicketPaginatorView(discord.ui.View):
+    def __init__(self, tickets, user_name, round_num, db, per_page=30):
+        super().__init__(timeout=60)
+        self.tickets = tickets
+        self.user_name = user_name
+        self.round_num = round_num
+        self.db = db
+        self.per_page = per_page
+        self.current_page = 0
+        self.total_pages = (len(tickets) - 1) // per_page + 1
+
+    def create_embed(self):
+        start_idx = self.current_page * self.per_page
+        end_idx = start_idx + self.per_page
+        current_tickets = self.tickets[start_idx:end_idx]
+
+        embed = discord.Embed(
+            title=f"🎫 {self.user_name}님의 제 {self.round_num}회 티켓 목록",
+            description=f"총 {len(self.tickets)}개의 티켓을 보유 중입니다.",
+            color=discord.Color.green()
+        )
+
+        ticket_list_str = ""
+        for i, t in enumerate(current_tickets, 1):
+            nums_str = ", ".join(map(str, t['numbers']))
+            ticket_list_str += f"**{start_idx + i}번:** `{nums_str}` [PB: {t['bonus']}]\n"
+
+        embed.add_field(name=f"페이지 ({self.current_page + 1}/{self.total_pages})", value=ticket_list_str, inline=False)
+        embed.set_footer(text="버튼을 클릭하여 페이지를 이동하세요.")
+        return embed
+
+    @discord.ui.button(label="이전", style=discord.ButtonStyle.gray)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        else:
+            await interaction.response.send_message("첫 페이지입니다.", ephemeral=True)
+
+    @discord.ui.button(label="다음", style=discord.ButtonStyle.gray)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        else:
+            await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)        
+
 class LotterySystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -180,25 +227,34 @@ class LotterySystem(commands.Cog):
             view=view
         )
 
-    @app_commands.command(name="로또정보", description="현재 회차 정보 및 누적 잭팟을 확인합니다.")
+    @app_commands.command(name="로또정보", description="현재 회차 정보 및 나의 티켓 목록을 확인합니다.")
     async def lottery_info(self, interaction: discord.Interaction):
         db = self._get_db(interaction.guild.id)
         if db is None:
             return await interaction.response.send_message("데이터베이스 연결에 실패했습니다.", ephemeral=True)
 
         data = self.lottery_data.data
+        round_num = data['round']
         jackpot = data.get('jackpot', 0)
         total_prize = PRIZE_TABLE[1]['prize'] + jackpot
 
-        embed = discord.Embed(title=f"🎰 제 {data['round']}회 파워볼 정보", color=discord.Color.blue())
-        embed.add_field(name="현재 1등 예상 상금", value=f"**{db.format_money(total_prize)}**", inline=False)
+        # 기본 정보 임베드 (상금 정보)
+        embed = discord.Embed(title=f"🎰 제 {round_num}회 파워볼 정보", color=discord.Color.blue())
+        embed.add_field(name="현재 1등 예상 상금", value=f"**{db.format_money(total_prize)}**", inline=True)
         embed.add_field(name="이월된 상금", value=db.format_money(jackpot), inline=True)
-        embed.add_field(name="티켓 가격", value=db.format_money(TICKET_PRICE), inline=True)
         
-        rules = "\n".join([f"• {v['name']}: {v['desc']}" for k, v in PRIZE_TABLE.items() if k <= 3])
-        embed.add_field(name="주요 당첨 조건", value=rules + "\n...등 총 9등급", inline=False)
+        user_id_str = str(interaction.user.id)
+        my_tickets = [t for t in self.lottery_tickets.tickets if t['round'] == round_num and t['user_id'] == user_id_str]
         
-        await interaction.response.send_message(embed=embed)
+        if not my_tickets:
+            embed.add_field(name="🎫 내 티켓 목록", value="아직 구매한 티켓이 없습니다.", inline=False)
+            await interaction.response.send_message(embed=embed)
+        else:
+            # 티켓이 있을 경우 페이징 뷰 생성
+            view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, per_page=30)
+            # 상금 정보 임베드와 티켓 목록(첫 페이지) 임베드를 같이 보낼 수도 있지만, 
+            # 깔끔하게 티켓 목록 임베드 하나로 통합하여 보여주는 방식을 추천합니다.
+            await interaction.response.send_message(embed=view.create_embed(), view=view)
 
     @app_commands.command(name="로또추첨", description="로또 추첨을 진행합니다.[관리자 전용]")
     @app_commands.checks.has_permissions(administrator=True)
