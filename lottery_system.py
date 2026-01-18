@@ -127,12 +127,13 @@ class PurchaseConfirmView(discord.ui.View):
             await interaction.response.edit_message(content="구매 처리 중 오류가 발생했습니다.", view=None)
 
 class TicketPaginatorView(discord.ui.View):
-    def __init__(self, tickets, user_name, round_num, db, per_page=30):
+    def __init__(self, tickets, user_name, round_num, db, jackpot_info, per_page=10):
         super().__init__(timeout=60)
         self.tickets = tickets
         self.user_name = user_name
         self.round_num = round_num
         self.db = db
+        self.jackpot_info = jackpot_info # 상금 정보 저장
         self.per_page = per_page
         self.current_page = 0
         self.total_pages = (len(tickets) - 1) // per_page + 1
@@ -143,18 +144,26 @@ class TicketPaginatorView(discord.ui.View):
         current_tickets = self.tickets[start_idx:end_idx]
 
         embed = discord.Embed(
-            title=f"🎫 {self.user_name}님의 제 {self.round_num}회 티켓 목록",
-            description=f"총 {len(self.tickets)}개의 티켓을 보유 중입니다.",
-            color=discord.Color.green()
+            title=f"🎰 제 {self.round_num}회 파워볼 정보 & 티켓 목록",
+            color=discord.Color.blue()
         )
+        
+        # 상단에 상금 정보 추가 (항상 표시)
+        embed.add_field(name="현재 1등 예상 상금", value=f"**{self.db.format_money(self.jackpot_info['total'])}**", inline=True)
+        embed.add_field(name="이월된 상금", value=self.db.format_money(self.jackpot_info['jackpot']), inline=True)
 
+        # 티켓 목록 문자열 생성
         ticket_list_str = ""
         for i, t in enumerate(current_tickets, 1):
             nums_str = ", ".join(map(str, t['numbers']))
             ticket_list_str += f"**{start_idx + i}번:** `{nums_str}` [PB: {t['bonus']}]\n"
 
-        embed.add_field(name=f"페이지 ({self.current_page + 1}/{self.total_pages})", value=ticket_list_str, inline=False)
-        embed.set_footer(text="버튼을 클릭하여 페이지를 이동하세요.")
+        embed.add_field(
+            name=f"🎫 {self.user_name}님의 티켓 (페이지 {self.current_page + 1}/{self.total_pages})", 
+            value=ticket_list_str or "구매한 티켓이 없습니다.", 
+            inline=False
+        )
+        embed.set_footer(text=f"총 {len(self.tickets)}개의 티켓 보유 중")
         return embed
 
     @discord.ui.button(label="이전", style=discord.ButtonStyle.gray)
@@ -171,7 +180,61 @@ class TicketPaginatorView(discord.ui.View):
             self.current_page += 1
             await interaction.response.edit_message(embed=self.create_embed(), view=self)
         else:
-            await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)        
+            await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)    
+
+class DrawResultPaginatorView(discord.ui.View):
+    def __init__(self, draw_nums, draw_pb, winners_summary, round_num): # 인자 이름 확인
+        super().__init__(timeout=300)
+        self.draw_nums = draw_nums
+        self.draw_pb = draw_pb
+        self.summary = winners_summary  # 이 부분을 summary에서 winners_summary로 수정
+        self.round_num = round_num
+        self.current_page = 0
+        self.per_page = 5
+        self.total_pages = (len(self.summary) - 1) // self.per_page + 1 if self.summary else 1
+
+    def create_embed(self):
+        embed = discord.Embed(
+            title=f"🎊 제 {self.round_num}회 추첨 결과", 
+            color=discord.Color.gold()
+        )
+        embed.add_field(
+            name="럭키 번호", 
+            value=f" {', '.join(map(str, self.draw_nums))}  [PB: {self.draw_pb}]", 
+            inline=False
+        )
+
+        if not self.summary:
+            embed.add_field(name="당첨 현황", value="당첨자가 없습니다.", inline=False)
+        else:
+            start_idx = self.current_page * self.per_page
+            end_idx = start_idx + self.per_page
+            page_content = "\n".join(self.summary[start_idx:end_idx])
+            
+            embed.add_field(
+                name=f"당첨 현황 (페이지 {self.current_page + 1}/{self.total_pages})", 
+                value=page_content, 
+                inline=False
+            )
+        
+        embed.set_footer(text="버튼을 눌러 다른 등수의 당첨자를 확인하세요.")
+        return embed
+
+    @discord.ui.button(label="◀ 이전", style=discord.ButtonStyle.gray)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        else:
+            await interaction.response.send_message("첫 페이지입니다.", ephemeral=True)
+
+    @discord.ui.button(label="다음 ▶", style=discord.ButtonStyle.gray)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        else:
+            await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)
 
 class LotterySystem(commands.Cog):
     def __init__(self, bot):
@@ -227,33 +290,33 @@ class LotterySystem(commands.Cog):
             view=view
         )
 
-    @app_commands.command(name="로또정보", description="현재 회차 정보 및 나의 티켓 목록을 확인합니다.")
+    @app_commands.command(name="로또정보", description="상금 정보와 나의 티켓 목록을 확인합니다.")
     async def lottery_info(self, interaction: discord.Interaction):
         db = self._get_db(interaction.guild.id)
         if db is None:
-            return await interaction.response.send_message("데이터베이스 연결에 실패했습니다.", ephemeral=True)
+            return await interaction.response.send_message("데이터베이스 연결 실패", ephemeral=True)
 
         data = self.lottery_data.data
         round_num = data['round']
         jackpot = data.get('jackpot', 0)
         total_prize = PRIZE_TABLE[1]['prize'] + jackpot
-
-        # 기본 정보 임베드 (상금 정보)
-        embed = discord.Embed(title=f"🎰 제 {round_num}회 파워볼 정보", color=discord.Color.blue())
-        embed.add_field(name="현재 1등 예상 상금", value=f"**{db.format_money(total_prize)}**", inline=True)
-        embed.add_field(name="이월된 상금", value=db.format_money(jackpot), inline=True)
+        
+        # 상금 정보를 딕셔너리로 묶어서 뷰에 전달
+        jackpot_info = {'total': total_prize, 'jackpot': jackpot}
         
         user_id_str = str(interaction.user.id)
         my_tickets = [t for t in self.lottery_tickets.tickets if t['round'] == round_num and t['user_id'] == user_id_str]
         
         if not my_tickets:
-            embed.add_field(name="🎫 내 티켓 목록", value="아직 구매한 티켓이 없습니다.", inline=False)
+            # 티켓이 없을 때는 기본 정보만 출력
+            embed = discord.Embed(title=f"🎰 제 {round_num}회 파워볼 정보", color=discord.Color.blue())
+            embed.add_field(name="현재 1등 예상 상금", value=f"**{db.format_money(total_prize)}**", inline=True)
+            embed.add_field(name="이월된 상금", value=db.format_money(jackpot), inline=True)
+            embed.add_field(name="🎫 내 티켓", value="구매한 티켓이 없습니다.", inline=False)
             await interaction.response.send_message(embed=embed)
         else:
-            # 티켓이 있을 경우 페이징 뷰 생성
-            view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, per_page=30)
-            # 상금 정보 임베드와 티켓 목록(첫 페이지) 임베드를 같이 보낼 수도 있지만, 
-            # 깔끔하게 티켓 목록 임베드 하나로 통합하여 보여주는 방식을 추천합니다.
+            # 티켓이 있을 때: 10장씩 보여주는 페이징 뷰 생성
+            view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, jackpot_info, per_page=10)
             await interaction.response.send_message(embed=view.create_embed(), view=view)
 
     @app_commands.command(name="로또추첨", description="로또 추첨을 진행합니다.[관리자 전용]")
@@ -287,6 +350,10 @@ class LotterySystem(commands.Cog):
         summary = []
         for rank, uids in winners.items():
             if not uids: continue
+
+            # 고유 유저 멘션 생성
+            unique_mentions = [f"<@{uid}>" for uid in set(uids)]
+            mentions_str = ", ".join(unique_mentions)
             
             # 상금 결정
             if rank == 1:
@@ -294,30 +361,38 @@ class LotterySystem(commands.Cog):
             else:
                 prize_per_person = PRIZE_TABLE[rank]['prize']
                 
+            # 실제 상금 지급
             if prize_per_person > 0:
                 for uid in uids:
                     db.add_user_cash(int(uid), prize_per_person)
                     db.add_transaction(int(uid), f"로또 {round_num}회 {rank}등 당첨", prize_per_person)
             
-                summary.append(f"**{PRIZE_TABLE[rank]['name']}**: {len(uids)}명 ({db.format_money(prize_per_person)}씩)")
+            # 출력 텍스트 생성 (기본: 멘션 포함)
+            text = f"**{PRIZE_TABLE[rank]['name']}**: {mentions_str} ({db.format_money(prize_per_person)}씩)"
+            
+            # 글자 수가 너무 길면 요약 버전으로 교체
+            if len(text) > 900: 
+                text = f"**{PRIZE_TABLE[rank]['name']}**: {len(uids)}명 당첨 ({db.format_money(prize_per_person)}씩) (멘션 생략)"
+            
+            # 최종적으로 한 번만 추가
+            summary.append(text)
 
-        # 데이터 업데이트
+        # 1. 페이징 뷰 생성
+        view = DrawResultPaginatorView(draw_nums, draw_pb, summary, round_num)
+        
+        # 2. 데이터 업데이트 (저장)
         data['last_draw_numbers'] = draw_nums
         data['last_draw_bonus'] = draw_pb
         if has_first_winner:
-            data['jackpot'] = 0 # 1등 나오면 잭팟 초기화
+            data['jackpot'] = 0
         
         data['round'] += 1
         self.lottery_data.save_data()
-        
-        # 결과 임베드
-        embed = discord.Embed(title=f"🎊 제 {round_num}회 추첨 결과", color=discord.Color.gold())
-        embed.add_field(name="당첨 번호", value=f" {', '.join(map(str, draw_nums))}  [PB: {draw_pb}]", inline=False)
-        embed.add_field(name="당첨 현황", value="\n".join(summary) if summary else "당첨자 없음", inline=False)
-        if not has_first_winner:
-            embed.set_footer(text=f"1등 당첨자가 없어 상금이 이월되었습니다! (현재 이월금: {db.format_money(data['jackpot'])})")
-            
-        await interaction.followup.send(embed=embed)
+        self.lottery_tickets.tickets = [] # 추첨 후 티켓 초기화
+        self.lottery_tickets.save_tickets()
+
+        # 3. 결과 전송 (이 부분만 남기고 아래 기존 embed 전송 코드는 삭제하세요)
+        await interaction.followup.send(embed=view.create_embed(), view=view)
 
 async def setup(bot):
     """봇에 LotterySystem Cog를 추가하는 함수"""

@@ -46,11 +46,12 @@ def record_enhancement_attempt(user_id: str, username: str, is_success: bool):
 # ✅ 강화 시스템 설정
 ENHANCEMENT_CONFIG = {
     "data_file": 'data/enhancement_data.json',
-    "cooldown_time": 30,  # 강화 쿨다운 30초
-    "max_level": 1000,     # 최대 레벨
-    "min_safe_level": 10, # 강등 방지 최소 레벨
-    "level_change_range": (1, 5),  # 레벨 변동 범위
-    "backup_interval": 50  # 50회마다 백업
+    "cooldown_time": 30,            # 강화 쿨다운 30초
+    "max_level": 1000,              # 최대 레벨
+    "min_safe_level": 10,           # 강등 방지 최소 레벨
+    "level_change_range": (1, 5),   # 레벨 변동 범위
+    "backup_interval": 50,          # 50회마다 백업
+    "max_items_per_user": 3         # 갯수제한
 }
 
 # 데이터 디렉토리 생성
@@ -534,6 +535,19 @@ class EnhancementSystemCog(commands.Cog):
             if len(아이템명) < 1 or len(아이템명) > 20:
                 return await interaction.response.send_message("❌ 아이템명은 1~20자 사이여야 합니다.", ephemeral=True)
             
+            # 2. 신규 아이템 생성 시 개수 제한 확인 (추가된 로직)
+            existing_item = self.enhancement_data.get_existing_item_data(아이템명, user_id)
+            if not existing_item:
+                user_items = self.enhancement_data.get_user_items(user_id)
+                max_limit = ENHANCEMENT_CONFIG["max_items_per_user"]
+                
+                if len(user_items) >= max_limit:
+                    return await interaction.response.send_message(
+                        f"🚫 **아이템 보유 제한:** 최대 **{max_limit}개**의 아이템만 소유할 수 있습니다.\n"
+                        f"현재 보유 중인 아이템을 관리하거나 다른 아이템을 강화할 수 없습니다.", 
+                        ephemeral=True
+                    )
+                
             # 쿨다운 확인
             can_enhance, remaining = check_cooldown(user_id, 아이템명)
             if not can_enhance:
