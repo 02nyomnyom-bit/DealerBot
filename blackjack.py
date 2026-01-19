@@ -8,7 +8,7 @@ from typing import List, Optional
 import random
 import asyncio
 
-# --- 시스템 설정 및 연동 ---
+# 시스템 설정 및 연동
 try:
     from statistics_system import stats_manager
     STATS_AVAILABLE = True
@@ -22,9 +22,9 @@ except ImportError:
     POINT_MANAGER_AVAILABLE = False
 
 # 상수 설정
-MAX_BET = 6000  # 최대 배팅금: 6천 원
-PUSH_RETENTION = 0.95 # 무승부 시 5% 수수료 제외 (95%만 지급)
-WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
+MAX_BET = 6000          # 최대 배팅금: 6천 원
+PUSH_RETENTION = 0      # 무승부 시 수수료 
+WINNER_RETENTION = 0    # 승리 시 수수료
 
 # 카드 및 이모지 정의
 CARD_DECK = {
@@ -111,8 +111,7 @@ class BlackjackGame:
     def is_blackjack(self, cards):
         return len(cards) == 2 and self.calculate_hand_value(cards) == 21
 
-# --- 모드 선택 및 멀티플레이 View 클래스들 ---
-
+# 모드 선택 및 멀티플레이 View
 class BlackjackModeSelectView(View):
     def __init__(self, cog, bot, user, bet):
         super().__init__(timeout=60)
@@ -126,7 +125,7 @@ class BlackjackModeSelectView(View):
         return True
 
     async def on_timeout(self):
-        self.cog.processing_users.discard(self.user.id) # 대기 목록에서 제거
+        self.cog.processing_users.discard(self.user.id)
         if self.message:
             try:
                 await self.message.edit(content="완전 종료된 게임", view=None)
@@ -145,18 +144,25 @@ class BlackjackModeSelectView(View):
     
         view = BlackjackView(self.cog, self.user, self.bet, self.bot)
         embed = view.create_game_embed()
-        await interaction.response.edit_message(embed=embed, view=view)
-        view.message = await interaction.original_response()
+
+        # 블랙잭 즉시 확인
         if view.game.is_blackjack(view.game.player_cards):
             view.game.game_over = True
             view.game.determine_winner()
+            # 메시지 전송 후 결과 업데이트
+            await interaction.response.edit_message(embed=embed, view=None)
+            view.message = await interaction.original_response()
             await view.end_game(None)
+        else:
+            await interaction.response.edit_message(embed=embed, view=view)
+            view.message = await interaction.original_response()
 
     @discord.ui.button(label="👥 멀티 모드", style=discord.ButtonStyle.primary, emoji="⚔️")
     async def multi_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(title="👥 멀티플레이 설정", description="대결 방식을 선택하세요.", color=discord.Color.green())
         await interaction.response.edit_message(embed=embed, view=MultiSetupView(self.cog, self.bot, self.user, self.bet))
 
+# 멀티 지정 View
 class MultiSetupView(View):
     def __init__(self, cog, bot, user, bet):
         super().__init__(timeout=60)
@@ -226,6 +232,7 @@ class MultiSetupView(View):
         await interaction.response.edit_message(content=None, embed=embed, view=view)
         view.message = await interaction.original_response()
 
+# 멀티 블랙잭 View
 class MultiBlackjackView(View):
     def __init__(self, cog, bot, p1, bet, p2=None):
         super().__init__(timeout=60)
@@ -255,32 +262,41 @@ class MultiBlackjackView(View):
 
     async def check_user(self, interaction: discord.Interaction) -> bool:
         user = interaction.user
-        # 1. P2 참가 처리 (공개 대전 시)
+        # P2 참가 처리 (공개 대전 시)
         if self.p2 is None:
             if user.id == self.p1.id:
                 await interaction.response.send_message("❌ 상대방을 기다리고 있습니다.", ephemeral=True)
                 return False
-            
+        
+            # 중복 참여 방지
+            if user.id in self.cog.processing_users:
+                await interaction.response.send_message("❌ 이미 다른 게임을 진행 중입니다.", ephemeral=True)
+                return False
+
             if POINT_MANAGER_AVAILABLE:
                 bal = await point_manager.get_point(self.bot, interaction.guild_id, str(user.id))
                 if (bal or 0) < self.bet:
                     await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
                     return False
                 await point_manager.add_point(self.bot, interaction.guild_id, str(user.id), -self.bet)
-            
+        
             self.p2 = user
             self.p2_cards = [self.game.draw_card(), self.game.draw_card()]
-            self.cog.processing_users.add(user.id) # P2 세션 등록
+            self.cog.processing_users.add(user.id)
             await interaction.channel.send(f"🃏 {user.mention}님이 대결에 참가했습니다!", delete_after=5)
+        
+            # P2가 참가하자마자 화면 갱신
             await self.update_view()
+            # 참가 버튼 누른 것 자체가 하나의 액션이므로 여기서 return False로 끊지 말고 진행하거나 defer 처리
             if not interaction.response.is_done():
                 await interaction.response.defer()
-            
-            # --- 이 부분을 True에서 False로 수정합니다 ---
-            return False 
-            # ------------------------------------------
+            return False # 참가 직후에 바로 히트/스탠드를 누를 수는 없게 설계 (한 번 더 눌러야 함)
 
-        # 2. 권한 체크
+        if user.id not in [self.p1.id, self.p2.id]:
+            await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
+            return False
+
+        # 권한 체크
         if user.id not in [self.p1.id, self.p2.id]:
             await interaction.response.send_message("❌ 이 게임의 참가자가 아닙니다.", ephemeral=True)
             return False
@@ -363,13 +379,11 @@ class MultiBlackjackView(View):
         await self.message.edit(embed=final_embed, view=None)
         
         # [중요] 게임 종료 후 모든 참가자 세션 해제
-
         self.cog.processing_users.discard(self.p1.id)
         if self.p2: self.cog.processing_users.discard(self.p2.id)
         self.stop()
 
-# --- 기존 BlackjackView 및 Cog (일부 수정) ---
-
+# 싱글 블랙잭 View
 class BlackjackView(View):
     def __init__(self, cog, user: discord.User, bet: int, bot: commands.Bot):
         super().__init__(timeout=120)
@@ -439,7 +453,7 @@ class BlackjackView(View):
         
         self.cog.processing_users.discard(self.user.id)
 
-# --- BlackjackCog 명령어 부분 ---
+# 메인 Cog. 명령어
 class BlackjackCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -450,7 +464,7 @@ class BlackjackCog(commands.Cog):
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
         user_id = interaction.user.id
         
-        # 0. 이미 게임을 플레이 중인지 확인
+        # 이미 게임을 플레이 중인지 확인
         if user_id in self.processing_users:
             return await interaction.response.send_message("❌ 이미 블랙잭 게임을 플레이 중입니다.", ephemeral=True)
         
@@ -459,21 +473,21 @@ class BlackjackCog(commands.Cog):
         if xp_cog:
             await xp_cog.process_command_xp(interaction)
         
-        # 1. 배팅 금액 제한 체크
+        # 배팅 금액 제한 체크
         if 배팅 < 100:
             return await interaction.response.send_message("❌ 최소 배팅 금액은 100원입니다.", ephemeral=True)
         if 배팅 > MAX_BET:
             return await interaction.response.send_message(f"❌ 최대 배팅 금액은 {MAX_BET:,}원입니다.", ephemeral=True)
 
-        # 2. 잔액 체크
+        # 잔액 체크
         balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
         if balance < 배팅:
             return await interaction.response.send_message(f"❌ 잔액이 부족합니다. (보유: {balance:,}원)", ephemeral=True)
 
-        # 3. 게임 시작 플래그 설정
+        # 게임 시작 모드 선택
         self.processing_users.add(user_id)
         
-        view = BlackjackModeSelectView(self, self.bot, interaction.user, 배팅) # self (Cog) 전달
+        view = BlackjackModeSelectView(self, self.bot, interaction.user, 배팅)
         await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
         view.message = await interaction.original_response()
         

@@ -297,13 +297,14 @@ class ExchangeCog(commands.Cog):
             await interaction.followup.send("❌ 교환 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.")
 
     @app_commands.command(name="교환설정", description="[관리자 전용] 교환 시스템 설정을 변경합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         현금수수료="현금 교환시 차감할 수수료율 (%)",
         경험치수수료="XP 교환시 차감할 수수료율 (%)",
         횟수="하루 최대 교환 횟수",
         쿨다운="교환 쿨다운 시간 (분)"
     )
-    @app_commands.default_permissions(administrator=True)
     async def exchange_settings(
         self,
         interaction: discord.Interaction,
@@ -360,14 +361,16 @@ class ExchangeCog(commands.Cog):
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="교환현황", description="XP/현금 교환 시스템의 현재 상태와 서버의 주간 교환 기록을 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def exchange_status(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
         
         # 시스템 설정
         embed = discord.Embed(
-            title="🔄 XP/현금 교환 시스템 현황",
-            description="현재 교환 시스템의 설정 및 나의 교환 현황입니다.",
+            title="🔄 XP | 현금 교환 시스템 현황",
+            description="현재 교환 시스템의 설정 및 교환 현황입니다.",
             color=discord.Color.dark_green()
         )
         embed.add_field(
@@ -376,18 +379,6 @@ class ExchangeCog(commands.Cog):
                   f"**XP→현금 수수료**: {self.exchange_system.settings['XP_수수료율']:.1f}%\n"
                   f"**일일 제한**: {self.exchange_system.settings['일일_제한']}회\n"
                   f"**쿨다운**: {self.exchange_system.settings['쿨다운_분']}분",
-            inline=False
-        )
-        
-        # 내 교환 현황
-        daily_count = self.exchange_system.get_user_daily_exchanges(user_id)
-        total_exchanges = sum(1 for e in self.exchange_system.exchange_history if e.get('user_id') == user_id)
-
-        embed.add_field(
-            name=f"📈 {interaction.user.display_name}님의 교환 현황",
-            value=f"**오늘 교환**: {daily_count}/{self.exchange_system.settings['일일_제한']}회\n"
-                  f"**총 교환 횟수**: {total_exchanges}회\n"
-                  f"**오늘 남은 횟수**: {max(0, self.exchange_system.settings['일일_제한'] - daily_count)}회",
             inline=False
         )
         

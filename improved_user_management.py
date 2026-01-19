@@ -133,17 +133,12 @@ class UserManagementCog(commands.Cog):
             print("✅ DatabaseManager Cog 연결 성공.")
 
     @app_commands.command(name="사용자관리", description="[관리자 전용] 통합 사용자 관리 패널을 표시합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def user_management_panel(self, interaction: Interaction):
         # DatabaseCog 로드 여부 확인
         if not self.db_cog:
             return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
-
-        # 관리자 권한 체크
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
         
         await interaction.response.defer(ephemeral=False)
         
@@ -253,18 +248,13 @@ class UserManagementCog(commands.Cog):
             await interaction.followup.send(f"❌ 관리 패널 로드 중 오류: {str(e)}")
 
     @app_commands.command(name="등록목록", description="[관리자 전용] 등록된 사용자 목록을 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(페이지="확인할 페이지 번호 (기본값: 1)")
     async def list_registered_users(self, interaction: Interaction, 페이지: int = 1):
         # DatabaseCog 로드 여부 확인
         if not self.db_cog:
             return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
-
-        # 관리자 권한 체크
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
         
         await interaction.response.defer(ephemeral=False)
         
@@ -344,15 +334,14 @@ class UserManagementCog(commands.Cog):
             await interaction.followup.send(f"❌ 사용자 목록 조회 중 오류: {str(e)}")
 
     @app_commands.command(name="사용자정보", description="[관리자 전용] 특정 사용자의 상세 정보를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(대상="정보를 확인할 사용자")
     async def user_info(self, interaction: Interaction, 대상: Member):
         # DatabaseCog 로드 여부 확인
         if not self.db_cog:
             return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
-
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True)
-        
+    
         await interaction.response.defer(ephemeral=False)
         
         try:
@@ -451,14 +440,13 @@ class UserManagementCog(commands.Cog):
             await interaction.followup.send(f"❌ 사용자 정보 조회 중 오류: {str(e)}")
 
     @app_commands.command(name="데이터초기화", description="[관리자 전용] 사용자의 모든 데이터를 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(사용자="데이터를 초기화할 사용자")
     async def reset_user_data(self, interaction: Interaction, 사용자: Member):
         # DatabaseCog 로드 여부 확인
         if not self.db_cog:
             return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
-
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         target_id = str(사용자.id)
         guild_id = str(interaction.guild.id)

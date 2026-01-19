@@ -278,6 +278,8 @@ class WelcomeSystem(commands.Cog):
 # === 슬래시 명령어: /환영설정 ===
     
     @app_commands.command(name="환영설정", description="[관리자 전용] 서버의 환영 메시지 시스템을 설정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         기능="설정할 기능을 선택하세요.",
         채널="환영 메시지를 보낼 채널",
@@ -306,13 +308,6 @@ class WelcomeSystem(commands.Cog):
     ):
         # 먼저 interaction을 defer하여 시간 연장
         await interaction.response.defer(ephemeral=True)
-        
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.followup.send(
-                "❌ 이 명령어는 **관리자** 권한이 필요합니다."
-            )
-        
         guild_id = str(interaction.guild.id)
         config = self.get_guild_config(guild_id)
         embed = None
@@ -617,16 +612,9 @@ class WelcomeSystem(commands.Cog):
             await interaction.followup.send(embed=error_embed)
 
     @app_commands.command(name="환영테스트", description="환영 메시지를 테스트합니다")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def welcome_test(self, interaction: discord.Interaction):
-        # 먼저 interaction을 defer하여 시간 연장
-        await interaction.response.defer(ephemeral=True)
-        
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.followup.send(
-                "❌ 이 명령어는 **관리자** 권한이 필요합니다."
-            )
-        
         guild_id = str(interaction.guild.id)
         config = self.get_guild_config(guild_id)
         

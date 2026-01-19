@@ -1,3 +1,4 @@
+# attendance_master.py
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -10,21 +11,13 @@ import os
 import json
 from typing import Optional, Any
 
-# database_manager 모듈을 직접 불러오는 대신, cog_load에서 DatabaseCog를 가져옵니다.
-
 class AttendanceMasterCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_cog: Optional[Any] = None # DatabaseCog 인스턴스를 저장할 변수
+        self.db_cog: Optional[Any] = None
 
         self.korea_tz = timezone(timedelta(hours=9))
-        
-        # self.settings는 이제 각 명령어에서 guild_id를 기반으로 로드됩니다.
-        # 초기화 시점에는 특정 길드 ID가 없으므로 로드하지 않습니다.
-        # DEFAULT_LEADERBOARD_SETTINGS는 이제 self.db_cog에서 가져옵니다.
         self.settings = {} # 임시 빈 딕셔너리로 초기화
-
-        print("✅ 출석체크 마스터 시스템 v4.2 로드 완료 (리더보드 설정 연동)")
     
     async def cog_load(self):
         """Cog가 로드된 후 DatabaseManager Cog를 가져옵니다."""
@@ -33,12 +26,7 @@ class AttendanceMasterCog(commands.Cog):
             print("❌ DatabaseManager Cog를 찾을 수 없습니다. 출석체크 기능이 제한됩니다.")
         else:
             print("✅ DatabaseManager Cog 연결 성공.")
-            # 방법 1: db_cog 내부에 get_default_settings 같은 메서드가 있다면 호출
-            # 방법 2: (가장 권장) db_cog의 manager를 통해 실제 DB 저장된 설정을 로드
-            # 현재 코드의 오류를 막기 위해 임시로 빈 딕셔너리 유지 또는 수동 할당
             try:
-                # 만약 DatabaseManager에 해당 속성이 없다면 직접 할당하거나 호출 방식을 확인해야 합니다.
-                # 예시: self.settings = self.db_cog.get_leaderboard_settings() 
                 pass 
             except AttributeError:
                 print("⚠️ DEFAULT_LEADERBOARD_SETTINGS 속성을 찾을 수 없어 기본 설정을 사용합니다.")
@@ -68,29 +56,23 @@ class AttendanceMasterCog(commands.Cog):
     
     def calculate_attendance_streak(self, guild_id: str, user_id: str) -> tuple[int, bool]:
         if not self.db_cog: # db_available 대신 db_cog 확인
-            print("❌ calculate_attendance_streak: 데이터베이스를 사용할 수 없습니다.")
+            print("🚫 calculate_attendance_streak: 데이터베이스를 사용할 수 없습니다.")
             return 0, True
         try:
-            db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
-            
-            # 👈 추가: KST 날짜 객체를 준비합니다.
+            db = self.db_cog.get_manager(guild_id)
+            # 날짜 준비
             today_kst_date = self.get_korean_date_object()
-
             # 데이터베이스에서 현재 연속 출석일 가져오기
-            # 👇 수정: kst_date 인자 전달
             current_streak = db.get_user_attendance_streak(user_id, today_kst_date) 
-            
             # 오늘 출석했는지 확인
-            # 👇 수정: kst_date 인자 전달
             today_attended = db.has_attended_today(user_id, today_kst_date)
-            
             return current_streak, not today_attended
         
         except Exception as e:
             print(f"연속 출석일 계산 중 오류: {e}")
             return 0, True
 
-    @app_commands.command(name="출석체크", description="하루 한번 출석체크 (현금 + XP 동시 지급)")
+    @app_commands.command(name="출석체크", description="일일 현금과 경험치 지급")
     async def attendance_check_v2(self, interaction: discord.Interaction):
         await interaction.response.defer()
         
@@ -117,25 +99,25 @@ class AttendanceMasterCog(commands.Cog):
             return await interaction.followup.send(embed=embed)
         
         try:
-            # 1. 설정 로드 및 병합
+            # 설정 로드 및 병합
             settings = db.get_leaderboard_settings()
             default_settings = getattr(self.db_cog, 'DEFAULT_LEADERBOARD_SETTINGS', {
-                'attendance_cash': 1000, 
-                'attendance_xp': 100,
-                'streak_cash_per_day': 100,
-                'streak_xp_per_day': 10,
-                'max_streak_bonus_days': 7,
-                'weekly_cash_bonus': 5000,
-                'weekly_xp_bonus': 500,
-                'monthly_cash_bonus': 20000,
-                'monthly_xp_bonus': 2000,
-                'exchange_fee_percent': 5,
-                'daily_exchange_limit': 10
+                'attendance_cash': 1000,        # 출석 시 기본 지급 금액
+                'attendance_xp': 100,           # 출석 시 기본 지급 경험치
+                'streak_cash_per_day': 100,     # 연속 출석 일일 추가 지급 금액
+                'streak_xp_per_day': 10,        # 연속 출석 일일 추가 지급 경험치
+                'max_streak_bonus_days': 7,     # 보너스 최대 지급일
+                'weekly_cash_bonus': 5000,      # 일주일 7의 배수 날짜에 추가 지급
+                'weekly_xp_bonus': 500,         # 한달 30의 배수 날짜에 추가 지급
+                'monthly_cash_bonus': 20000,    # 출석 시 기본 지급 경험치
+                'monthly_xp_bonus': 2000,       # 출석 시 기본 지급 경험치
+                'exchange_fee_percent': 5,      # 환전이나 거래 시 발생하는 수수료
+                'daily_exchange_limit': 10      # 하루에 수행할 수 있는 최대 환전 횟수
             })
             effective_settings = default_settings.copy()
             effective_settings.update(settings)
 
-            # 2. 연속 출석일 및 오늘 출석 가능 여부 확인
+            # 연속 출석일 및 오늘 출석 가능 여부 확인
             current_streak, can_attend_today = self.calculate_attendance_streak(guild_id, user_id)
             
             if not can_attend_today:
@@ -148,7 +130,7 @@ class AttendanceMasterCog(commands.Cog):
                 embed.add_field(name="🔥 현재 연속 출석", value=f"{current_streak}일")
                 return await interaction.followup.send(embed=embed)
             
-            # 3. 출석 기록 저장
+            # 출석 기록 저장
             today_date = self.get_korean_date_object()
             today_str = self.get_korean_date_string()
             record_result = db.record_attendance(user_id, today_date)
@@ -158,11 +140,11 @@ class AttendanceMasterCog(commands.Cog):
             else:
                 new_streak = record_result['streak']
             
-            # 6. 보상 계산 및 지급 (연동된 설정 사용)
+            # 보상 계산 및 지급 (연동된 설정 사용)
             base_cash_reward = effective_settings['attendance_cash']
             base_xp_reward = effective_settings['attendance_xp']
 
-            # ✅ 리더보드 시스템의 설정값을 사용하여 연속 출석 보너스 계산
+            # 리더보드 시스템의 설정값을 사용하여 연속 출석 보너스 계산
             bonus_cash_per_day = effective_settings['streak_cash_per_day']
             bonus_xp_per_day = effective_settings['streak_xp_per_day']
             max_bonus_days = effective_settings['max_streak_bonus_days']
@@ -242,11 +224,11 @@ class AttendanceMasterCog(commands.Cog):
             await interaction.followup.send(embed=embed)
                 
         except Exception as e:
-            print(f"출석체크 처리 중 심각한 오류 발생: {e}")
+            print(f"❌ 출석체크 처리 중 심각한 오류 발생: {e}")
             import traceback
             traceback.print_exc()
             # 에러 발생 시 사용자에게 알림
-            await interaction.followup.send("출석체크 중 오류가 발생했습니다.", ephemeral=True)
+            await interaction.followup.send("❌ 출석체크 중 오류가 발생했습니다.", ephemeral=True)
 
     @app_commands.command(name="출석현황", description="나의 현재 출석 현황을 확인합니다.")
     async def attendance_status(self, interaction: discord.Interaction):
@@ -255,7 +237,7 @@ class AttendanceMasterCog(commands.Cog):
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
 
-        if not self.db_cog: # self.db_available 대신 self.db_cog 확인
+        if not self.db_cog:
             embed = discord.Embed(
                 title="❌ 시스템 오류",
                 description="데이터베이스 시스템을 불러오는 데 실패하여 출석체크 기능이 비활성화되었습니다. 관리자에게 문의해주세요.",
@@ -263,7 +245,7 @@ class AttendanceMasterCog(commands.Cog):
             )
             return await interaction.followup.send(embed=embed)
 
-        db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
+        db = self.db_cog.get_manager(guild_id)
         
         if not db.get_user(user_id):
             embed = discord.Embed(

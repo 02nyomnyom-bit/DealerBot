@@ -15,9 +15,6 @@ from discord.ext import commands
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# DATABASE_AVAILABLE는 이제 StatisticsCog 초기화 시점에 판단됩니다.
-# db_manager는 직접 임포트하지 않고, DatabaseCog를 통해 접근합니다.
-
 # ✅ 데이터 파일 경로 및 설정
 STATS_CONFIG = {
     "game_stats_file": 'data/game_statistics.json',
@@ -695,6 +692,8 @@ class StatisticsCog(commands.Cog):
 
     # ✅ 디버깅 명령어 추가
     @app_commands.command(name="통계디버그", description="통계 시스템 디버깅 정보를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def statistics_debug(self, interaction: discord.Interaction):
         if not self.stats:
             return await interaction.response.send_message("❌ 통계 시스템이 초기화되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)

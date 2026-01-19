@@ -20,8 +20,8 @@ except ImportError:
 
 # 상수 및 데이터
 MAX_BET = 5000              # 최대 배팅금
-PUSH_RETENTION = 0.95       # 무승부 시 5% 수수료 제외 (95%만 지급)
-WINNER_RETENTION = 0.95     # 승리 시 5% 수수료 제외 (95%만 지급)
+PUSH_RETENTION = 0
+WINNER_RETENTION = 0
 RPS_EMOJIS = {"가위": "✌️", "바위": "✊", "보": "✋"}
 
 def record_rps_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):

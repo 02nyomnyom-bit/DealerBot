@@ -21,18 +21,18 @@ except ImportError:
 
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
-# 상수 설정 (블랙잭과 동일하게 적용)
-MAX_BET = 5000  # 최대 배팅금: 5천 원
-PUSH_RETENTION = 0.95 # 무승부 시 5% 수수료 제외 (95%만 지급)
-WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
+# 상수 설정
+MAX_BET = 5000          # 최대 배팅금: 5천 원
+PUSH_RETENTION = 0      # 무승부 시 수수료 
+WINNER_RETENTION = 0    # 승리 시 수수료
 
-# --- 애니메이션 유틸리티 ---
+# 애니메이션
 async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
     dice_faces = list(DICE_EMOJIS.values())
-    for _ in range(3):  # 횟수를 줄여 속도 향상
+    for _ in range(3):
         current_face = random.choice(dice_faces)
         base_embed.description = f"🎲 **주사위를 굴리는 중...** {current_face}"
-        await message.edit(embed=base_embed) # 애니메이션 도중 view를 건드리지 않음
+        await message.edit(embed=base_embed)
         await asyncio.sleep(0.5)
 
 # 통계 기록 헬퍼 함수
@@ -43,7 +43,7 @@ def record_dice_game(user_id: str, username: str, bet: int, payout: int, is_win:
         except Exception as e:
             print(f"통계 기록 오류: {e}")
 
-# --- 1단계: 모드 선택 View ---
+# 모드 선택 및 멀티플레이 View
 class DiceModeSelectView(View):
     def __init__(self, bot, user, bet):
         super().__init__(timeout=60)
@@ -106,7 +106,7 @@ class DiceModeSelectView(View):
         embed = discord.Embed(title="👥 멀티플레이 설정", description="상대방과 주사위 숫자가 높은 사람이 승리합니다.", color=discord.Color.green())
         await interaction.response.edit_message(embed=embed, view=MultiSetupView(self.bot, self.user, self.bet))
 
-# --- 2단계: 멀티 세부 설정 View ---
+# 멀티 지정 View
 class MultiSetupView(View):
     def __init__(self, bot, user, bet):
         super().__init__(timeout=60)
@@ -141,7 +141,7 @@ class MultiSetupView(View):
         await interaction.response.edit_message(content=None, embed=embed, view=view)
         view.message = await interaction.original_response()
 
-# --- 3단계: 멀티 게임 진행 View ---
+# 멀티 주사위게임 View
 class MultiDiceView(View):
     def __init__(self, bot, p1, bet, p2=None):
         super().__init__(timeout=60)

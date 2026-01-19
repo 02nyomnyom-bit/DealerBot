@@ -1,4 +1,4 @@
-# error_handler.py - 통합 에러 처리 시스템 (개선된 버전)
+# error_handler.py
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -356,10 +356,9 @@ class ErrorHandler(commands.Cog):
             logger.error(f"Error in event '{event}': {error_info}")
 
     @app_commands.command(name="에러통계", description="[관리자 전용] 에러 발생 통계 확인")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def error_stats(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
-        
         embed = discord.Embed(
             title="📊 에러 발생 통계",
             description="봇에서 발생한 에러들의 통계입니다.",

@@ -393,8 +393,9 @@ class VoiceTracker(commands.Cog):
             await interaction.followup.send("❌ 명령어 처리 중 오류가 발생했습니다.")
 
     @app_commands.command(name="보이스초기화", description="[관리자 전용] 통화 시간 데이터를 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(사용자="초기화할 사용자 (미지정시 전체 초기화)")
-    @commands.has_permissions(administrator=True)
     async def reset_voice_data_cmd(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None):
         # The rest of the function remains the same
         try:

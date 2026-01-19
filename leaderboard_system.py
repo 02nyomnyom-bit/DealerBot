@@ -5,6 +5,7 @@ from discord import app_commands, Interaction, Member
 from discord.ext import commands
 from typing import Dict, Optional, List, Any
 import math
+from database_manager import DEFAULT_LEADERBOARD_SETTINGS
 
 # ✅ 안전한 의존성 import (point_manager는 그대로 유지)
 def safe_import_point_manager():
@@ -275,13 +276,9 @@ class IntegratedLeaderboardCog(commands.Cog):
     # ===== 관리자 명령어들 =====
 
     @app_commands.command(name="리더보드관리", description="[관리자 전용] 리더보드 시스템 통합 관리 (환전/통계)")
-    async def leaderboard_management(self, interaction: discord.Interaction):
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
-            )
-        
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    async def leaderboard_management(self, interaction: discord.Interaction): 
         if not self.db_cog:
             return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)
 
@@ -295,9 +292,7 @@ class IntegratedLeaderboardCog(commands.Cog):
             color=discord.Color.blue()
         )
         
-        # 환전 관련 설정만 남깁니다. (출석 관련 설정 모두 제거)
-        # DEFAULT_LEADERBOARD_SETTINGS는 database_manager에서 가져와야 합니다.
-        default_settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS 
+        default_settings = DEFAULT_LEADERBOARD_SETTINGS
 
         embed.add_field(
             name="📊 환전 수수료",
@@ -316,6 +311,8 @@ class IntegratedLeaderboardCog(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
     @app_commands.command(name="리더보드설정", description="[관리자 전용] 출석 및 환전 등 리더보드 시스템의 모든 설정을 확인하고 수정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         설정="변경할 설정 항목",
         값="새로운 값"
@@ -334,12 +331,6 @@ class IntegratedLeaderboardCog(commands.Cog):
         app_commands.Choice(name="📈 일일 환전 한도", value="daily_exchange_limit")
     ])
     async def leaderboard_settings(self, interaction: discord.Interaction, 설정: app_commands.Choice[str] = None, 값: int = None):
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True
-            )
-        
         if not self.db_cog:
             return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)
 
@@ -347,8 +338,7 @@ class IntegratedLeaderboardCog(commands.Cog):
         db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
         settings = db.get_leaderboard_settings()
         
-        # DEFAULT_LEADERBOARD_SETTINGS는 database_manager에서 가져와야 합니다.
-        default_settings = self.db_cog.DEFAULT_LEADERBOARD_SETTINGS 
+        default_settings = DEFAULT_LEADERBOARD_SETTINGS
 
         SETTING_NAMES_KO = {
                             "attendance_cash": "출석 현금 보상",

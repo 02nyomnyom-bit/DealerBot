@@ -11,11 +11,11 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 
-# ✅ 통계 시스템만 안전하게 import (선택적)
+# 통계 시스템
 try:
     from statistics_system import stats_manager
     STATS_AVAILABLE = True
-    print("✅ 통계 시스템 연동 완료 (강화시스템)")
+    print("✅ 통계 시스템 연동 완료")
 except ImportError:
     STATS_AVAILABLE = False
     print("⚠️ 통계 시스템을 찾을 수 없습니다 (강화시스템 - 독립 모드)")
@@ -28,7 +28,7 @@ except ImportError:
     
     stats_manager = MockStatsManager()
 
-# ✅ 통계 기록 헬퍼 함수 (선택적)
+# 통계 기록 헬퍼 함수
 def record_enhancement_attempt(user_id: str, username: str, is_success: bool):
     """강화 시도 통계 기록 (선택적)"""
     if STATS_AVAILABLE:
@@ -50,14 +50,16 @@ ENHANCEMENT_CONFIG = {
     "max_level": 1000,              # 최대 레벨
     "min_safe_level": 10,           # 강등 방지 최소 레벨
     "level_change_range": (1, 5),   # 레벨 변동 범위
-    "backup_interval": 50,          # 50회마다 백업
-    "max_items_per_user": 3         # 갯수제한
+    "backup_interval": 30,          # 50회마다 백업
+    "max_items_per_user": 3,        # 갯수제한
+    "special_reward_chance": 0.1    # 당첨 확률
 }
 
 # 데이터 디렉토리 생성
 os.makedirs("data", exist_ok=True)
 
-# ✅ 강화 확률 계산 함수들
+
+# 강화 확률 계산 함수들
 def get_success_rate(level: int) -> float:
     """레벨에 따른 성공률 계산"""
     if level == 0:
@@ -168,7 +170,7 @@ def get_level_tier_info(level: int) -> Dict:
             "tier": "챌린저"
         }
 
-# ✅ 강화 데이터 관리 클래스 (완전 독립)
+# 강화 데이터 관리 클래스
 class EnhancementDataManager:
     def __init__(self):
         self.data_file = ENHANCEMENT_CONFIG["data_file"]
@@ -543,7 +545,7 @@ class EnhancementSystemCog(commands.Cog):
                 
                 if len(user_items) >= max_limit:
                     return await interaction.response.send_message(
-                        f"🚫 **아이템 보유 제한:** 최대 **{max_limit}개**의 아이템만 소유할 수 있습니다.\n"
+                        f"❎ **아이템 보유 제한:** 최대 **{max_limit}개**의 아이템만 소유할 수 있습니다.\n"
                         f"현재 보유 중인 아이템을 관리하거나 다른 아이템을 강화할 수 없습니다.", 
                         ephemeral=True
                     )
@@ -582,7 +584,18 @@ class EnhancementSystemCog(commands.Cog):
                     title=title,
                     color=tier_info["color"]
                 )
-                
+
+                # 당첨 문구 로직 추가
+                # 설정된 확률에 따라 당첨 여부 결정
+                is_winner = random.random() * 100 <= ENHANCEMENT_CONFIG.get("special_reward_chance", 1.0)
+            
+                if is_winner:
+                    embed.add_field(
+                        name="🎁 특별 이벤트 발생!",
+                        value="### **당첨. 관리자에게 문의주세요**", # 강조를 위해 헤더(###) 사용
+                        inline=False
+                    )
+
                 # [수정] 성공 시 혼란을 주는 '절망' 필드 제거
                 embed.add_field(
                     name=emotion,
@@ -606,7 +619,7 @@ class EnhancementSystemCog(commands.Cog):
                 ]
                 embed.add_field(
                     name="🎉 성공!",
-                    value=f"{random.choice(success_msgs)}\n📈 랜덤 수치로 **{level_change}레벨** 상승", # ✅ '렌딩'을 '랜덤 수치'로 수정
+                    value=f"{random.choice(success_msgs)}\n📈 랜덤 수치로 **{level_change}레벨** 상승",
                     inline=False
                 )
                 
@@ -682,7 +695,6 @@ class EnhancementSystemCog(commands.Cog):
             success_count = item_data.get("success_count", 0)
             downgrade_count = item_data.get("downgrade_count", 0) # ✅ 강등 횟수 가져오기
             no_change_fail_count = total_attempts - success_count - downgrade_count # 순수 현상 유지 실패 횟수
-            
             # item_success_rate = (success_count / total_attempts * 100) if total_attempts > 0 else 0
             
             embed.add_field(
@@ -992,14 +1004,9 @@ class EnhancementSystemCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="강화초기화", description="[관리자 전용] 모든 강화 데이터를 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def reset_enhancement(self, interaction: discord.Interaction):
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
-        
         try:
             # 데이터 확인
             total_items = len(self.enhancement_data.data.get("items", {}))
@@ -1050,6 +1057,5 @@ class EnhancementSystemCog(commands.Cog):
             print(f"❌ 강화초기화 명령어 오류: {e}")
             await interaction.response.send_message("❌ 초기화 중 오류가 발생했습니다.", ephemeral=True)
 
-# ✅ Cog setup 함수
 async def setup(bot):
     await bot.add_cog(EnhancementSystemCog(bot))

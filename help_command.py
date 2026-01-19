@@ -357,9 +357,9 @@ class HelpCommandCog(commands.Cog):
 
     # In HelpCommandCog class
     @app_commands.command(name="관리자도움말", description="봇의 모든 명령어와 기능을 확인할 수 있는 메뉴입니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def admin_help_command(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(":x: 관리자 권한이 필요합니다.", ephemeral=True)
         try:
             embed = discord.Embed(
                 title="📖 딜러양 관리자 도움말 메뉴",

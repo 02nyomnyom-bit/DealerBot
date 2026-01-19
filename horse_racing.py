@@ -35,7 +35,7 @@ FINISH_LINE = TRACK_LENGTH - 1  # 결승선
 HORSE_EMOJI = "🐎"
 TRACK_EMOJI = "."  # 트랙 표시
 FINISH_EMOJI = "🏁"
-SIGNUP_TIME = 180  # 신청 시간 3분 (초)
+SIGNUP_TIME = 120  # 신청 시간 2분 (초)
 
 class HorseRacing:
     def __init__(self, horses: List[str]):
@@ -232,7 +232,7 @@ class ManualSignupView(discord.ui.View):
             if len(self.participants) >= self.max_participants:
                 embed.add_field(name="📢 안내", value="인원이 가득 차서 곧 경주가 시작됩니다!", inline=False)
             
-            embed.set_footer(text=f"주최자: {self.organizer.display_name} | 3분 후 자동 시작 또는 인원 충족 시 즉시 시작")
+            embed.set_footer(text=f"주최자: {self.organizer.display_name} | 2분 후 자동 시작 또는 인원 충족 시 즉시 시작")
             
             if self.message:
                 await self.message.edit(embed=embed, view=self)
@@ -567,6 +567,8 @@ class HorseRacingCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="경마", description="[관리자 전용] 경마 게임을 생성합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         모드="경마 모드를 선택하세요",
         인원="수동 모드: 최대 참가자 수 / 자동 모드: 참가자 이름 (쉼표로 구분)"
@@ -577,10 +579,6 @@ class HorseRacingCog(commands.Cog):
     ])
     async def horse_racing(self, interaction: discord.Interaction, 모드: str, 인원: str):
         try:
-            # 관리자 권한 확인
-            if not interaction.user.guild_permissions.administrator:
-                return await interaction.response.send_message("❌ 이 명령어는 관리자만 사용할 수 있습니다.", ephemeral=True)
-            
             if 모드 == "수동":
                 # 수동 모드: 참가자 모집
                 try:

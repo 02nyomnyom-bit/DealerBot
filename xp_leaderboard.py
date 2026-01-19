@@ -244,6 +244,8 @@ class XPLeaderboardCog(commands.Cog):
     # 수정된 xp_leaderboard.py 파일
 
     @app_commands.command(name="레벨업채널설정", description="레벨업 알림이 전송될 채널을 설정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def set_levelup_channel(self, interaction: Interaction, channel: discord.TextChannel):
         if interaction.guild is None:
             await interaction.response.send_message("이 명령어는 서버에서만 사용할 수 있습니다.", ephemeral=True)
@@ -516,6 +518,8 @@ class XPLeaderboardCog(commands.Cog):
     
     # ===== 관리자 명령어들 =====
     @app_commands.command(name="경험치관리", description="[관리자 전용] XP 및 레벨 관리")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         작업="수행할 작업",
         대상자="대상 사용자 (일부 작업에만 필요)",
@@ -536,9 +540,6 @@ class XPLeaderboardCog(commands.Cog):
     ])
     async def xp_management(self, interaction: Interaction, 작업: str, 대상자: Member = None, 수량: int = None):
         """XP 관리 명령어"""
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
-        
         guild_id = str(interaction.guild.id)
         
         try:
@@ -793,10 +794,9 @@ class XPLeaderboardCog(commands.Cog):
             return False
 
     @app_commands.command(name="경험치데이터확인", description="[관리자 전용] 등록되지 않은 사용자의 경험치 데이터를 확인합니다.")
-    @app_commands.describe(
-        작업="수행할 작업",
-        확인="정말로 실행하시겠습니까? (삭제 작업시 필수)"
-    )
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    @app_commands.describe(작업="수행할 작업", 확인="정말로 실행하시겠습니까? (삭제 작업시 필수)")
     @app_commands.choices(작업=[
         app_commands.Choice(name="📊 불일치 데이터 확인만", value="check_only"),
         app_commands.Choice(name="🧹 등록되지 않은 사용자 XP 삭제", value="cleanup_unregistered"),
@@ -806,9 +806,6 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="❌ 아니오", value="cancelled")
     ])
     async def check_xp_data_integrity(self, interaction: Interaction, 작업: str, 확인: str = "cancelled"):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
-    
         guild_id = str(interaction.guild.id)
         await interaction.response.defer(ephemeral=True)
 

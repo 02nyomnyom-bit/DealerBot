@@ -11,7 +11,6 @@ from database_manager import DatabaseManager
 class MemberExitLogger(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # 길드별 DB 인스턴스를 관리하는 대신, 각 메소드에서 필요할 때 생성합니다.
         print("✅ 통합 멤버 퇴장 로그 시스템 코그 초기화 완료")
 
     async def get_member_server_time(self, member: Member):
@@ -141,11 +140,10 @@ class MemberExitLogger(commands.Cog):
         return embed
 
     @app_commands.command(name="퇴장로그설정", description="[관리자 전용] 멤버 퇴장 로그 채널을 설정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(채널="퇴장 로그를 전송할 채널")
     async def setup_exit_log(self, interaction: discord.Interaction, 채널: discord.TextChannel):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
-        
         permissions = 채널.permissions_for(interaction.guild.me)
         if not permissions.send_messages or not permissions.embed_links:
             return await interaction.response.send_message(
@@ -175,10 +173,9 @@ class MemberExitLogger(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
     @app_commands.command(name="퇴장로그비활성화", description="[관리자 전용] 멤버 퇴장 로그를 비활성화합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def disable_exit_log(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
-        
         db = DatabaseManager(str(interaction.guild.id))
         # ✅ 데이터베이스에서 설정 비활성화
         query = "UPDATE log_settings SET enabled = 0 WHERE guild_id = ?"
@@ -192,10 +189,9 @@ class MemberExitLogger(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
     @app_commands.command(name="퇴장로그상태", description="[관리자 전용] 현재 퇴장 로그 설정 상태를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def exit_log_status(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
-        
         db = DatabaseManager(str(interaction.guild.id))
         setting = db.execute_query("SELECT * FROM log_settings WHERE guild_id = ?", (str(interaction.guild.id),), 'one')
         
@@ -232,6 +228,8 @@ class MemberExitLogger(commands.Cog):
 
     @app_commands.command(name="퇴장로그", description="서버를 떠난 멤버의 최근 로그를 확인합니다.")
     @app_commands.describe(일수="조회할 일수 (기본값: 7일)")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def exit_log_command(self, interaction: discord.Interaction, 일수: int = 7):
         await interaction.response.defer(ephemeral=True)
 

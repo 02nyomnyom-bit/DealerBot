@@ -192,15 +192,10 @@ class TaxSystemCog(commands.Cog):
         self.tax_manager = tax_manager
     
     @app_commands.command(name="세금설정", description="[관리자 전용] 특정 역할에 대한 세금 XP를 설정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(역할="세금을 부과할 역할", xp="빼앗을 XP 양")
     async def set_tax(self, interaction: discord.Interaction, 역할: discord.Role, xp: int):
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
-        
         # XP 유효성 검사
         if xp <= 0:
             return await interaction.response.send_message(
@@ -276,15 +271,10 @@ class TaxSystemCog(commands.Cog):
             )
     
     @app_commands.command(name="세금수거", description="[관리자 전용] 특정 역할의 사용자들로부터 세금을 수거합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(역할="세금을 수거할 역할")
     async def collect_tax(self, interaction: discord.Interaction, 역할: discord.Role):
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
-        
         # 데이터베이스 연결 확인
         if not DATABASE_AVAILABLE:
             return await interaction.response.send_message(
@@ -433,6 +423,8 @@ class TaxSystemCog(commands.Cog):
         await interaction.edit_original_response(embed=result_embed)
     
     @app_commands.command(name="세금목록", description="현재 설정된 세금 목록을 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def tax_list(self, interaction: discord.Interaction):
         guild_id = str(interaction.guild.id)
         guild_taxes = self.tax_manager.get_tax_settings(guild_id)
@@ -509,15 +501,10 @@ class TaxSystemCog(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=False)
     
     @app_commands.command(name="세금삭제", description="[관리자 전용] 특정 역할의 세금 설정을 삭제합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(역할="세금 설정을 삭제할 역할")
     async def remove_tax(self, interaction: discord.Interaction, 역할: discord.Role):
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
-        
         guild_id = str(interaction.guild.id)
         role_id = str(역할.id)
         
@@ -563,14 +550,9 @@ class TaxSystemCog(commands.Cog):
             )
     
     @app_commands.command(name="세금초기화", description="[관리자 전용] 모든 세금 설정을 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def clear_all_taxes(self, interaction: discord.Interaction):
-        # 관리자 권한 확인
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
-        
         guild_id = str(interaction.guild.id)
         guild_taxes = self.tax_manager.get_tax_settings(guild_id)
         

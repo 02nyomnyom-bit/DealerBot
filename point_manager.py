@@ -467,6 +467,8 @@ class PointManager(commands.Cog):
             await interaction.response.send_message(f"❌ 선물 처리 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="데이터베이스상태", description="현재 데이터베이스 연결 상태를 확인합니다")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def database_status(self, interaction: Interaction):
         """데이터베이스 연결 상태 확인"""
         
@@ -657,13 +659,10 @@ class PointManager(commands.Cog):
 # ==================== 관리자 명령어들 ====================
 
     @app_commands.command(name="현금지급", description="[관리자 전용] 사용자에게 현금을 지급합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(사용자="현금을 받을 사용자", 금액="지급할 현금")
-    async def give_cash(self, interaction: Interaction, 사용자: Member, 금액: int):
-
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
-            return
-        
+    async def give_cash(self, interaction: Interaction, 사용자: Member, 금액: int): 
         # 🟢 추가: 길드별 DB 인스턴스를 가져옵니다.
         db = self._get_db(interaction.guild_id)
         
@@ -690,13 +689,10 @@ class PointManager(commands.Cog):
             await interaction.response.send_message(f"❌ 현금 지급 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="현금차감", description="[관리자 전용] 사용자의 현금을 차감합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(사용자="현금을 차감할 사용자", 금액="차감할 현금")
     async def deduct_cash(self, interaction: Interaction, 사용자: Member, 금액: int):
-
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
-            return
-        
         db = self._get_db(interaction.guild_id)
         
         user_id = str(사용자.id)
@@ -720,6 +716,8 @@ class PointManager(commands.Cog):
             await interaction.response.send_message(f"❌ 현금 차감 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="선물설정", description="[관리자 전용] 선물 시스템 설정을 변경합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         수수료율="수수료율 (0.0 ~ 1.0, 예: 0.1 = 10%)",
         최소금액="최소 선물 금액",
@@ -730,10 +728,7 @@ class PointManager(commands.Cog):
     async def gift_settings_cmd(self, interaction: Interaction, 수수료율: Optional[float] = None, 
                                최소금액: Optional[int] = None, 최대금액: Optional[int] = None,
                                일일제한: Optional[int] = None, 쿨다운분: Optional[int] = None):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
-            return
-        
+
         settings = self.gift_settings.settings
         changes = []
         

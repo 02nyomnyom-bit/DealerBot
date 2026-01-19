@@ -330,7 +330,7 @@ class EnhancedBot(commands.Bot):
         else: # 24시 ~ 5시
             greeting = "“새벽의 깊은 승부 중”"
 
-        status_text = f"📅{date_str} | {greeting} | (v1.7.1)"
+        status_text = f"📅{date_str} | {greeting} | (v1.7.2)"
         
         await self.change_presence(
             activity=discord.CustomActivity(name=status_text),
@@ -386,7 +386,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="딜러양 v1.7.1 - 서버 제한 시스템")
+                    embed.set_footer(text="딜러양 v1.7.2 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -426,10 +426,10 @@ class EnhancedBot(commands.Bot):
     
     # ✅ 서버 제한 상태 확인 명령어 추가
     @app_commands.command(name="서버제한상태", description="[관리자 전용] 현재 서버 제한 설정 상태를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def server_restriction_status(self, interaction: discord.Interaction):
         """서버 제한 설정 상태 확인"""
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         embed = discord.Embed(
             title="🔒 서버 제한 설정 상태",
@@ -491,15 +491,15 @@ class EnhancedBot(commands.Bot):
                 inline=False
             )
         
-        embed.set_footer(text="딜러양 v1.7.1 - 서버 제한 시스템")
+        embed.set_footer(text="딜러양 v1.7.2 - 서버 제한 시스템")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
     @app_commands.command(name="시스템상태", description="[관리자 전용] 봇의 현재 시스템 상태를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def system_status_slash(self, interaction: discord.Interaction):
         """시스템 상태 확인 (슬래시 명령어 버전)"""
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자만 사용할 수 있습니다.", ephemeral=True)
         
         # 시스템 정보 수집
         process = psutil.Process()
@@ -535,7 +535,7 @@ class EnhancedBot(commands.Bot):
             inline=True
         )
         
-        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.7.1")
+        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.7.2")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -610,7 +610,7 @@ class EnhancedBot(commands.Bot):
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
         
         print("=" * 50)
-        print("🎉 딜러양 v1.7.1 구동 중 (60초 후 명령어 동기화 예정)")
+        print("🎉 딜러양 v1.7.2 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
 
@@ -694,7 +694,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 딜러양 v1.7.1 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 딜러양 v1.7.2 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

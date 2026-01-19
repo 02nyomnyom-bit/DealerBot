@@ -319,8 +319,9 @@ class LotterySystem(commands.Cog):
             view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, jackpot_info, per_page=10)
             await interaction.response.send_message(embed=view.create_embed(), view=view)
 
-    @app_commands.command(name="로또추첨", description="로또 추첨을 진행합니다.[관리자 전용]")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.command(name="로또추첨", description="[관리자 전용] 로또 추첨을 진행합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def draw(self, interaction: discord.Interaction):
         await interaction.response.defer()
         

@@ -178,10 +178,9 @@ class RoleRewardCog(commands.Cog):
     
     # --- [기존 관리 명령어 유지] ---
     @app_commands.command(name="역할설정", description="[관리자] 특정 레벨 도달 시 부여할 역할을 설정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def set_role(self, interaction: discord.Interaction, 레벨: int, 역할: discord.Role):
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message("❌ 관리자 전용입니다.", ephemeral=True)
-        
         if 역할.position >= interaction.guild.me.top_role.position:
             return await interaction.response.send_message("❌ 봇의 역할보다 높습니다.", ephemeral=True)
 
@@ -189,6 +188,8 @@ class RoleRewardCog(commands.Cog):
             await interaction.response.send_message(f"✅ **Lv.{레벨}** 보상으로 **{역할.name}** 설정 완료!")
 
     @app_commands.command(name="역할목록", description="[관리자] 설정된 보상 목록을 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def list_roles(self, interaction: discord.Interaction):
         rewards = self.role_manager.role_rewards.get(str(interaction.guild.id), {})
         if not rewards: return await interaction.response.send_message("설정된 보상이 없습니다.", ephemeral=True)
@@ -197,6 +198,8 @@ class RoleRewardCog(commands.Cog):
         await interaction.response.send_message(embed=discord.Embed(title="📋 역할 보상 목록", description=msg, color=discord.Color.blue()))
 
     @app_commands.command(name="역할삭제", description="[관리자] 특정 레벨의 보상을 삭제합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def remove_role(self, interaction: discord.Interaction, 레벨: int):
         if self.role_manager.remove_role_reward(str(interaction.guild.id), 레벨):
             await interaction.response.send_message(f"✅ **Lv.{레벨}** 보상을 삭제했습니다.")
@@ -211,6 +214,8 @@ class RoleRewardCog(commands.Cog):
 
     # --- [신규 제외 역할 명령어 통합] ---
     @app_commands.command(name="역할제외등록", description="[관리자] 보상 제외 대상을 설정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def exclude_add(self, interaction: discord.Interaction, 역할: discord.Role):
         if self.role_manager.add_exclude_role(str(interaction.guild.id), str(역할.id)):
             await interaction.response.send_message(f"✅ {역할.mention} 보유자는 이제 보상에서 제외됩니다.")
@@ -218,6 +223,8 @@ class RoleRewardCog(commands.Cog):
             await interaction.response.send_message("❌ 이미 등록된 역할입니다.", ephemeral=True)
 
     @app_commands.command(name="역할제외해제", description="[관리자] 제외 설정을 해제합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def exclude_remove(self, interaction: discord.Interaction, 역할: discord.Role):
         if self.role_manager.remove_exclude_role(str(interaction.guild.id), str(역할.id)):
             await interaction.response.send_message(f"✅ {역할.mention} 제외 설정을 해제했습니다.")
@@ -225,6 +232,8 @@ class RoleRewardCog(commands.Cog):
             await interaction.response.send_message("❌ 목록에 없는 역할입니다.", ephemeral=True)
 
     @app_commands.command(name="역할제외목록", description="[관리자] 제외된 역할 목록을 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def exclude_list(self, interaction: discord.Interaction):
         lst = self.role_manager.exclude_roles.get(str(interaction.guild.id), [])
         if not lst: return await interaction.response.send_message("제외된 역할이 없습니다.", ephemeral=True)

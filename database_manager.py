@@ -246,6 +246,16 @@ class DatabaseManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
+        # 익명 전용 서버 설정 테이블 추가 (익명 채널 설정 등 저장용)
+        self.create_table(
+            "server_settings",
+            """
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            """
+        )
+
         # 익명 대화 기록 테이블 추가
         self.create_table(
             "anonymous_messages",

@@ -21,8 +21,8 @@ except ImportError:
 
 # 상수 설정
 MAX_BET = 5000  # 최대 배팅금: 5천 원
-PUSH_RETENTION = 0.95 # 무승부 시 5% 수수료 제외 (95%만 지급)
-WINNER_RETENTION = 0.95  # 승리 시 5% 수수료 제외 (95%만 지급)
+PUSH_RETENTION = 0
+WINNER_RETENTION = 0
 
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 

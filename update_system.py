@@ -259,12 +259,10 @@ class RealtimeUpdateSystem(commands.Cog):
         # self.auto_cleanup_task.start() # ❌ 자동 정리 작업 시작 중단
     
     @app_commands.command(name="업데이트추가", description="[관리자 전용] 새로운 업데이트를 추가합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(제목="업데이트 제목", 내용="업데이트 내용", 우선순위="우선순위 (긴급/중요/일반)")
     async def add_update(self, interaction: discord.Interaction, 제목: str, 내용: str, 우선순위: str = "일반"):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ 관리자만 사용 가능합니다.", ephemeral=True)
-            return
-        
         processed_description = 내용.replace("\\n", "\n")
         success = add_realtime_update(제목, processed_description, interaction.user.display_name, 우선순위)
         
@@ -281,6 +279,8 @@ class RealtimeUpdateSystem(commands.Cog):
             await interaction.response.send_message("❌ 업데이트 추가에 실패했습니다.", ephemeral=True)
 
     @app_commands.command(name="업데이트목록", description="현재 실시간 업데이트 목록을 확인합니다")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def list_updates(self, interaction: discord.Interaction):
         updates = load_realtime_updates()
         
@@ -337,12 +337,10 @@ class RealtimeUpdateSystem(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="업데이트삭제", description="[관리자 전용] 특정 ID의 업데이트를 삭제합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(업데이트_id="삭제할 업데이트의 ID")
     async def delete_update(self, interaction: discord.Interaction, 업데이트_id: int):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
-            return
-        
         success = delete_update_by_id(업데이트_id)
         
         if success:
@@ -361,11 +359,9 @@ class RealtimeUpdateSystem(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="전체업데이트정리", description="[관리자 전용] 모든 실시간 및 보관된 업데이트를 삭제합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def clear_all_updates_command(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
-            return
-
         success = clear_all_updates()
         
         if success:
@@ -384,11 +380,9 @@ class RealtimeUpdateSystem(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="업데이트통계", description="[관리자 전용] 시스템 통계를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def update_stats(self, interaction: discord.Interaction):
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ 관리자만 사용할 수 있는 명령어입니다.", ephemeral=True)
-            return
-        
         stats = get_update_statistics()
         
         embed = discord.Embed(
@@ -524,7 +518,7 @@ class RealtimeUpdateSystem(commands.Cog):
             inline=True
         )
         
-        embed.set_footer(text="딜러양 v1.7.1 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="딜러양 v1.7.2 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 

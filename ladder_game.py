@@ -14,7 +14,7 @@ class LadderGameCog(commands.Cog):
     @commands.hybrid_command(name="제비뽑기", description="제비뽑기를 합니다.")
     @app_commands.describe(
         인원="쉼표로 구분된 참여자 목록 (예: 철수,영희,아영)",
-        결과="쉼표로 구분된 결과 목록 (예: 당첨,꽝,꽝)"
+        결과="쉼표로 구분된 결과 목록 (예: 당첨,꽝,꽝) 미작성시 모두 꽝으로 표기함."
     )
     async def 사다리타기(
         self,
@@ -79,6 +79,5 @@ class LadderGameCog(commands.Cog):
             view=LadderView()
         )
 
-# ✅ setup 함수 (확장 로드용)
 async def setup(bot: commands.Bot):
     await bot.add_cog(LadderGameCog(bot))

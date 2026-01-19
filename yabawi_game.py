@@ -10,7 +10,7 @@ import asyncio
 # 설정 상수
 SUCCESS_RATES = [0.6, 0.55, 0.5, 0.45, 0.4] # 각 라운드 별 성공률
 MAX_CHALLENGES = 5                          # 최대 도전 가능 횟수 (5연승 시 자동 종료)
-WINNER_RETENTION = 0.95                     # 승리 시 95%만 지급 (5% 수수료)
+WINNER_RETENTION = 0
 active_games_by_user = set()                # 중복 게임 방지를 위한 현재 진행 중인 유저 목록
 
 # 통계 시스템 연동 (모듈이 없을 경우를 대비한 예외 처리)

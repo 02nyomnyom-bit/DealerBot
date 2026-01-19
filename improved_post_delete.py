@@ -468,14 +468,9 @@ class ImprovedPostDeleteCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="글삭제", description="[관리자 전용] 메시지를 삭제합니다.")
-    async def delete_posts(self, interaction: Interaction):
-        # 관리자 권한 체크
-        if not interaction.user.guild_permissions.administrator:
-            return await interaction.response.send_message(
-                "❌ 이 명령어는 관리자만 사용할 수 있습니다.", 
-                ephemeral=True
-            )
-        
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    async def delete_posts(self, interaction: Interaction):      
         # 인터랙티브 삭제 모드
         await self.interactive_delete_mode(interaction)
 
@@ -566,7 +561,6 @@ class ImprovedPostDeleteCog(commands.Cog):
         else:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-# ✅ setup 함수 (핵심!)
 async def setup(bot):
     await bot.add_cog(ImprovedPostDeleteCog(bot))
     print("✅ 완전 작동 개선된 글삭제 시스템 로드 완료")
