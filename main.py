@@ -589,9 +589,9 @@ class EnhancedBot(commands.Bot):
 
         await self.load_extensions()
 
-        # ⚠️ 전역 삭제(clear_commands)를 잠시 주석 처리하거나 빼고 실행해 보세요.
-        # self.tree.clear_commands(guild=None) 
-        # await self.tree.sync() 
+        # ⚠️ 전역 삭제
+        self.tree.clear_commands(guild=None) 
+        await self.tree.sync() 
 
         if Config.MAIN_GUILD_IDS:
             for guild_id in Config.MAIN_GUILD_IDS:
