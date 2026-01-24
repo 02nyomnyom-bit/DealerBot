@@ -105,8 +105,26 @@ class DatabaseManager:
 
     def _create_tables(self):
         """테이블 생성 및 스키마 마이그레이션"""
-        # 기존의 테이블 생성 로직을 새로운 create_table 함수로 대체
-        # users 테이블에 guild_id 추가 및 복합 PRIMARY KEY 설정
+        # 1. users 테이블 (기존 코드)
+
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id TEXT PRIMARY KEY,
+                username TEXT,
+                display_name TEXT,
+                cash INTEGER DEFAULT 0,
+                bank INTEGER DEFAULT 0,
+                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        
         self.create_table(
             "users",
             """

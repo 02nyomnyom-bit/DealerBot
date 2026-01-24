@@ -819,19 +819,15 @@ async def save_points(bot, guild_id: int, points_data):
     except Exception as e:
         print(f"save_points 전역 오류: {e}")
 
-async def add_point(bot, guild_id: int, user_id, amount):
-    """기존 시스템 호환 - 포인트 추가"""
-    try:
-        point_manager_cog = bot.get_cog("PointManager")
-        if point_manager_cog:
-            db = point_manager_cog._get_db(guild_id)
-            return db.add_user_cash(str(user_id), amount)
-        else:
-            print("PointManager cog not found for add_point.")
-            return 0
-    except Exception as e:
-        print(f"add_point 오류 (사용자 {user_id}): {e}")
-        return 0
+async def add_point(bot, guild_id, user_id, amount):
+    print(f"[DEBUG] 포인트 지급 시도: 유저 {user_id}, 금액 {amount}") # 이 줄 추가
+    cog = bot.get_cog("PointManager")
+    if cog:
+        # ... 기존 로직 ...
+        print(f"[DEBUG] 지급 완료!") # 이 줄 추가
+        return True
+    print(f"[DEBUG] PointManager Cog를 찾을 수 없음!") # 이 줄 추가
+    return False
 
 async def get_point(bot, guild_id: int, user_id):
     """기존 시스템 호환 - 포인트 조회"""
