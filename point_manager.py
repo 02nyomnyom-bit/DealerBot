@@ -821,29 +821,26 @@ async def save_points(bot, guild_id: int, points_data):
 
 async def add_point(bot, guild_id, user_id, amount):
     """
-    수정된 버전: Cog를 거치지 않고 직접 DatabaseManager를 통해 지급
+    이 함수가 실행될 때 터미널에 로그가 찍혀야 정상입니다.
     """
     try:
-        # 1. DatabaseManager import 확인
         from database_manager import DatabaseManager
-        
-        # 2. 해당 길드의 DB 인스턴스 생성 또는 가져오기
+        # Cog를 거치지 않고 직접 DB에 접속 (가장 확실한 방법)
         db = DatabaseManager(guild_id=str(guild_id))
         
-        # 3. 포인트 지급 (amount가 양수면 추가, 음수면 차감)
-        # database_manager.py에 정의된 add_user_cash 사용
-        new_balance = db.add_user_cash(str(user_id), int(amount))
+        # 실제 금액 추가
+        new_cash = db.add_user_cash(str(user_id), int(amount))
+        db.add_transaction(str(user_id), "게임 승리 보상", int(amount))
         
-        # 4. 거래 기록 남기기
-        db.add_transaction(str(user_id), "게임 결과 보상", int(amount))
-        
-        print(f"✅ [포인트 지급 완료] 유저: {user_id}, 변동: {amount}, 잔액: {new_balance}")
+        # 봇 터미널(콘솔)에 이 로그가 뜨는지 확인하세요!
+        print(f"✅ [포인트 지급 완료] 유저: {user_id} | 금액: {amount} | 잔액: {new_cash}")
         return True
     except Exception as e:
         print(f"❌ [포인트 지급 실패] 오류: {e}")
         return False
 
 async def get_point(bot, guild_id, user_id):
+    """잔액 확인도 직접 DB를 통하도록 수정하여 안정성을 높입니다."""
     try:
         from database_manager import DatabaseManager
         db = DatabaseManager(guild_id=str(guild_id))
