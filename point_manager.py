@@ -820,27 +820,36 @@ async def save_points(bot, guild_id: int, points_data):
         print(f"save_points 전역 오류: {e}")
 
 async def add_point(bot, guild_id, user_id, amount):
-    print(f"[DEBUG] 포인트 지급 시도: 유저 {user_id}, 금액 {amount}") # 이 줄 추가
-    cog = bot.get_cog("PointManager")
-    if cog:
-        # ... 기존 로직 ...
-        print(f"[DEBUG] 지급 완료!") # 이 줄 추가
-        return True
-    print(f"[DEBUG] PointManager Cog를 찾을 수 없음!") # 이 줄 추가
-    return False
-
-async def get_point(bot, guild_id: int, user_id):
-    """기존 시스템 호환 - 포인트 조회"""
+    """
+    수정된 버전: Cog를 거치지 않고 직접 DatabaseManager를 통해 지급
+    """
     try:
-        point_manager_cog = bot.get_cog("PointManager")
-        if point_manager_cog:
-            db = point_manager_cog._get_db(guild_id)
-            return db.get_user_cash(str(user_id))
-        else:
-            print("PointManager cog not found for get_point.")
-            return 0
+        # 1. DatabaseManager import 확인
+        from database_manager import DatabaseManager
+        
+        # 2. 해당 길드의 DB 인스턴스 생성 또는 가져오기
+        db = DatabaseManager(guild_id=str(guild_id))
+        
+        # 3. 포인트 지급 (amount가 양수면 추가, 음수면 차감)
+        # database_manager.py에 정의된 add_user_cash 사용
+        new_balance = db.add_user_cash(str(user_id), int(amount))
+        
+        # 4. 거래 기록 남기기
+        db.add_transaction(str(user_id), "게임 결과 보상", int(amount))
+        
+        print(f"✅ [포인트 지급 완료] 유저: {user_id}, 변동: {amount}, 잔액: {new_balance}")
+        return True
     except Exception as e:
-        print(f"get_point 오류 (사용자 {user_id}): {e}")
+        print(f"❌ [포인트 지급 실패] 오류: {e}")
+        return False
+
+async def get_point(bot, guild_id, user_id):
+    try:
+        from database_manager import DatabaseManager
+        db = DatabaseManager(guild_id=str(guild_id))
+        user_data = db.get_user(str(user_id))
+        return user_data['cash'] if user_data else 0
+    except:
         return 0
 
 async def is_registered(bot, guild_id: int, user_id):
