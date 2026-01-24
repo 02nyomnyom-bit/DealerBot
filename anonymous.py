@@ -13,37 +13,32 @@ DEVELOPER_ID = 533493429489893390
 
 # 익명 채널 설정 관련 View
 class AnonymousChannelConfigView(discord.ui.View):
-    """익명 채널 설정을 위한 버튼 뷰"""
-    def __init__(self, db_manager, channel: discord.TextChannel = None):
+    """익명 채널 다중 설정을 위한 버튼 뷰"""
+    def __init__(self, db_manager, channel: discord.TextChannel):
         super().__init__(timeout=60)
         self.db = db_manager
         self.target_channel = channel
 
-    @discord.ui.button(label="추가 [활성화]", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="채널 추가", style=discord.ButtonStyle.success)
     async def add_channel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self.target_channel:
-            return await interaction.response.send_message("❎ 설정할 채널 정보 없음. 명령어를 다시 실행해주세요.", ephemeral=True)
-        
         try:
             self.db.execute_query(
                 "INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)", 
-                ("anonymous_channel", str(self.target_channel.id))
+                (f"anon_ch_{self.target_channel.id}", str(self.target_channel.id))
             )
-            await interaction.response.edit_message(content=f"✅ 익명 채널이 {self.target_channel.mention}으로 설정되었습니다.", view=None)
-        
+            await interaction.response.edit_message(content=f"✅ {self.target_channel.mention}이 익명 채널 목록에 추가되었습니다.", view=None)
         except Exception as e:
-            logger.error(f"익명 채널 설정 중 오류: {e}")
-            await interaction.response.send_message("❌ 설정 저장 중 오류가 발생했습니다.", ephemeral=True)
+            logger.error(f"익명 채널 추가 중 오류: {e}")
+            await interaction.response.send_message("❌ 저장 중 오류가 발생했습니다.", ephemeral=True)
 
-    @discord.ui.button(label="해제 [비활성화]", style=discord.ButtonStyle.danger)
-    async def clear_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="채널 제거", style=discord.ButtonStyle.danger)
+    async def remove_channel(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            self.db.execute_query("DELETE FROM server_settings WHERE key = ?", ("anonymous_channel",))
-            await interaction.response.edit_message(content="✅ 익명 채널 설정이 비활성화되었습니다.", view=None)
-        
+            self.db.execute_query("DELETE FROM server_settings WHERE key = ?", (f"anon_ch_{self.target_channel.id}",))
+            await interaction.response.edit_message(content=f"✅ {self.target_channel.mention}이 익명 채널에서 해제되었습니다.", view=None)
         except Exception as e:
-            logger.error(f"익명 채널 초기화 중 오류: {e}")
-            await interaction.response.send_message("❌ 초기화 중 오류가 발생했습니다.", ephemeral=True)
+            logger.error(f"익명 채널 제거 중 오류: {e}")
+            await interaction. Humanities.send_message("❌ 처리 중 오류가 발생했습니다.", ephemeral=True)
             
 # 대나무 숲 관련 View - 발신자 확인
 class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인'):
@@ -97,46 +92,32 @@ class AnonymousSystem(commands.Cog):
     def get_db(self, guild_id: int):
         return DatabaseManager(str(guild_id))
     
-    @app_commands.command(name="익명채널설정", description="[관리자 전용] 익명 채널을 추가하거나 설정을 해제합니다.")
+    @app_commands.command(name="익명채널설정", description="[관리자] 익명 채널을 추가하거나 제거합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def set_channel_config(self, interaction: discord.Interaction, 채널: discord.TextChannel = None):
+    async def set_channel_config(self, interaction: discord.Interaction, 채널: discord.TextChannel):
         """버튼을 통해 익명 채널 설정을 관리합니다."""
         db = self.get_db(interaction.guild.id)
         view = AnonymousChannelConfigView(db, 채널)
-        
-        msg = "수행할 작업을 선택해주세요."
-        if 채널:
-            msg = f"선택한 채널: {채널.mention}\n익명 채널로 추가하시겠습니까, 아니면 기존 설정을 해제하시겠습니까?"
-        
-        await interaction.response.send_message(msg, view=view, ephemeral=True)
+        await interaction.response.send_message(f"대상 채널: {채널.mention}\n이 채널의 익명 설정을 관리하시겠습니까?", view=view, ephemeral=True)
 
     @app_commands.command(name="익명", description="익명 메시지를 보냅니다.")
     async def anonymous_send(self, interaction: discord.Interaction, 대화: str):
         db = self.get_db(interaction.guild.id)
         
-        # 설정된 채널 ID 가져오기
-        res = db.execute_query("SELECT value FROM server_settings WHERE key = ?", ("anonymous_channel",), 'one')
-        allowed_id = int(res['value']) if res else None
+        # 1. 모든 익명 채널 ID 가져오기 (LIKE 연산자 사용)
+        results = db.execute_query("SELECT value FROM server_settings WHERE key LIKE 'anon_ch_%'", (), 'all')
+        allowed_ids = [int(r['value']) for r in results] if results else []
 
-        # 1. 채널 존재 여부 및 예외 처리
-        if allowed_id:
-            actual_channel = self.bot.get_channel(allowed_id)
-            if actual_channel is None:
-                # DB에는 있으나 실제 서버에서 삭제된 경우
-                db.execute_query("DELETE FROM server_settings WHERE key = ?", ("anonymous_channel",))
-                return await interaction.response.send_message("🛑 익명 채널이 삭제되었습니다. 관리자가 다시 설정해야 합니다.", ephemeral=True)
-
-        # 2. 채널 일치 검증
-        if interaction.channel_id != allowed_id:
-            await interaction.response.send_message("🚫 지정된 채널에서만 사용 가능합니다.", ephemeral=True)
+        # 2. 현재 채널이 허용된 목록에 있는지 검증
+        if interaction.channel_id not in allowed_ids:
+            await interaction.response.send_message("🚫 이곳은 익명 채널이 아닙니다.", ephemeral=True)
             
-            # 개발자에게 제보 전송
+            # 개발자 제보 로직 (기존과 동일)
             developer = self.bot.get_user(DEVELOPER_ID)
             if developer:
-                report_embed = discord.Embed(title="🚨 지정 외 채널 사용 시도", color=discord.Color.orange())
-                report_embed.description = f"**서버:** {interaction.guild.name}\n**사용자:** {interaction.user}\n**채널:** {interaction.channel.name}"
-                report_embed.add_field(name="내용", value=대화)
+                report_embed = discord.Embed(title="🚨 미지정 채널 사용 시도", color=discord.Color.orange())
+                report_embed.description = f"**서버:** {interaction.guild.name}\n**사용자:** {interaction.user}\n**채널:** {interaction.channel.name}\n**내용:** {대화}"
                 try: await developer.send(embed=report_embed)
                 except: pass
             return
@@ -150,9 +131,7 @@ class AnonymousSystem(commands.Cog):
             msg_id = f"{random.randint(10, 999)}.{random.randint(10, 999)}"
             if not db.execute_query("SELECT 1 FROM anonymous_messages WHERE msg_id = ?", (msg_id,), 'one'): break
             attempts += 1
-            if attempts >= max_attempts:
-                db.execute_query("DELETE FROM anonymous_messages")
-                break
+            if attempts >= max_attempts: break
 
         try:
             db.execute_query("INSERT INTO anonymous_messages (msg_id, user_id, user_name, content) VALUES (?, ?, ?, ?)", 
