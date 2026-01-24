@@ -79,7 +79,7 @@ class YabawiGameView(View):
             if self.initial_bet_deducted:
                 if self.wins > 0:
                     # 1승 이상이면 현재까지의 보상 지급
-                    payout = int(self.current_pot * WINNER_RETENTION)
+                    payout = int(self.current_pot)
                     await point_manager.add_point(self.bot, self.guild_id, self.user_id, payout)
                     record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, payout, True)
                     timeout_msg = f"⏰ 시간 초과! 현재까지의 보상 {payout:,}원이 지급되었습니다."
@@ -137,7 +137,7 @@ class YabawiGameView(View):
             
             if self.wins >= MAX_CHALLENGES:
                 # 5연승 달성 시 강제 종료 및 보상 지급
-                final_payout = int(self.current_pot * WINNER_RETENTION)
+                final_payout = int(self.current_pot)
                 await point_manager.add_point(self.bot, self.guild_id, self.user_id, final_payout)
                 record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, final_payout, True)
                 self.processing = False # 해제
@@ -186,7 +186,7 @@ class StopButton(discord.ui.Button):
         # [수정] 중복 클릭 방지 해제 (필요 시)
         view.processing = False 
         
-        final_payout = int(view.current_pot * WINNER_RETENTION)
+        final_payout = int(view.current_pot)
         await point_manager.add_point(view.bot, view.guild_id, view.user_id, final_payout)
         record_yabawi_game(view.user_id, view.user.display_name, view.base_bet, final_payout, True)
 

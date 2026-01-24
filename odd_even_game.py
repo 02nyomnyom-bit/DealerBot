@@ -98,7 +98,7 @@ class SingleOddEvenView(View):
         is_win = (user_choice == actual)
         
         # 배팅금의 2배 정산 (승리 시)
-        payout = int(self.bet * 2 * WINNER_RETENTION) if is_win else 0
+        payout = int(self.bet * 2) if is_win else 0
 
         if POINT_MANAGER_AVAILABLE and payout > 0:
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
@@ -216,7 +216,7 @@ class MultiOddEvenView(View):
 
         if winner:
             total_pot = self.bet * 2
-            reward = int(total_pot * WINNER_RETENTION)
+            reward = int(total_pot)
             if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             res_msg = f"🏆 {winner.mention} 승리! **{reward:,}원** 획득!"
         else:

@@ -77,7 +77,7 @@ class DiceModeSelectView(View):
         if user_roll > bot_roll:
             is_win = True
             res_msg = "🏆 승리!"
-            payout = int(self.bet * 2 * WINNER_RETENTION)
+            payout = int(self.bet * 2)
         elif user_roll < bot_roll:
             is_win = False
             res_msg = "💀 패배..."
@@ -85,7 +85,7 @@ class DiceModeSelectView(View):
         else:
             is_win = False # 무승부는 승리가 아님
             res_msg = "🤝 무승부!"
-            payout = int(self.bet * PUSH_RETENTION) # 무승부 환불 로직 적용
+            payout = int(self.bet) # 무승부 환불 로직 적용
 
         # 5. 포인트 지급 및 통계 기록
         if POINT_MANAGER_AVAILABLE and payout > 0:
@@ -224,7 +224,7 @@ class MultiDiceView(View):
         reward_text = ""
         p1_payout, p2_payout = 0, 0
         if winner:
-            reward = int(self.bet * 2 * WINNER_RETENTION)
+            reward = int(self.bet * 2)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             reward_text = f"\n**{reward:,}원** 획득!"

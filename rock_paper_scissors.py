@@ -79,12 +79,12 @@ class SingleRPSView(View):
         
         if user_choice == bot_choice:
             result = "무승부"
-            payout = int(self.bet * PUSH_RETENTION)
+            payout = int(self.bet)
         elif (user_choice == "가위" and bot_choice == "보") or \
              (user_choice == "바위" and bot_choice == "가위") or \
              (user_choice == "보" and bot_choice == "바위"):
             result = "승리"
-            payout = int(self.bet * 2 * WINNER_RETENTION)
+            payout = int(self.bet * 2)
         else:
             result = "패배"
             payout = 0
@@ -227,7 +227,7 @@ class MultiRPSView(View):
 
         # 정산
         if winner:
-            reward = int((self.bet * 2) * WINNER_RETENTION)
+            reward = int(self.bet * 2)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             msg = f"💰 승자에게 **{reward:,}원**이 지급되었습니다."

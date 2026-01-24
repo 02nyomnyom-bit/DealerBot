@@ -356,7 +356,7 @@ class MultiBlackjackView(View):
         else: result = "무승부!"
 
         if winner:
-            reward = int((self.bet * 2) * WINNER_RETENTION)
+            reward = int(self.bet * 2)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             reward_msg = f"💰 {winner.mention} 승리! **{reward:,}원** 획득!"
@@ -429,11 +429,11 @@ class BlackjackView(View):
         is_blackjack_win = self.game.is_blackjack(self.game.player_cards) and is_win
 
         if is_blackjack_win:
-            payout = int(self.bet * 2.5 * WINNER_RETENTION)
+            payout = int(self.bet * 2.5)
         elif is_win:
-            payout = int(self.bet * 2 * WINNER_RETENTION)
+            payout = int(self.bet * 2)
         elif self.game.result == "push":
-            payout = int(self.bet * PUSH_RETENTION)
+            payout = int(self.bet)
 
         if POINT_MANAGER_AVAILABLE and payout > 0:
             await point_manager.add_point(self.bot, guild_id, uid, payout)
