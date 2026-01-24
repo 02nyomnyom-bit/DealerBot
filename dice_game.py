@@ -8,7 +8,7 @@ import asyncio
 
 # --- 시스템 연동부 ---
 try:
-    import point_manager as pm_module
+    import point_manager
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
@@ -62,10 +62,10 @@ class DiceModeSelectView(View):
         
         # 포인트 차감
         if POINT_MANAGER_AVAILABLE:
-            balance = await pm_module.get_point(self.bot, interaction.guild_id, str(self.user.id))
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(self.user.id))
             if balance < self.bet:
                 return await interaction.followup.send("❌ 잔액이 부족합니다.", ephemeral=True)
-            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
 
         # 애니메이션 실행
         anim_embed = discord.Embed(title="🤖 주사위: 싱글 모드 (vs 봇)", color=discord.Color.blue())
@@ -79,7 +79,7 @@ class DiceModeSelectView(View):
             res_msg = "🏆 승리!"
             payout = int(self.bet * 2 * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
+                await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
         elif user_roll < bot_roll:
             is_win = False
             res_msg = "💀 패배..."
@@ -91,11 +91,7 @@ class DiceModeSelectView(View):
 
         # 5. 포인트 지급 및 통계 기록
         if POINT_MANAGER_AVAILABLE and payout > 0:
-            try:
-                success = await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
-                print(f"지급 시도: {payout}원 / 결과: {success}")
-            except Exception as e:
-                print(f"포인트 지급 중 에러 발생: {e}") # 여기서 에러 원인이 나옵니다.
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
 
         record_dice_game(str(self.user.id), self.user.display_name, self.bet, payout, is_win)
 
@@ -127,8 +123,8 @@ class MultiSetupView(View):
                 return await inter.response.send_message("❌ 올바른 상대를 선택하세요.", ephemeral=True)
             
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
-                await pm_module.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
+                await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
+                await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
             await self.start_multi(inter, target)
         
         v = View(); user_select.callback = callback; v.add_item(user_select)
@@ -137,7 +133,7 @@ class MultiSetupView(View):
     @discord.ui.button(label="🔓 공개 대전 (아무나)", style=discord.ButtonStyle.success)
     async def public_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         if POINT_MANAGER_AVAILABLE:
-            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
         await self.start_multi(interaction, None)
 
     async def start_multi(self, interaction, target):
@@ -165,9 +161,9 @@ class MultiDiceView(View):
         
         # 게임이 완료되지 않고 타임아웃되면, 베팅 금액을 환불합니다.
         if POINT_MANAGER_AVAILABLE:
-            await pm_module.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
+            await point_manager.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
             if self.p2:
-                await pm_module.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
+                await point_manager.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
 
         embed = discord.Embed(title="⏰ 시간 초과", description="게임이 취소되어 배팅금이 환불되었습니다.", color=discord.Color.red())
         try:
@@ -190,11 +186,11 @@ class MultiDiceView(View):
                 
                 view.p2 = user
                 if POINT_MANAGER_AVAILABLE:
-                    balance = await pm_module.get_point(view.bot, interaction.guild_id, str(user.id))
+                    balance = await point_manager.get_point(view.bot, interaction.guild_id, str(user.id))
                     if balance < view.bet:
                         view.p2 = None # 참가 자격 박탈
                         return await interaction.response.send_message("❌ 잔액이 부족하여 참가할 수 없습니다.", ephemeral=True)
-                    await pm_module.add_point(view.bot, interaction.guild_id, str(user.id), -view.bet)
+                    await point_manager.add_point(view.bot, interaction.guild_id, str(user.id), -view.bet)
                 
                 # P2 참가 후 즉시 게임 시작
                 await interaction.response.defer()
@@ -232,15 +228,15 @@ class MultiDiceView(View):
         if winner:
             reward = int(self.bet * 2 * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, guild_id, str(winner.id), reward)
+                await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             reward_text = f"\n**{reward:,}원** 획득!"
             if winner == self.p1: p1_payout = reward
             else: p2_payout = reward
         else: # 무승부
             refund = int(self.bet * PUSH_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, guild_id, str(self.p1.id), refund)
-                await pm_module.add_point(self.bot, guild_id, str(self.p2.id), refund)
+                await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
+                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
             reward_text = f"\n**{refund:,}원** 환불"
             p1_payout = p2_payout = refund
 
@@ -268,7 +264,7 @@ class DiceCog(commands.Cog):
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
         
         if POINT_MANAGER_AVAILABLE:
-            balance = await pm_module.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
             if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
         view = DiceModeSelectView(self.bot, interaction.user, 배팅)

@@ -7,7 +7,7 @@ import asyncio
 
 # --- 시스템 연동 및 설정 ---
 try:
-    import point_manager as pm_module
+    import point_manager
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
@@ -46,7 +46,7 @@ class RPSModeSelectView(View):
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 포인트 선차감
         if POINT_MANAGER_AVAILABLE:
-            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
 
         embed = discord.Embed(title="🤖 가위바위보: 싱글 모드", description="무엇을 내실지 선택해주세요!", color=discord.Color.blue())
         await interaction.response.edit_message(embed=embed, view=SingleRPSView(self.bot, self.user, self.bet))
@@ -85,16 +85,11 @@ class SingleRPSView(View):
              (user_choice == "보" and bot_choice == "바위"):
             result = "승리"
             payout = int(self.bet * 2 * WINNER_RETENTION)
+            if POINT_MANAGER_AVAILABLE:
+                await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
         else:
             result = "패배"
             payout = 0
-
-        if POINT_MANAGER_AVAILABLE and payout > 0:
-            try:
-                success = await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
-                print(f"지급 시도: {payout}원 / 결과: {success}")
-            except Exception as e:
-                print(f"포인트 지급 중 에러 발생: {e}") # 여기서 에러 원인이 나옵니다.
         
         record_rps_game(str(self.user.id), self.user.display_name, self.bet, payout, result == "승리")
 
@@ -120,8 +115,8 @@ class MultiSetupView(View):
                 return await inter.response.send_message("❌ 올바른 상대를 선택하세요.", ephemeral=True)
             
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
-                await pm_module.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
+                await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
+                await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
             await self.start_multi(inter, target)
         
         v = View(); user_select.callback = callback; v.add_item(user_select)
@@ -130,7 +125,7 @@ class MultiSetupView(View):
     @discord.ui.button(label="🔓 공개 대전 (아무나)", style=discord.ButtonStyle.success)
     async def public_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         if POINT_MANAGER_AVAILABLE:
-            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
         await self.start_multi(interaction, None)
 
     async def start_multi(self, interaction, target):
@@ -157,11 +152,11 @@ class MultiRPSView(View):
         
         if POINT_MANAGER_AVAILABLE:
             # 방장(p1)은 항상 환불
-            await pm_module.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
+            await point_manager.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
             refund_msg += f"- {self.p1.mention}님 환불 완료\n"
             # 참여자(p2)가 존재하면 환불
             if self.p2:
-                await pm_module.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
+                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
                 refund_msg += f"- {self.p2.mention}님 환불 완료"
 
         embed = discord.Embed(title="❌ 게임 취소", description=refund_msg, color=discord.Color.red())
@@ -191,10 +186,10 @@ class MultiRPSView(View):
         else:
             # 공개 대전(p2가 None)인 경우 첫 번째 누른 사람이 p2가 됨
             if POINT_MANAGER_AVAILABLE:
-                bal = await pm_module.get_point(self.bot, interaction.guild_id, str(user.id))
+                bal = await point_manager.get_point(self.bot, interaction.guild_id, str(user.id))
                 if (bal or 0) < self.bet:
                     return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
-                await pm_module.add_point(self.bot, interaction.guild_id, str(user.id), -self.bet)
+                await point_manager.add_point(self.bot, interaction.guild_id, str(user.id), -self.bet)
             
             self.p2 = user # 참가자 확정
             
@@ -233,15 +228,15 @@ class MultiRPSView(View):
         if winner:
             reward = int((self.bet * 2) * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, guild_id, str(winner.id), reward)
+                await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             msg = f"💰 승자에게 **{reward:,}원**이 지급되었습니다."
             record_rps_game(str(self.p1.id), self.p1.display_name, self.bet, reward if winner == self.p1 else 0, winner == self.p1)
             record_rps_game(str(self.p2.id), self.p2.display_name, self.bet, reward if winner == self.p2 else 0, winner == self.p2)
         else:
             refund = int(self.bet * PUSH_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, guild_id, str(self.p1.id), refund)
-                await pm_module.add_point(self.bot, guild_id, str(self.p2.id), refund)
+                await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
+                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
             msg = f"🤝 각자 **{refund:,}원**씩 환불되었습니다."
 
         embed = discord.Embed(
@@ -267,7 +262,7 @@ class RPSCog(commands.Cog):
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
         
         # balance가 None일 경우를 대비해 0으로 치환
-        balance = await pm_module   .get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+        balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
         user_balance = balance if balance is not None else 0
         
         if user_balance < 배팅: 

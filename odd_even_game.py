@@ -14,7 +14,7 @@ try:
 except ImportError:
     STATS_AVAILABLE = False
 try:
-    import point_manager as pm_module
+    import point_manager
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
@@ -50,7 +50,7 @@ class OddEvenModeSelectView(View):
     @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         if POINT_MANAGER_AVAILABLE:
-            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
         
         embed = discord.Embed(title="🤖 홀짝: 싱글 모드", description="주사위 결과가 **홀**일지 **짝**일지 예측하세요!", color=discord.Color.blue())
         await interaction.response.edit_message(embed=embed, view=SingleOddEvenView(self.bot, self.user, self.bet))
@@ -99,12 +99,8 @@ class SingleOddEvenView(View):
         
         # 배팅금의 2배 정산 (승리 시)
         payout = int(self.bet * 2 * WINNER_RETENTION) if is_win else 0
-        if POINT_MANAGER_AVAILABLE and payout > 0:
-            try:
-                success = await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
-                print(f"지급 시도: {payout}원 / 결과: {success}")
-            except Exception as e:
-                print(f"포인트 지급 중 에러 발생: {e}") # 여기서 에러 원인이 나옵니다.
+        if POINT_MANAGER_AVAILABLE and is_win:
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
     
         if STATS_AVAILABLE:
             stats_manager.record_game(str(self.user.id), self.user.display_name, "홀짝", self.bet, payout, is_win)
@@ -135,8 +131,8 @@ class MultiSetupView(View):
             if target.id == self.user.id or target.bot:
                 return await inter.response.send_message("❌ 올바른 상대를 선택하세요.", ephemeral=True)
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
-                await pm_module.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
+                await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
+                await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
             await self.start_multi(inter, target)
         
         v = View(); user_select.callback = callback; v.add_item(user_select)
@@ -145,7 +141,7 @@ class MultiSetupView(View):
     @discord.ui.button(label="🔓 공개 대전 (아무나)", style=discord.ButtonStyle.success)
     async def public_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         if POINT_MANAGER_AVAILABLE:
-            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
         await self.start_multi(interaction, None)
 
     async def start_multi(self, interaction, target):
@@ -167,8 +163,8 @@ class MultiOddEvenView(View):
         if self.game_completed: return
         guild_id = self.message.guild.id
         if POINT_MANAGER_AVAILABLE:
-            await pm_module.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
-            if self.p2: await pm_module.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
+            await point_manager.add_point(self.bot, guild_id, str(self.p1.id), self.bet)
+            if self.p2: await point_manager.add_point(self.bot, guild_id, str(self.p2.id), self.bet)
         embed = discord.Embed(title="❌ 타임아웃 환불", description="⏰ 두 분 모두 선택하지 않아 게임이 취소되었습니다.", color=discord.Color.red())
         await self.message.edit(embed=embed, view=None)
 
@@ -183,7 +179,7 @@ class MultiOddEvenView(View):
     async def make_choice(self, interaction, choice):
         if self.p2 is None and interaction.user.id != self.p1.id:
             self.p2 = interaction.user
-            if POINT_MANAGER_AVAILABLE: await pm_module.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
+            if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, interaction.guild_id, str(self.p2.id), -self.bet)
 
         if interaction.user.id not in [self.p1.id, self.p2.id if self.p2 else None]:
             return await interaction.response.send_message("❌ 참가자가 아닙니다.", ephemeral=True)
@@ -220,13 +216,13 @@ class MultiOddEvenView(View):
         if winner:
             total_pot = self.bet * 2
             reward = int(total_pot * WINNER_RETENTION)
-            if POINT_MANAGER_AVAILABLE: await pm_module.add_point(self.bot, guild_id, str(winner.id), reward)
+            if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
             res_msg = f"🏆 {winner.mention} 승리! **{reward:,}원** 획득!"
         else:
             refund = int(self.bet * PUSH_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await pm_module.add_point(self.bot, guild_id, str(self.p1.id), refund)
-                await pm_module.add_point(self.bot, guild_id, str(self.p2.id), refund)
+                await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
+                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
             res_msg = f"🤝 무승부! (**{refund:,}원** 환불)"
 
         result_embed = discord.Embed(title="🎲 홀짝 대결 결과", color=discord.Color.purple())
@@ -255,7 +251,7 @@ class OddEvenCog(commands.Cog):
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
         
         if POINT_MANAGER_AVAILABLE:
-            balance = await pm_module.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
             if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
         view = OddEvenModeSelectView(self.bot, interaction.user, 배팅)

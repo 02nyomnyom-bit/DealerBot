@@ -821,23 +821,22 @@ async def save_points(bot, guild_id: int, points_data):
 
 async def add_point(bot, guild_id, user_id, amount):
     """
-    [강제 지급 버전] Cog 연결 상태와 무관하게 무조건 DB에 기록합니다.
+    Cog 인스턴스가 있다면 그것을 사용하고, 없다면 직접 DB에 연결합니다.
     """
-    print(f"DEBUG: add_point 호출됨 - 유저:{user_id}, 금액:{amount}") 
+    cog = bot.get_cog("PointManager")
+    if cog:
+        db = cog._get_db(guild_id)
+        new_cash = db.add_user_cash(str(user_id), int(amount))
+        db.add_transaction(str(user_id), "게임 결과", int(amount))
+        return True
     
+    # Cog를 찾을 수 없을 때의 Fallback
     try:
         from database_manager import DatabaseManager
-        # 직접 DB 연결
         db = DatabaseManager(guild_id=str(guild_id))
-        
-        # 실제 데이터 업데이트
-        new_cash = db.add_user_cash(str(user_id), int(amount))
-        db.add_transaction(str(user_id), "게임 승리 보상", int(amount))
-        
-        print(f"✅ [지급 완료] 유저 {user_id}: {amount}원 (잔액: {new_cash}원)")
+        db.add_user_cash(str(user_id), int(amount))
         return True
-    except Exception as e:
-        print(f"❌ [지급 실패] 오류 발생: {e}")
+    except:
         return False
 
 async def get_point(bot, guild_id, user_id):
