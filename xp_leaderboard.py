@@ -1095,7 +1095,7 @@ class XPLeaderboardCog(commands.Cog):
         old_level = self.get_user_level(user_id, guild_id)
 
         # 3. XP 지급 (설정된 채팅 XP 값 사용)
-        xp_amount = self.xp_settings.get("command_xp", 5)
+        xp_amount = self.xp_settings.get("command_xp", 2)
         success = await self.add_xp(user_id, guild_id, xp_amount)
 
         if success:
