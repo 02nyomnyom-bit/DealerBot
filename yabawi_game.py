@@ -10,7 +10,7 @@ import asyncio
 # 설정 상수
 SUCCESS_RATES = [0.6, 0.55, 0.5, 0.45, 0.4] # 각 라운드 별 성공률
 MAX_CHALLENGES = 5                          # 최대 도전 가능 횟수 (5연승 시 자동 종료)
-WINNER_RETENTION = 0
+WINNER_RETENTION = 1.0
 active_games_by_user = set()                # 중복 게임 방지를 위한 현재 진행 중인 유저 목록
 
 # 통계 시스템 연동 (모듈이 없을 경우를 대비한 예외 처리)
@@ -22,7 +22,7 @@ except ImportError:
 
 # 포인트 매니저 연동 (잔액 확인 및 지급/차감 담당)
 try:
-    import point_manager
+    import point_manager as pm_module
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
@@ -79,13 +79,13 @@ class YabawiGameView(View):
             if self.initial_bet_deducted:
                 if self.wins > 0:
                     # 1승 이상이면 현재까지의 보상 지급
-                    payout = int(self.current_pot)
-                    await point_manager.add_point(self.bot, self.guild_id, self.user_id, payout)
+                    payout = int(self.current_pot * WINNER_RETENTION)
+                    await pm_module.add_point(self.bot, self.guild_id, self.user_id, payout)
                     record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, payout, True)
                     timeout_msg = f"⏰ 시간 초과! 현재까지의 보상 {payout:,}원이 지급되었습니다."
                 else:
                     # 첫 판에서 잠수 시 원금 환불
-                    await point_manager.add_point(self.bot, self.guild_id, self.user_id, self.base_bet)
+                    await pm_module.add_point(self.bot, self.guild_id, self.user_id, self.base_bet)
                     timeout_msg = f"⏰ 시간 초과! 활동이 없어 {self.base_bet:,}원이 환불되었습니다."
             else:
                 timeout_msg = "⏰ 시간 초과로 게임이 종료되었습니다."
@@ -107,14 +107,14 @@ class YabawiGameView(View):
         
         # 게임 시작 시 첫 회에만 포인트 차감
         if not self.initial_bet_deducted:
-            current_balance = await point_manager.get_point(self.bot, self.guild_id, self.user_id)
+            current_balance = await pm_module.get_point(self.bot, self.guild_id, self.user_id)
             if current_balance < self.base_bet:
                 self.processing = False
                 active_games_by_user.discard(self.user_id) # 게임 해제
                 return await interaction.response.send_message("❌ 잔액이 부족합니다!", ephemeral=True)
             
             # 모든 조건 통과 시 포인트 차감
-            await point_manager.add_point(self.bot, self.guild_id, self.user_id, -self.base_bet)
+            await pm_module.add_point(self.bot, self.guild_id, self.user_id, -self.base_bet)
             self.initial_bet_deducted = True
 
         # 2. 확률 판정 로직 적용
@@ -137,8 +137,8 @@ class YabawiGameView(View):
             
             if self.wins >= MAX_CHALLENGES:
                 # 5연승 달성 시 강제 종료 및 보상 지급
-                final_payout = int(self.current_pot)
-                await point_manager.add_point(self.bot, self.guild_id, self.user_id, final_payout)
+                final_payout = int(self.current_pot * WINNER_RETENTION)
+                await pm_module.add_point(self.bot, self.guild_id, self.user_id, final_payout)
                 record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, final_payout, True)
                 self.processing = False # 해제
 
@@ -186,8 +186,9 @@ class StopButton(discord.ui.Button):
         # [수정] 중복 클릭 방지 해제 (필요 시)
         view.processing = False 
         
-        final_payout = int(view.current_pot)
-        await point_manager.add_point(view.bot, view.guild_id, view.user_id, final_payout)
+        final_payout = int(view.current_pot * WINNER_RETENTION)
+        if POINT_MANAGER_AVAILABLE:
+            await pm_module.add_point(view.bot, view.guild_id, view.user_id, final_payout)
         record_yabawi_game(view.user_id, view.user.display_name, view.base_bet, final_payout, True)
 
         view.ended = True
@@ -231,7 +232,7 @@ class YabawiGameCog(commands.Cog):
         guild_id = str(interaction.guild_id)
 
         # 명령어를 실행하자마자 등록 여부 확인
-        if not await point_manager.is_registered(self.bot, guild_id, user_id):
+        if not await pm_module.is_registered(self.bot, guild_id, user_id):
             return await interaction.response.send_message(
                 "❌ 먼저 서버에 가입해야 이용할 수 있습니다.\n"
                 "먼저 `/등록` 명령어로 등록해주세요.", ephemeral=True)

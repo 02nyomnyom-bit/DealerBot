@@ -23,7 +23,7 @@ try:
 except ImportError:
     STATS_AVAILABLE = False
 try:
-    import point_manager
+    import point_manager as pm_module
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
@@ -78,13 +78,13 @@ class SlotMachineView(discord.ui.View):
         
         try:
             # 1. 포인트 체크 및 선차감
-            current_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
+            current_balance = await pm_module.get_point(self.bot, self.guild_id, uid)
             if current_balance < self.bet:
                 self.is_spinning = False
                 return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
             
             if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, self.guild_id, uid, -self.bet)
+                await pm_module.add_point(self.bot, self.guild_id, uid, -self.bet)
 
             # 2. 버튼 비활성화 및 초기 응답
             button.disabled = True
@@ -133,10 +133,10 @@ class SlotMachineView(discord.ui.View):
 
             # 당첨금(보상) 지급
             if reward > 0 and POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, self.guild_id, uid, reward)
+                await pm_module.add_point(self.bot, self.guild_id, uid, reward)
             
             # 최종 잔액 조회
-            final_balance = await point_manager.get_point(self.bot, self.guild_id, uid)
+            final_balance = await pm_module.get_point(self.bot, self.guild_id, uid)
             
             # 7. 최종 결과 출력
             if reward > self.bet:
@@ -159,7 +159,7 @@ class SlotMachineView(discord.ui.View):
             print(f"Slot Machine Error: {e}")
             # 이미 포인트가 차감된 경우에만 환불
             if self.is_spinning and POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, self.guild_id, uid, self.bet)
+                await pm_module.add_point(self.bot, self.guild_id, uid, self.bet)
 
                 self.is_spinning = False
                 if self.message:
@@ -185,13 +185,13 @@ class SlotMachineCog(commands.Cog):
             guild_id = str(interaction.guild.id)
 
             # 등록 여부 확인
-            if not await point_manager.is_registered(self.bot, guild_id, uid):
+            if not await pm_module.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
             # 배팅 금액 제한 체크
             if 배팅 < 100 or 배팅 > 10000:
                 return await interaction.response.send_message("⚠️ 배팅 금액은 100~10,000원 사이여야 합니다.", ephemeral=True)
             # 잔액 충분한지 확인
-            current_balance = await point_manager.get_point(self.bot, guild_id, uid)
+            current_balance = await pm_module.get_point(self.bot, guild_id, uid)
             if current_balance < 배팅:
                 return await interaction.response.send_message(
                     f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {배팅:,}원",

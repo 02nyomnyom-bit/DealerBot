@@ -10,8 +10,8 @@ from database_manager import DEFAULT_LEADERBOARD_SETTINGS
 # ✅ 안전한 의존성 import (point_manager는 그대로 유지)
 def safe_import_point_manager():
     try:
-        import point_manager
-        return point_manager.get_point, point_manager.add_point, point_manager.set_point, point_manager.is_registered, True
+        import point_manager as pm_module
+        return pm_module.get_point, pm_module.add_point, pm_module.set_point, pm_module.is_registered, True
     except ImportError:
         print("⚠️ point_manager 임포트 실패")
         return None, None, None, None, False

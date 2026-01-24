@@ -16,15 +16,15 @@ except ImportError:
     STATS_AVAILABLE = False
 
 try:
-    import point_manager
+    import point_manager as pm_module
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
 
 # 상수 설정
 MAX_BET = 6000          # 최대 배팅금: 6천 원
-PUSH_RETENTION = 0      # 무승부 시 수수료 
-WINNER_RETENTION = 0    # 승리 시 수수료
+PUSH_RETENTION = 1.0      # 무승부 시 수수료 
+WINNER_RETENTION = 1.0    # 승리 시 수수료
 
 # 카드 및 이모지 정의
 CARD_DECK = {
@@ -135,12 +135,12 @@ class BlackjackModeSelectView(View):
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         if POINT_MANAGER_AVAILABLE:
             # 잔액 부족 시 세션 풀고 종료
-            p_bal = await point_manager.get_point(self.bot, interaction.guild_id, str(self.user.id))
+            p_bal = await pm_module.get_point(self.bot, interaction.guild_id, str(self.user.id))
             if p_bal < self.bet:
                 self.cog.processing_users.discard(self.user.id)
                 return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
         
-            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
     
         view = BlackjackView(self.cog, self.user, self.bet, self.bot)
         embed = view.create_game_embed()
@@ -193,8 +193,8 @@ class MultiSetupView(View):
             
             # 두 명 포인트 선차감 (먹튀 방지)
             if POINT_MANAGER_AVAILABLE:
-                p1_bal = await point_manager.get_point(self.bot, inter.guild_id, str(self.user.id))
-                p2_bal = await point_manager.get_point(self.bot, inter.guild_id, str(target.id))
+                p1_bal = await pm_module.get_point(self.bot, inter.guild_id, str(self.user.id))
+                p2_bal = await pm_module.get_point(self.bot, inter.guild_id, str(target.id))
                 
                 # --- 수정된 부분: None 값을 0으로 변환 ---
                 p1_bal = p1_bal if p1_bal is not None else 0
@@ -206,11 +206,11 @@ class MultiSetupView(View):
                     self.cog.processing_users.discard(self.user.id)
                     return await inter.response.send_message("❌ 참가자 중 잔액이 부족한 사람이 있습니다.", ephemeral=True)
                 
-                await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
+                await pm_module.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
                 
                 # 타겟도 게임 시작 전에 processing_users에 추가
                 self.cog.processing_users.add(target.id)
-                await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
+                await pm_module.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
 
             await self.start_game(inter, target)
         
@@ -221,7 +221,7 @@ class MultiSetupView(View):
     async def public_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 방장 포인트만 먼저 차감
         if POINT_MANAGER_AVAILABLE:
-            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
+            await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
         await self.start_game(interaction, None)
 
     async def start_game(self, interaction, target):
@@ -254,8 +254,8 @@ class MultiBlackjackView(View):
         if POINT_MANAGER_AVAILABLE and self.message:
             try:
                 # 타임아웃 시 배팅금 환불 (수수료 없이 100% 환불)
-                await point_manager.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
-                if self.p2: await point_manager.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
+                await pm_module.add_point(self.bot, self.message.guild.id, str(self.p1.id), self.bet)
+                if self.p2: await pm_module.add_point(self.bot, self.message.guild.id, str(self.p2.id), self.bet)
                 await self.message.edit(content="⏰ 시간 초과로 게임이 무효화되어 환불되었습니다.", embed=None, view=None)
             except: pass
         self.stop()
@@ -274,11 +274,11 @@ class MultiBlackjackView(View):
                 return False
 
             if POINT_MANAGER_AVAILABLE:
-                bal = await point_manager.get_point(self.bot, interaction.guild_id, str(user.id))
+                bal = await pm_module.get_point(self.bot, interaction.guild_id, str(user.id))
                 if (bal or 0) < self.bet:
                     await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
                     return False
-                await point_manager.add_point(self.bot, interaction.guild_id, str(user.id), -self.bet)
+                await pm_module.add_point(self.bot, interaction.guild_id, str(user.id), -self.bet)
         
             self.p2 = user
             self.p2_cards = [self.game.draw_card(), self.game.draw_card()]
@@ -356,17 +356,17 @@ class MultiBlackjackView(View):
         else: result = "무승부!"
 
         if winner:
-            reward = int(self.bet * 2)
+            reward = int((self.bet * 2) * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
+                await pm_module.add_point(self.bot, guild_id, str(winner.id), reward)
             reward_msg = f"💰 {winner.mention} 승리! **{reward:,}원** 획득!"
             if winner.id == self.p1.id: p1_payout = reward
             else: p2_payout = reward
         else:
             refund = int(self.bet * PUSH_RETENTION)
             if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
-                await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
+                await pm_module.add_point(self.bot, guild_id, str(self.p1.id), refund)
+                await pm_module.add_point(self.bot, guild_id, str(self.p2.id), refund)
             reward_msg = f"🤝 무승부! **{refund:,}원**이 환불되었습니다."
             p1_payout = p2_payout = refund
 
@@ -429,14 +429,18 @@ class BlackjackView(View):
         is_blackjack_win = self.game.is_blackjack(self.game.player_cards) and is_win
 
         if is_blackjack_win:
-            payout = int(self.bet * 2.5)
+            payout = int(self.bet * 2.5 * WINNER_RETENTION)
         elif is_win:
-            payout = int(self.bet * 2)
+            payout = int(self.bet * 2 * WINNER_RETENTION)
         elif self.game.result == "push":
-            payout = int(self.bet)
+            payout = int(self.bet * PUSH_RETENTION)
 
         if POINT_MANAGER_AVAILABLE and payout > 0:
-            await point_manager.add_point(self.bot, guild_id, uid, payout)
+            try:
+                success = await pm_module.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
+                print(f"지급 시도: {payout}원 / 결과: {success}")
+            except Exception as e:
+                print(f"포인트 지급 중 에러 발생: {e}") # 여기서 에러 원인이 나옵니다.
 
         record_blackjack_game(uid, self.user.display_name, self.bet, payout, is_win)
 
@@ -480,7 +484,7 @@ class BlackjackCog(commands.Cog):
             return await interaction.response.send_message(f"❌ 최대 배팅 금액은 {MAX_BET:,}원입니다.", ephemeral=True)
 
         # 잔액 체크
-        balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
+        balance = await pm_module.get_point(self.bot, interaction.guild_id, str(user_id))
         if balance < 배팅:
             return await interaction.response.send_message(f"❌ 잔액이 부족합니다. (보유: {balance:,}원)", ephemeral=True)
 
