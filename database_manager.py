@@ -4,7 +4,7 @@ import sqlite3
 import os
 import logging
 import threading
-from typing import Dict, List, Optional, Literal, Union
+from typing import Dict, List, Optional, Literal, Union, Any
 import math
 from datetime import datetime, date, timedelta
 from pathlib import Path
@@ -58,16 +58,16 @@ class DatabaseManager:
         self.guild_id = guild_id
         self.db_path = self._get_db_path(guild_id)
         self.thread_local = threading.local()
-        
+    
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        
+    
         # 데이터베이스 초기화 및 테이블 생성
         with self.get_connection() as conn:
             conn.execute('PRAGMA foreign_keys = ON')
+    
+        # ✅ 중요: 인스턴스 생성 시 테이블들을 자동으로 만들도록 호출 추가
+        self.create_tables()
         
-        self._create_tables()
-        logger.info(f"✅ 데이터베이스 매니저 초기화 완료: {self.db_path}")
-
     def _get_db_path(self, guild_id: str) -> str:
         """길드 ID에 따라 데이터베이스 파일 경로를 결정합니다."""
         guild_db_dir = Path("data/guilds")
@@ -103,10 +103,26 @@ class DatabaseManager:
             logger.error(f"❌ 테이블 '{table_name}' 생성 중 오류 발생: {e}")
             return False
 
-    def _create_tables(self):
-        """테이블 생성 및 스키마 마이그레이션"""
-        # 기존의 테이블 생성 로직을 새로운 create_table 함수로 대체
-        # users 테이블에 guild_id 추가 및 복합 PRIMARY KEY 설정
+    def create_tables(self):
+        # 1. 익명 채널 설정 저장용 테이블
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS server_settings (
+                key TEXT PRIMARY KEY, 
+                value TEXT
+            )
+        """)
+    
+        # 2. 익명 메시지 기록용 테이블 (익명 명령어 실행 시 필요)
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS anonymous_messages (
+                msg_id TEXT PRIMARY KEY,
+                user_id TEXT,
+                user_name TEXT,
+                content TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         self.create_table(
             "users",
             """
@@ -267,7 +283,7 @@ class DatabaseManager:
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 """
         )
-    
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -311,6 +327,26 @@ class DatabaseManager:
                 logger.error(f"❌ 테이블 생성/마이그레이션 중 심각한 오류 발생: {e}")
                 # 오류 발생 시 롤백
                 conn.rollback()
+
+    def get_setting(self, key: str, default=None):
+        """DB에서 설정을 가져오고, JSON 문자열인 경우 파싱하여 반환"""
+        query = "SELECT value FROM server_settings WHERE key = ?"
+        result = self.execute_query(query, (key,), 'one')
+        if result:
+            try:
+                import json
+                return json.loads(result['value'])
+            except:
+                return result['value']
+        return default
+
+    def set_setting(self, key: str, value: Any):
+        """설정값을 DB에 저장 (객체는 JSON 문자열로 변환)"""
+        import json
+        val_to_save = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
+        query = "INSERT OR REPLACE INTO server_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)"
+        self.execute_query(query, (key, val_to_save))
+
     def get_or_create_user(self, user_id: str, username: str) -> bool:
             """
             사용자를 조회하고, 없으면 생성합니다.
@@ -359,7 +395,28 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logger.error(f"❌ DB 쿼리 오류: {e} - 쿼리: {query}", exc_info=True)
             return None
-    
+        
+    def _create_tables(self):
+        """필요한 테이블들을 생성합니다. (기존 데이터 보존)"""
+        # 1. users 테이블
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id TEXT PRIMARY KEY,
+                username TEXT,
+                display_name TEXT,
+                cash INTEGER DEFAULT 0,
+                bank INTEGER DEFAULT 0,
+                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        self.execute_query("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+
     # ==================== 사용자 관리 ====================
     def create_user(self, user_id: str, username: str = '', display_name: str = '', initial_cash: int = 0):
         if not self.guild_id:

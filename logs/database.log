@@ -1,0 +1,75 @@
+❌ DB 쿼리 오류: UNIQUE constraint failed: users.user_id, users.guild_id - 쿼리: 
+            INSERT INTO users (user_id, guild_id, username, display_name, cash)
+            VALUES (?, ?, ?, ?, ?)
+            
+Traceback (most recent call last):
+  File "c:\Users\gogo6\OneDrive\문서\DealerBot\database_manager.py", line 373, in execute_query
+    cursor.execute(query, params)
+sqlite3.IntegrityError: UNIQUE constraint failed: users.user_id, users.guild_id
+❌ DB 쿼리 오류: no such table: server_settings - 쿼리: DELETE FROM server_settings WHERE key = ?
+Traceback (most recent call last):
+  File "c:\Users\gogo6\OneDrive\문서\DealerBot\database_manager.py", line 373, in execute_query
+    cursor.execute(query, params)
+sqlite3.OperationalError: no such table: server_settings
+❌ DB 쿼리 오류: no such table: server_settings - 쿼리: INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)
+Traceback (most recent call last):
+  File "c:\Users\gogo6\OneDrive\문서\DealerBot\database_manager.py", line 373, in execute_query
+    cursor.execute(query, params)
+sqlite3.OperationalError: no such table: server_settings
+❌ DB 쿼리 오류: no such table: server_settings - 쿼리: INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)
+Traceback (most recent call last):
+  File "c:\Users\gogo6\OneDrive\문서\DealerBot\database_manager.py", line 391, in execute_query
+    cursor.execute(query, params)
+sqlite3.OperationalError: no such table: server_settings
+❌ DB 쿼리 오류: no such table: server_settings - 쿼리: DELETE FROM server_settings WHERE key = ?
+Traceback (most recent call last):
+  File "c:\Users\gogo6\OneDrive\문서\DealerBot\database_manager.py", line 391, in execute_query
+    cursor.execute(query, params)
+sqlite3.OperationalError: no such table: server_settings
+❌ DB 쿼리 오류: no such table: server_settings - 쿼리: DELETE FROM server_settings WHERE key = ?
+Traceback (most recent call last):
+  File "c:\Users\gogo6\OneDrive\문서\DealerBot\database_manager.py", line 391, in execute_query
+    cursor.execute(query, params)
+sqlite3.OperationalError: no such table: server_settings
+❌ DB 쿼리 오류: no such column: u.registered_at - 쿼리: 
+                    SELECT u.user_id, u.username, u.display_name, u.registered_at
+                    FROM users u
+                    LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
+                    WHERE ux.user_id IS NULL
+                    ORDER BY u.registered_at DESC
+                
+❌ DB 쿼리 오류: no such column: u.registered_at - 쿼리: 
+                    SELECT u.user_id, u.username, u.display_name, u.registered_at
+                    FROM users u
+                    LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
+                    WHERE ux.user_id IS NULL
+                    ORDER BY u.registered_at DESC
+                
+❌ DB 쿼리 오류: no such column: u.registered_at - 쿼리: 
+                    SELECT u.user_id, u.username, u.display_name, u.registered_at
+                    FROM users u
+                    LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
+                    WHERE ux.user_id IS NULL
+                    ORDER BY u.registered_at DESC
+                
+❌ DB 쿼리 오류: UNIQUE constraint failed: users.user_id, users.guild_id - 쿼리: 
+            INSERT INTO users (user_id, guild_id, username, display_name, cash)
+            VALUES (?, ?, ?, ?, ?)
+            
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: no such table: settings - 쿼리: SELECT value FROM settings WHERE key = 'leaderboard_settings'
+❌ DB 쿼리 오류: UNIQUE constraint failed: users.user_id, users.guild_id - 쿼리: 
+            INSERT INTO users (user_id, guild_id, username, display_name, cash)
+            VALUES (?, ?, ?, ?, ?)
+            
+Traceback (most recent call last):
+  File "C:\Users\gogo6\OneDrive\문서\DealerBot\database_manager.py", line 383, in execute_query
+    cursor.execute(query, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+sqlite3.IntegrityError: UNIQUE constraint failed: users.user_id, users.guild_id

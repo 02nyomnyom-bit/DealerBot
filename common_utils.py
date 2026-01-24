@@ -7,11 +7,9 @@ import re
 import logging
 import hashlib
 import time
-import asyncio
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, List, Tuple, Union 
 from pathlib import Path
 from functools import wraps
-from collections import defaultdict
 import math
 
 # ✅ 로깅 설정
@@ -46,6 +44,28 @@ def ensure_directories(directories: List[str] = None) -> bool:
         logger.error(f"디렉토리 생성 실패: {e}")
         return False
 
+def save_json(file_path: str, data: Any, indent: int = 4) -> bool:
+    """데이터를 JSON 파일로 저장합니다."""
+    try:
+        with open(file_path, 'w', encoding=DEFAULT_ENCODING) as f:
+            json.dump(data, f, indent=indent, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"JSON 저장 실패 ({file_path}): {e}")
+        return False
+    
+def load_json(file_path: str, default_value: Any = None) -> Any:
+    """JSON 파일을 로드합니다."""
+    if not os.path.exists(file_path):
+        return default_value
+    
+    try:
+        with open(file_path, 'r', encoding=DEFAULT_ENCODING) as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"JSON 로드 실패 ({file_path}): {e}")
+        return default_value
+    
 def load_json_file(path: str, default: Any = None, create_if_missing: bool = True) -> Dict:
     """JSON 파일을 안전하게 로드합니다."""
     if default is None:
@@ -171,21 +191,12 @@ def clean_old_files(directory: str, max_age_days: int = 30, pattern: str = "*") 
 
 # ==================== 포맷팅 함수들 ====================
 
-def format_money(amount: Union[int, float], currency: str = "원", 
-                 decimal_places: int = 0, show_sign: bool = False) -> str:
-    """금액을 다양한 형식으로 포맷합니다."""
+def format_money(amount: int) -> str:
+    """숫자를 금액 형식으로 변환합니다 (예: 1,000)."""
     try:
-        if decimal_places > 0:
-            formatted = f"{amount:,.{decimal_places}f}"
-        else:
-            formatted = f"{int(amount):,}"
-        
-        if show_sign and amount > 0:
-            formatted = f"+{formatted}"
-        
-        return f"{formatted}{currency}"
-    except:
-        return f"0{currency}"
+        return f"{amount:,}"
+    except Exception:
+        return str(amount)
 
 def format_xp(xp: int, show_commas: bool = True) -> str:
     """XP를 포맷합니다."""
@@ -205,21 +216,16 @@ def format_percentage(value: float, decimal_places: int = 1,
     except:
         return "0.0%"
 
-def format_large_number(number: Union[int, float], decimal_places: int = 1) -> str:
-    """큰 숫자를 K, M, B, T 단위로 포맷합니다."""
-    try:
-        if abs(number) >= 1_000_000_000_000:
-            return f"{number/1_000_000_000_000:.{decimal_places}f}T"
-        elif abs(number) >= 1_000_000_000:
-            return f"{number/1_000_000_000:.{decimal_places}f}B"
-        elif abs(number) >= 1_000_000:
-            return f"{number/1_000_000:.{decimal_places}f}M"
-        elif abs(number) >= 1_000:
-            return f"{number/1_000:.{decimal_places}f}K"
-        else:
-            return f"{number:,}"
-    except:
-        return "0"
+def format_large_number(num: float) -> str:
+    """큰 숫자를 K, M, B 단위로 변환합니다."""
+    if num < 1000:
+        return str(num)
+    
+    for unit in ['', 'K', 'M', 'B', 'T']:
+        if abs(num) < 1000.0:
+            return f"{num:.1f}{unit}"
+        num /= 1000.0
+    return f"{num:.1f}P"
 
 def format_duration(seconds: Union[int, float], precision: str = "auto") -> str:
     """시간을 읽기 쉬운 형태로 포맷합니다."""
@@ -276,13 +282,13 @@ def format_datetime(dt: datetime.datetime, format_type: str = "default") -> str:
 
 # ==================== 시간 관련 함수들 ====================
 
-def now_str(format_string: str = "[%Y-%m-%d %H:%M:%S]") -> str:
-    """현재 시간을 문자열로 반환합니다."""
-    return datetime.datetime.now().strftime(format_string)
+def now_str() -> str:
+    """현재 시간을 문자열로 반환합니다 (YYYY-MM-DD HH:MM:SS)."""
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def today_str(format_string: str = "%Y-%m-%d") -> str:
-    """오늘 날짜를 문자열로 반환합니다."""
-    return datetime.date.today().strftime(format_string)
+def today_str() -> str:
+    """오늘 날짜를 문자열로 반환합니다 (YYYY-MM-DD)."""
+    return datetime.datetime.now().strftime("%Y-%m-%d")
 
 def parse_date_range(date_string: str, year: int = None) -> Tuple[datetime.datetime, datetime.datetime]:
     """날짜 범위 문자열을 파싱합니다. (예: "08.01-08.08", "2024.01.15-2024.01.20")"""
@@ -391,33 +397,16 @@ def get_korean_weekday(date: datetime.date = None) -> str:
 
 # ==================== 로깅 함수들 ====================
 
-def setup_logger(name: str, log_file: str = None, level: int = logging.INFO) -> logging.Logger:
-    """로거를 설정합니다."""
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
+def setup_logger(name: str, log_file: str, level=logging.INFO):
+    """개별 로거를 설정합니다."""
+    handler = logging.FileHandler(f"logs/{log_file}", encoding=DEFAULT_ENCODING)        
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+
+    new_logger = logging.getLogger(name)
+    new_logger.setLevel(level)
+    new_logger.addHandler(handler)
     
-    # 기존 핸들러 제거
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-    
-    # 포맷터 설정
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    # 콘솔 핸들러
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    # 파일 핸들러 (옵션)
-    if log_file:
-        os.makedirs("logs", exist_ok=True)
-        file_handler = logging.FileHandler(f"logs/{log_file}", encoding=DEFAULT_ENCODING)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    
-    return logger
+    return new_logger
 
 def log_action(message: str, log_type: str = "GENERAL", log_file: str = "general.log", 
                level: int = logging.INFO):
@@ -800,20 +789,9 @@ def chunk_text(text: str, chunk_size: int) -> List[str]:
 
 # ==================== 보안 및 해싱 ====================
 
-def generate_hash(data: str, algorithm: str = "md5") -> str:
-    """데이터의 해시를 생성합니다."""
-    try:
-        if algorithm == "md5":
-            return hashlib.md5(data.encode(DEFAULT_ENCODING)).hexdigest()
-        elif algorithm == "sha1":
-            return hashlib.sha1(data.encode(DEFAULT_ENCODING)).hexdigest()
-        elif algorithm == "sha256":
-            return hashlib.sha256(data.encode(DEFAULT_ENCODING)).hexdigest()
-        else:
-            raise ValueError(f"지원하지 않는 해싱 알고리즘: {algorithm}")
-    except Exception as e:
-        logger.error(f"해시 생성 오류: {e}")
-        return ""
+def generate_hash(text: str) -> str:
+    """텍스트의 MD5 해시를 생성합니다."""
+    return hashlib.md5(text.encode(DEFAULT_ENCODING)).hexdigest()
 
 def generate_session_id(length: int = 16) -> str:
     """세션 ID를 생성합니다."""
@@ -1071,18 +1049,20 @@ def get_system_info() -> Dict:
             "cpu_count": os.cpu_count()
         }
 
-def cleanup_resources():
-    """리소스 정리 함수"""
+def cleanup_resources() -> bool:
+    """임시 리소스를 정리합니다."""
     try:
-        # 임시 파일 정리
-        temp_dir = "temp"
-        if os.path.exists(temp_dir):
-            clean_old_files(temp_dir, max_age_days=1)
+        # temp 디렉토리 비우기 등
+        temp_path = Path("temp")
+        if temp_path.exists():
+            for file in temp_path.glob("*"):
+                file.unlink()
         
-        # 로그 파일 정리 (30일 이상)
-        logs_dir = "logs"
-        if os.path.exists(logs_dir):
-            clean_old_files(logs_dir, max_age_days=30, pattern="*.log.*")
+        # 오래된 로그 정리 등 추가 가능
+        log_path = Path("logs")
+        if log_path.exists():
+            # 예: 30일 지난 로그 삭제 로직
+            pass
         
         logger.info("리소스 정리 완료")
         return True
@@ -1104,7 +1084,7 @@ def initialize_common_utils(config: Dict = None) -> bool:
         
         logger.info("✅ 공통 유틸리티 초기화 완료")
         return True
-    except Exception as e:
+    except Exception as e: 
         print(f"❌ 공통 유틸리티 초기화 실패: {e}")
         return False
 
@@ -1124,8 +1104,7 @@ if __name__ == "__main__":
     
     # 포맷팅 테스트
     print(f"금액 포맷: {format_money(1234567)}")
-    print(f"큰 숫자 포맷: {format_large_number(1234567890)}")
-    print(f"퍼센티지 포맷: {format_percentage(67.89)}")
+    print(f"큰 숫자 포맷: {format_large_number(1500000)}")
     
     # 날짜 파싱 테스트
     try:

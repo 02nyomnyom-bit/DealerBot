@@ -590,9 +590,6 @@ class StatisticsManager:
             }
         }
 
-# ✅ 전역 통계 관리자 인스턴스 (이제 StatisticsCog 내에서 초기화됩니다)
-# stats_manager = StatisticsManager()
-
 # ===== Discord Cog =====
 
 class StatisticsCog(commands.Cog):

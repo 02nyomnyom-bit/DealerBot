@@ -79,7 +79,7 @@ def load_xp_settings():
             "chat_cooldown": 30,        # 채팅 XP 쿨다운 (초)
             "voice_xp_per_minute": 10,  # 음성 채널 분당 XP
             "chat_xp": 5,               # 채팅 XP
-            "command_xp": 2,           # 명령어 xp
+            "command_xp": 2,            # 명령어 xp
             "attendance_xp": 100,       # 출석체크 XP
         }
     try:
@@ -816,20 +816,18 @@ class XPLeaderboardCog(commands.Cog):
             if 작업 == "check_only":
                 # self.db -> db로 변경
                 unregistered_xp_users = db.execute_query(''' 
-                    SELECT ux.user_id, ux.guild_id, ux.xp, ux.level, ux.updated_at
-                    FROM user_xp ux
-                    LEFT JOIN users u ON ux.user_id = u.user_id
-                    WHERE ux.guild_id = ? AND u.user_id IS NULL AND ux.xp > 0
-                    ORDER BY ux.xp DESC
+                    SELECT u.user_id, u.username, u.display_name
+                    FROM users u
+                    LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
+                    WHERE ux.user_id IS NULL
                 ''', (guild_id,), 'all')
                 
                 # 2. users에는 있지만 user_xp에는 없는 사용자들 찾기
                 registered_no_xp = db.execute_query('''
-                    SELECT u.user_id, u.username, u.display_name, u.registered_at
+                    SELECT u.user_id, u.username, u.display_name
                     FROM users u
                     LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
                     WHERE ux.user_id IS NULL
-                    ORDER BY u.registered_at DESC
                 ''', (guild_id,), 'all')
                 
                 # 3. 정상 등록된 사용자 수

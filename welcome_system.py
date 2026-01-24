@@ -49,11 +49,10 @@ class WelcomeSystem(commands.Cog):
             self.cleanup_task.cancel()
 
     def load_welcome_configs(self):
-        """JSON 파일에서 서버별 환영 설정을 읽어옴"""
         try:
-            if os.path.exists(self.welcome_config_file):
-                with open(self.welcome_config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+            with open(self.welcome_config_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
             return {}
         except Exception as e:
             print(f"환영 설정 로드 오류: {e}")

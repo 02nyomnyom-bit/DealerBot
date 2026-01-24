@@ -1,23 +1,15 @@
 # backup_cog.py
 from __future__ import annotations
 import os
-import shutil
 import zipfile
 import logging
 import threading
 import time
 import json
-import hashlib
-import signal
-import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
-import traceback # Add this import for error handling
-
-# ✅ 누락된 discord 관련 모듈 import
-import discord
-from discord import app_commands
+import traceback
 from discord.ext import commands
 
 # ✅ 백업 설정
@@ -49,19 +41,16 @@ def setup_logging():
     logger = logging.getLogger("database_manager")
     logger.setLevel(logging.INFO)
     
-    # 중복 핸들러 방지
     if not logger.handlers:
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         
-        # 파일 핸들러
         file_handler = logging.FileHandler(log_dir / 'database.log', encoding='utf-8')
         file_handler.setFormatter(formatter)
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
         
-        # 콘솔 핸들러
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         console_handler.setLevel(logging.INFO)
@@ -77,22 +66,18 @@ class BackupSystem:
         self.config = config or BACKUP_CONFIG
         self.logger = setup_logging()
         self.base_dir = Path(os.getcwd())
-        # FIX 1: Define paths correctly
         self.backup_dir = self.base_dir / 'backups'
         self.config_file = self.base_dir / 'backup_config.json'
         
-        # ✅ 변경된 부분: 설정 파일에서 백업 대상 파일 목록을 가져옴
         self.source_files = [self.base_dir / f for f in self.config.get('source_files', [])]
 
         self.backup_dir.mkdir(exist_ok=True)
         self.is_running = False
         
-        # 스레드 관련
         self.running = False
         self.backup_thread = None
         self.scheduler_thread = None
         
-        # 통계
         self.stats = {
             "total_backups": 0,
             "successful_backups": 0,
