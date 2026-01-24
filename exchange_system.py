@@ -182,7 +182,7 @@ class ExchangeCog(commands.Cog):
     @app_commands.command(name="현금교환", description="XP를 현금으로 교환합니다. 수수료가 부과됩니다.")
     @app_commands.describe(xp_amount="교환할 XP")
     async def exchange_xp_to_cash(self, interaction: discord.Interaction, xp_amount: int):
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
         user_id = str(interaction.user.id)
         
         if not await is_registered(self.bot, interaction.guild_id, user_id):
@@ -242,7 +242,7 @@ class ExchangeCog(commands.Cog):
     @app_commands.command(name="경험치교환", description="현금을 XP로 교환합니다. 수수료가 부과됩니다.")
     @app_commands.describe(cash_amount="교환할 현금")
     async def exchange_cash_to_xp(self, interaction: discord.Interaction, cash_amount: int):
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
         user_id = str(interaction.user.id)
         
         if not await is_registered(self.bot, interaction.guild_id, user_id):

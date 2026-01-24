@@ -256,7 +256,7 @@ class DiceCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="주사위", description="주사위 게임을 시작합니다.(100원 ~ {MAX_BET:,}원)")
+    @app_commands.command(name="주사위", description="주사위 게임을 시작합니다.(100원 ~ 5,000원)")
     async def dice_game(self, interaction: discord.Interaction, 배팅: int = 100):
         if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터!", ephemeral=True)
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)

@@ -4,19 +4,21 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ui import View, UserSelect
+from typing import List, Optional
 import random
+import asyncio
 
 # 시스템 설정 및 연동
 try:
     from statistics_system import stats_manager
     STATS_AVAILABLE = True
-except Exception: 
+except ImportError:
     STATS_AVAILABLE = False
 
 try:
     import point_manager
     POINT_MANAGER_AVAILABLE = True
-except Exception: 
+except ImportError:
     POINT_MANAGER_AVAILABLE = False
 
 # 상수 설정
@@ -452,44 +454,42 @@ class BlackjackView(View):
         self.cog.processing_users.discard(self.user.id)
 
 # 메인 Cog. 명령어
-class BlackJack(commands.Cog):
-    def __init__(self, bot):
+class BlackjackCog(commands.Cog):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.processing_users = set()
+        self.processing_users = set() # 현재 게임을 플레이 중인 사용자 ID
 
-    @app_commands.command(name="블랙잭", description="🃏 블랙잭을 시작합니다.(100원 ~ {MAX_BET:,}원)")
+    @app_commands.command(name="블랙잭", description="🃏 블랙잭을 시작합니다.(100원 ~ 6,000원)")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
         user_id = interaction.user.id
         
+        # 이미 게임을 플레이 중인지 확인
         if user_id in self.processing_users:
             return await interaction.response.send_message("❌ 이미 블랙잭 게임을 플레이 중입니다.", ephemeral=True)
         
+        # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:
             await xp_cog.process_command_xp(interaction)
         
+        # 배팅 금액 제한 체크
         if 배팅 < 100:
             return await interaction.response.send_message("❌ 최소 배팅 금액은 100원입니다.", ephemeral=True)
         if 배팅 > MAX_BET:
             return await interaction.response.send_message(f"❌ 최대 배팅 금액은 {MAX_BET:,}원입니다.", ephemeral=True)
 
+        # 잔액 체크
         balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
         if balance < 배팅:
             return await interaction.response.send_message(f"❌ 잔액이 부족합니다. (보유: {balance:,}원)", ephemeral=True)
-        
+
         # 게임 시작 모드 선택
         self.processing_users.add(user_id)
         
         view = BlackjackModeSelectView(self, self.bot, interaction.user, 배팅)
         await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
         view.message = await interaction.original_response()
-        try:
-            pass
-        except Exception as e:
-            print(f"Blackjack Error: {e}")
-            if user_id in self.processing_users:
-                self.processing_users.remove(user_id)
         
-async def setup(bot: commands.Bot):
-    await bot.add_cog(BlackJack(bot))
+async def setup(bot):
+    await bot.add_cog(BlackjackCog(bot))

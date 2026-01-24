@@ -1,4 +1,4 @@
-# help_command.py
+# update_system.py
 from __future__ import annotations
 import datetime
 import discord
@@ -105,7 +105,7 @@ class HelpCategorySelect(discord.ui.Select):
         
         if category == "attendance":
             embed.add_field(name="📆 통합 출석 & XP 명령어",
-                    value="`/출석체크` - 하루 한번 출석체크 (현금 + XP 동시 지급)\n"
+                    value="`/출석체크`,`/출첵`,`/ㅊㅊ` - 하루 한번 출석체크 (현금 + XP 동시 지급)\n"
                           "`/출석현황` - 나의 현재 출석 현황을 확인합니다.\n"
                           "`/출석랭킹` - 서버 내 출석 랭킹을 확인합니다\n"
                           "`/레벨` - 자신 또는 다른 사용자의 레벨 및 XP를 확인합니다.\n"
@@ -128,26 +128,23 @@ class HelpCategorySelect(discord.ui.Select):
             embed.add_field(name="🎮 게임 명령어",
                     value="`/블랙잭` - 🃏 블랙잭 게임을 플레이합니다.\n"
                           "`        모드 = 싱글(봇과 대결) 또는 멀티(다른 유저와 대결)`\n"
-                          "`        배팅 = 배팅할 현금`\n"
+                          "`        배팅 = 배팅할 현금 (기본값: 100원, 최대 6,000원)`\n"
                           "\n"
                           "`/주사위` - 주사위 게임을 플레이합니다.\n"
                           "`        모드 = 싱글(봇과 대결) 또는 멀티(다른 유저와 대결)`\n"
-                          "`        배팅 = 배팅할 현금`\n"
+                          "`        배팅 = 배팅할 현금 (기본값: 10원, 싱글 모드 최대 5,000원)`\n"
                           "\n"
                           "`/강화` - 아이템을 강화합니다.\n"
                           "`      아이템명 = 강화할 아이템의 이름`\n"
-                          "`/공격` - 상대방의 아이템을 공격합니다. (등급별 일일 횟수 제한)`\n"
-                          "`     내 아이템 = 내가 사용할 아이템 이름`\n"
-                          "`        상대방 = 공격할 대상 유저`\n"
-                          "`   상대 아이템 = 상대방의 아이템 이름`\n"
-                          "`/강화순위` = 전체 강화 순위를 확인합니다.`\n"
-                          "`/강화정보` = 강화 시스템에 대한 정보를 확인합니다.`\n"
+                          "`      강화순위 = 전체 강화 순위를 확인합니다.`\n"
+                          "`      강화정보 = 강화 시스템에 대한 정보를 확인합니다.`\n"
                           "\n"
                           "`/슬롯머신` - 🔥 **화끈한 한방! 슬롯머신**을 플레이합니다.\n"
                           "`         배팅 = 100원 ~ 10,000원`\n"
                           "`         특징 = 대박 확률 상승! (🍀 x100, 🍋 x10, 🍒 x5, 🔔 x2)`\n"
                           "\n"
-                          "`/제비뽑기` - 제비뽑기를 합니다.\n"
+                          "`/경마` - 경마 게임을 생성합니다.\n"
+                          "`      모드 = 경마 모드 선택`\n"
                           "\n"
                           "`/홀짝` - 홀짝 게임을 플레이합니다.\n"
                           "`      배팅 = 배팅할 현금 (기본값: 100원, 최대 5,000원)`\n"
@@ -182,7 +179,7 @@ class HelpCategorySelect(discord.ui.Select):
 class AdminHelpCategorySelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
-            placeholder="카테고리를 선택하세요!",
+            placeholder="관리자 카테고리를 선택하세요!",
             min_values=1,
             max_values=1,
             options=[
@@ -295,20 +292,14 @@ class AdminHelpCategorySelect(discord.ui.Select):
 
 # 뷰 클래스
 class AdminHelpCategoryView(discord.ui.View):
-    async def on_timeout(self):
-        # self.message가 존재하는지 먼저 확인합니다.
-        if hasattr(self, 'message') and self.message:
-            try:
-                # 모든 항목을 비활성화
-                for item in self.children:
-                    item.disabled = True
-                await self.message.edit(view=self)
-            except Exception:
-                pass
-
     def __init__(self):
         super().__init__(timeout=60)
         self.add_item(AdminHelpCategorySelect())
+
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        await self.message.edit(view=self)
 
 class HelpCategoryView(discord.ui.View):
     def __init__(self, include_game_select=False):
@@ -349,9 +340,9 @@ class HelpCommandCog(commands.Cog):
         
             embed.set_footer(text="메뉴는 60초 후 만료됩니다")
         
-            view = AdminHelpCategoryView()
+            view = HelpCategoryView()
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
+            
             message = await interaction.original_response()
             view.message = message
             

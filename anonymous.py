@@ -47,7 +47,7 @@ class AnonymousChannelConfigView(discord.ui.View):
             
 # 대나무 숲 관련 View - 발신자 확인
 class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인'):
-    msg_num = discord.ui.TextInput(label='확인할 번호', placeholder='예: 10.00 ~ 999.999', required=True, min_length=5, max_length=7)
+    msg_num = discord.ui.TextInput(label='확인할 번호', placeholder='예: 10.10 ~ 999.999', required=True, min_length=5, max_length=7)
 
     def __init__(self, db_manager):
         super().__init__()
@@ -137,10 +137,8 @@ class AnonymousSystem(commands.Cog):
                 report_embed = discord.Embed(title="🚨 지정 외 채널 사용 시도", color=discord.Color.orange())
                 report_embed.description = f"**서버:** {interaction.guild.name}\n**사용자:** {interaction.user}\n**채널:** {interaction.channel.name}"
                 report_embed.add_field(name="내용", value=대화)
-                try: 
-                    await developer.send(embed=report_embed)
-                except Exception:
-                    pass
+                try: await developer.send(embed=report_embed)
+                except: pass
             return
         
         # --- 전송 로직 ---
@@ -165,7 +163,7 @@ class AnonymousSystem(commands.Cog):
             logger.error(f"Anonymous Send Error: {e}")
             await interaction.response.send_message("❌ 오류가 발생했습니다.", ephemeral=True)
 
-    @app_commands.command(name="대나무숲", description="익명 관리")
+    @app_commands.command(name="대나무숲", description="관리자 메뉴")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def anonymous_admin(self, interaction: discord.Interaction):

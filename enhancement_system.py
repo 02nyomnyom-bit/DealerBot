@@ -961,6 +961,48 @@ class EnhancementSystemCog(commands.Cog):
         self.enhancement_data.save_data()
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="강화정보", description="강화 시스템에 대한 정보를 확인합니다.")
+    async def enhancement_info(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="⚒️ 순수 강화 시스템",
+            description="🎲 **완전 무료 랜덤 레벨 변동 시스템 (보상 없음)**",
+            color=discord.Color.purple()
+        )
+        
+        embed.add_field(
+            name="🎯 기본 규칙",
+            value="• 각 아이템별로 독립적인 강화\n• 30초 쿨다운 (아이템별)\n• 1~10레벨 랜덤 변동\n• **완전 무료, 보상 없음**",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 확률 시스템",
+            value="• 레벨이 높을수록 성공률 감소\n• 레벨 10 이하는 강등 없음 (안전구간)\n• 연속 5회 실패 시 다음 강화는 **성공 보장**",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🏆 등급 시스템",
+            value="• **기본** (1-50): 9등급~1등급\n• **아이언** (51-150)\n• **브론즈** (151-250)\n• **실버** (251-350)\n• **골드** (351-450)\n• **플래티넘** (451-600)\n• **마스터** (601-750)\n• **그랜드마스터** (751-950)\n• **챌린저** (951~1000): 최고 등급",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="❌ 보상 시스템",
+            value="• **강화 성공 시 보상 없음**\n• **순수 재미를 위한 시스템**\n• **레벨 달성이 목표**",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎮 사용법",
+            value="`/강화 아이템명` - 아이템 강화\n`/내강화` - 내 아이템 목록\n`/강화순위` - 전체 순위\n`/강화정보` - 시스템 정보",
+            inline=False
+        )
+        
+        embed.set_footer(text="각 아이템마다 다른 이름으로 여러 개 강화 가능! • 기존 시스템과 완전 독립")
+        
+        await interaction.response.send_message(embed=embed)
+
     @app_commands.command(name="강화초기화", description="[관리자 전용] 모든 강화 데이터를 초기화합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
