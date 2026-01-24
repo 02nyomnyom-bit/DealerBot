@@ -190,7 +190,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'attendance_master',         # 출석 시스템
         'voice_tracker',             # 음성 추적
         'improved_post_delete',      # 글 삭제
-        'help_comma nd',             # 도움말
+        'help_command',             # 도움말
         'update_system',             # 업데이트 시스템
         'improved_user_management',  # 향상된 사용자 관리
     ]
