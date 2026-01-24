@@ -79,12 +79,12 @@ class SingleRPSView(View):
         
         if user_choice == bot_choice:
             result = "무승부"
-            payout = int(self.bet * PUSH_RETENTION) # 95% 환불
+            payout = int(self.bet * PUSH_RETENTION)
         elif (user_choice == "가위" and bot_choice == "보") or \
              (user_choice == "바위" and bot_choice == "가위") or \
              (user_choice == "보" and bot_choice == "바위"):
             result = "승리"
-            payout = int(self.bet * 2 * WINNER_RETENTION) # 2배의 95% 지급 (190%)
+            payout = int(self.bet * 2 * WINNER_RETENTION)
         else:
             result = "패배"
             payout = 0
@@ -96,7 +96,7 @@ class SingleRPSView(View):
 
         embed = discord.Embed(title="🎮 가위바위보 결과", color=discord.Color.gold() if result == "승리" else discord.Color.red())
         embed.description = f"**{self.user.display_name}**: {RPS_EMOJIS[user_choice]}\n**봇**: {RPS_EMOJIS[bot_choice]}\n\n**결과: {result}!**\n"
-        embed.description += f"정산: {payout:,}원 (수수료 포함)" if result == "무승부" else f"정산: {payout:,}원"
+        embed.description += f"정산: {payout:,}원" if result == "무승부" else f"정산: {payout:,}원"
         
         await interaction.response.edit_message(embed=embed, view=None)
 
@@ -230,7 +230,7 @@ class MultiRPSView(View):
             reward = int((self.bet * 2) * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
-            msg = f"💰 승자에게 수수료 제외 **{reward:,}원**이 지급되었습니다."
+            msg = f"💰 승자에게 **{reward:,}원**이 지급되었습니다."
             record_rps_game(str(self.p1.id), self.p1.display_name, self.bet, reward if winner == self.p1 else 0, winner == self.p1)
             record_rps_game(str(self.p2.id), self.p2.display_name, self.bet, reward if winner == self.p2 else 0, winner == self.p2)
         else:
@@ -238,7 +238,7 @@ class MultiRPSView(View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            msg = f"🤝 수수료 5% 제외 각자 **{refund:,}원**씩 환불되었습니다."
+            msg = f"🤝 각자 **{refund:,}원**씩 환불되었습니다."
 
         embed = discord.Embed(
             title="🎮 가위바위보 대결 결과", 
@@ -270,7 +270,7 @@ class RPSCog(commands.Cog):
             return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
 
         view = RPSModeSelectView(self.bot, interaction.user, 배팅)
-        await interaction.response.send_message(f"🎮 **가위바위보 모드 선택** (배팅: {배팅:,}원)\n※ 모든 판정 시 수수료 5%가 차감됩니다.", view=view)
+        await interaction.response.send_message(f"🎮 **가위바위보 모드 선택** (배팅: {배팅:,}원)", view=view)
 
 async def setup(bot):
     await bot.add_cog(RPSCog(bot))

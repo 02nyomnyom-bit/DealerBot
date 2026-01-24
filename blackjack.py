@@ -359,7 +359,7 @@ class MultiBlackjackView(View):
             reward = int((self.bet * 2) * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
-            reward_msg = f"💰 {winner.mention} 승리! 수수료 제외 **{reward:,}원** 획득!"
+            reward_msg = f"💰 {winner.mention} 승리! **{reward:,}원** 획득!"
             if winner.id == self.p1.id: p1_payout = reward
             else: p2_payout = reward
         else:
@@ -367,7 +367,7 @@ class MultiBlackjackView(View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            reward_msg = f"🤝 무승부! 수수료 5%를 제외한 **{refund:,}원**이 환불되었습니다."
+            reward_msg = f"🤝 무승부! **{refund:,}원**이 환불되었습니다."
             p1_payout = p2_payout = refund
 
         record_blackjack_game(str(self.p1.id), self.p1.display_name, self.bet, p1_payout, winner == self.p1)
@@ -488,7 +488,7 @@ class BlackjackCog(commands.Cog):
         self.processing_users.add(user_id)
         
         view = BlackjackModeSelectView(self, self.bot, interaction.user, 배팅)
-        await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)\n※ 무승부 시 수수료 5%가 차감됩니다.", view=view)
+        await interaction.response.send_message(f"🃏 **블랙잭 모드 선택** (배팅: {배팅:,}원)", view=view)
         view.message = await interaction.original_response()
         
 async def setup(bot):

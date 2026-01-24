@@ -145,8 +145,8 @@ class YabawiGameView(View):
                 self.ended = True
                 active_games_by_user.discard(self.user_id)
                 
-                embed = discord.Embed(title="🏆 전설의 야바위꾼!", description=f"5연승 달성! 수수료를 제외한 보상이 지급됩니다.\n{cups_display}", color=discord.Color.gold())
-                embed.add_field(name="💰 최종 수령액", value=f"{final_payout:,}원 (5% 수수료 제외)")
+                embed = discord.Embed(title="🏆 전설의 야바위꾼!", description=f"5연승 달성! 보상이 지급됩니다.\n{cups_display}", color=discord.Color.gold())
+                embed.add_field(name="💰 최종 수령액", value=f"{final_payout:,}원")
                 await interaction.response.edit_message(embed=embed, view=None)
             else:
                 # 다음 단계 진행 여부 묻기
@@ -194,7 +194,7 @@ class StopButton(discord.ui.Button):
         active_games_by_user.discard(view.user_id)
         
         embed = discord.Embed(title="💰 게임 종료", description=f"보상을 수령했습니다.", color=discord.Color.blue())
-        embed.add_field(name="💵 최종 수령액", value=f"{final_payout:,}원 (5% 수수료 제외)")
+        embed.add_field(name="💵 최종 수령액", value=f"{final_payout:,}원")
         await interaction.response.edit_message(embed=embed, view=None)
 
 class ContinueButton(discord.ui.Button):

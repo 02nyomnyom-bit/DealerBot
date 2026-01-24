@@ -227,7 +227,7 @@ class MultiDiceView(View):
             reward = int(self.bet * 2 * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
-            reward_text = f"\n수수료 제외 **{reward:,}원** 획득!"
+            reward_text = f"\n**{reward:,}원** 획득!"
             if winner == self.p1: p1_payout = reward
             else: p2_payout = reward
         else: # 무승부
@@ -235,7 +235,7 @@ class MultiDiceView(View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            reward_text = f"\n각자 5% 제외 **{refund:,}원** 환불"
+            reward_text = f"\n**{refund:,}원** 환불"
             p1_payout = p2_payout = refund
 
         # 통계 기록 (무승부 포함)
