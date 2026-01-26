@@ -67,6 +67,9 @@ class AnonymousSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    def get_db(self, guild_id: int):
+        return DatabaseManager(f"database/{guild_id}.db")
+
     @app_commands.command(name="익명", description="익명으로 메시지를 보냅니다.")
     @app_commands.describe(대화="익명으로 보낼 내용을 입력하세요")
     async def anonymous_send(self, interaction: discord.Interaction, 대화: str):
@@ -134,4 +137,4 @@ class AnonymousSystem(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
-    await bot.add_cog(Anonymous(bot))
+    await bot.add_cog(AnonymousSystem(bot))
