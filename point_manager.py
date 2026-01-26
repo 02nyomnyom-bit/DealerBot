@@ -572,8 +572,8 @@ class PointManager(commands.Cog):
         config_cog = self.bot.get_cog("ChannelConfig")
     
         if config_cog:
-        # 2. 현재 채널에 'r_p_s' 권한이 있는지 체크 (channel_config.py의 value="r_p_s"와 일치해야 함)
-            is_allowed = await config_cog.check_permission(interaction.channel_id, "r_p_s", interaction.guild.id)
+        # 2. 현재 채널에 'point_2' 권한이 있는지 체크 (channel_config.py의 value="point_2"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_2", interaction.guild.id)
         
         if not is_allowed:
             return await interaction.response.send_message(

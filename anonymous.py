@@ -5,6 +5,7 @@ from discord.ext import commands
 import random
 import logging
 from database_manager import DatabaseManager
+import random
 
 logger = logging.getLogger("anonymous_system")
 
@@ -99,20 +100,43 @@ class AnonymousSystem(commands.Cog):
             attempts += 1
 
         try:
-            # DB 저장 및 전송
-            db.execute_query(
-                "INSERT INTO anonymous_messages (msg_id, user_id, user_name, content) VALUES (?, ?, ?, ?)", 
-                (msg_id, str(interaction.user.id), str(interaction.user), 대화)
+            # 1. 웹훅 찾기 또는 생성
+            webhooks = await interaction.channel.webhooks()
+            webhook = discord.utils.get(webhooks, name="익명 대나무숲")
+            if not webhook:
+                webhook = await interaction.channel.create_webhook(name="익명 대나무숲")
+
+            # 2. 아이콘 리스트 설정 (서버 아이콘 포함)
+            icon_list = [
+                "https://media.discordapp.net/attachments/1370786196183318729/1465364594175377459/28419D34-9489-4B90-B9BF-5D2584552409.png?ex=6978d6a0&is=69778520&hm=c7b60691eb012210bd20279508fe42a8d236b7c1858dad2b0d0b1013537fe843&=&format=webp&quality=lossless&width=960&height=960",
+                "https://media.discordapp.net/attachments/1370786196183318729/1465364565414904004/D2B54449-3500-4F9F-A410-2D0EB0EFD631.png?ex=6978d699&is=69778519&hm=2e6a43c331758c54de2d3ffe5e579cb78c0aa52f92567f37d6bb0163617ac070&=&format=webp&quality=lossless&width=960&height=960",
+                "https://media.discordapp.net/attachments/1370786196183318729/1465365091133165569/954527BE-DFCD-4EB3-B301-21CD1782DB3E.png?ex=6978d716&is=69778596&hm=5114579a285909f1c4b0f460fc329c19ee9d8c77e353793a53b60898e3d38487&=&format=webp&quality=lossless&width=960&height=960",
+                "https://media.discordapp.net/attachments/1370786196183318729/1465365422730903665/90C86F91-FEA0-4F9B-8D1E-40AC93388BE6.png?ex=6978d765&is=697785e5&hm=b6eacd1e6a50947e440cb6fd0f7a493b84fabe80cd198ba1deb27719a8516469&=&format=webp&quality=lossless&width=960&height=960",
+                "https://media.discordapp.net/attachments/1370786196183318729/1465365405173551195/BCA8FFC0-3F2E-465F-903B-24F78998C7D7.png?ex=6978d761&is=697785e1&hm=7f676d7d584406eb6990704443e4bed82431a55c60a0aca4d79aa921fb706343&=&format=webp&quality=lossless&width=960&height=960",
+                "https://media.discordapp.net/attachments/1370786196183318729/1465366449639002213/IMG_4026.png?ex=6978d85a&is=697786da&hm=c9c132ebfe77f74f3d699d6532015c8b56ea5fd2286d256d2439dd65b20cdeae&=&format=webp&quality=lossless&width=960&height=960",
+                "https://media.discordapp.net/attachments/1370786196183318729/1465366552692920516/IMG_4027.png?ex=6978d873&is=697786f3&hm=5d367bf12415f8ab8c4da486643c3dda50cc99f7fb055b3b6b9cdec63d155a09&=&format=webp&quality=lossless&width=960&height=960",
+            ]
+            
+            # 서버 아이콘이 있다면 리스트에 추가
+            if interaction.guild.icon:
+                icon_list.append(interaction.guild.icon.url)
+
+            # 3. 무작위 아이콘 선택
+            avatar_url = random.choice(icon_list)
+
+            # 4. 웹훅으로 메시지 전송
+            await webhook.send(
+                content=대화,
+                username=f"익명 유저 [{msg_id}]",
+                avatar_url=avatar_url
             )
             
-            # 유저에게는 비밀 메시지로 성공 알림
-            await interaction.response.send_message(f"✅ 익명 메시지를 보냈습니다. (번호: {msg_id})", ephemeral=True)
+            # 5. DB 저장
+            db.execute_query("INSERT INTO anonymous_messages (msg_id, user_id, user_name, content) VALUES (?, ?, ?, ?)", 
+                             (msg_id, str(interaction.user.id), str(interaction.user), 대화))
             
-            # 채널에는 익명 임베드 전송
-            embed = discord.Embed(description=대화, color=discord.Color.blue())
-            embed.set_author(name=f"익명 유저 [{msg_id}]")
-            await interaction.channel.send(embed=embed)
-            
+            await interaction.response.send_message(f"✅ 전송 완료 (번호: {msg_id})", ephemeral=True)
+
         except Exception as e:
             logger.error(f"Anonymous Send Error: {e}")
             if not interaction.response.is_done():
