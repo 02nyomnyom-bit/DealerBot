@@ -424,121 +424,6 @@ class EnhancedBot(commands.Bot):
         except Exception as e:
             self.logger.error(f"❌ 봇 소유자에게 알림 전송 실패: {e}")
     
-    # ✅ 서버 제한 상태 확인 명령어 추가
-    @app_commands.command(name="서버제한상태", description="[관리자 전용] 현재 서버 제한 설정 상태를 확인합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def server_restriction_status(self, interaction: discord.Interaction):
-        """서버 제한 설정 상태 확인"""
-        
-        embed = discord.Embed(
-            title="🔒 서버 제한 설정 상태",
-            description="딜러양의 서버 접근 제한 설정 현황입니다.",
-            color=discord.Color.blue() if Config.ENABLE_GUILD_RESTRICTION else discord.Color.green(),
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        # 현재 서버 상태
-        current_guild_allowed = interaction.guild.id in Config.MAIN_GUILD_IDS
-        embed.add_field(
-            name="🏠 현재 서버 상태",
-            value=f"**서버명**: {interaction.guild.name}\n"
-                  f"**서버 ID**: {interaction.guild.id}\n"
-                  f"**허가 상태**: {'✅ 허가됨' if current_guild_allowed else '❌ 무허가'}",
-            inline=False
-        )
-        
-        # 제한 설정 상태
-        embed.add_field(
-            name="⚙️ 제한 설정",
-            value=f"**서버 제한 기능**: {'🔒 활성화' if Config.ENABLE_GUILD_RESTRICTION else '🔓 비활성화'}\n"
-                  f"**자동 퇴장**: {'✅ 활성화' if Config.AUTO_LEAVE_UNAUTHORIZED else '❌ 비활성화'}\n"
-                  f"**허가된 서버 수**: {len(Config.MAIN_GUILD_IDS)}개",
-            inline=True
-        )
-        
-        # 봇 연결 상태
-        embed.add_field(
-            name="📊 연결 정보",
-            value=f"**연결된 서버**: {len(self.guilds)}개\n"
-                  f"**총 사용자**: {len(set(self.get_all_members())):,}명\n"
-                  f"**지연시간**: {self._get_safe_latency()}ms",
-            inline=True
-        )
-        
-        # 허가된 서버 목록
-        if Config.MAIN_GUILD_IDS:
-            allowed_servers = []
-            for guild_id in Config.MAIN_GUILD_IDS:
-                guild = self.get_guild(guild_id)
-                if guild:
-                    allowed_servers.append(f"✅ {guild.name} (`{guild_id}`)")
-                else:
-                    allowed_servers.append(f"❓ 알 수 없는 서버 (`{guild_id}`)")
-            
-            embed.add_field(
-                name="🏠 허가된 서버 목록",
-                value="\n".join(allowed_servers) if allowed_servers else "없음",
-                inline=False
-            )
-        
-        # 경고 메시지
-        if not current_guild_allowed and Config.ENABLE_GUILD_RESTRICTION:
-            embed.add_field(
-                name="⚠️ 경고",
-                value="현재 서버는 허가되지 않은 서버입니다!\n"
-                      "자동 퇴장 기능이 활성화되어 있다면 곧 봇이 나가게 됩니다.",
-                inline=False
-            )
-        
-        embed.set_footer(text="딜러양 v1.8.1 - 서버 제한 시스템")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    
-    @app_commands.command(name="시스템상태", description="[관리자 전용] 봇의 현재 시스템 상태를 확인합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def system_status_slash(self, interaction: discord.Interaction):
-        """시스템 상태 확인 (슬래시 명령어 버전)"""
-        
-        # 시스템 정보 수집
-        process = psutil.Process()
-        memory_mb = round(process.memory_info().rss / 1024 / 1024, 1)
-        cpu_percent = round(process.cpu_percent(), 1)
-        uptime = datetime.now(timezone.utc) - self.startup_time if self.startup_time else None
-        
-        embed = discord.Embed(
-            title="🔧 시스템 상태 점검 v6",
-            description="딜러양의 현재 상태와 로드된 시스템들입니다.",
-            color=discord.Color.blue(),
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        # 기본 정보
-        embed.add_field(
-            name="🤖 봇 정보",
-            value=f"• 서버 수: {len(self.guilds)}개\n• 사용자 수: {len(set(self.get_all_members())):,}명\n• 지연시간: {self._get_safe_latency()}ms",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="💻 시스템 리소스",
-            value=f"• 메모리: {memory_mb}MB\n• CPU: {cpu_percent}%\n• 가동시간: {str(uptime).split('.')[0] if uptime else '알 수 없음'}",
-            inline=True
-        )
-        
-        # 로드된 확장 모듈
-        loaded_extensions = list(self.extensions.keys())
-        embed.add_field(
-            name="📦 로드된 시스템",
-            value=f"총 {len(loaded_extensions)}개 시스템 로드됨",
-            inline=True
-        )
-        
-        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.8.1")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    
     async def load_extensions(self):
         """사용 가능한 확장 모듈 로드"""
         self.logger.info("🔧 확장 모듈 로딩 시작...")
@@ -590,8 +475,8 @@ class EnhancedBot(commands.Bot):
         await self.load_extensions()
 
         # ⚠️ 전역 삭제
-        #self.tree.clear_commands(guild=None) 
-        #await self.tree.sync() 
+        self.tree.clear_commands(guild=None) 
+        await self.tree.sync() 
 
         if Config.MAIN_GUILD_IDS:
             for guild_id in Config.MAIN_GUILD_IDS:
