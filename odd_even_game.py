@@ -1,4 +1,4 @@
-# odd_even_game.py
+# odd_even_game.py - 홀짝
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -242,6 +242,19 @@ class OddEvenCog(commands.Cog):
 
     @app_commands.command(name="홀짝", description="홀짝 게임을 시작합니다.(100원 ~ 5,000원)")
     async def odd_even(self, interaction: discord.Interaction, 배팅: int = 100):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'odd_even' 권한이 있는지 체크 (channel_config.py의 value="odd_even"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "odd_even", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:

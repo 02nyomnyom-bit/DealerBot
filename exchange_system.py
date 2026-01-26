@@ -1,4 +1,4 @@
-# exchange_system.py
+# exchange_system.py - 교환 시스템
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -182,7 +182,20 @@ class ExchangeCog(commands.Cog):
     @app_commands.command(name="현금교환", description="XP를 현금으로 교환합니다. 수수료가 부과됩니다.")
     @app_commands.describe(xp_amount="교환할 XP")
     async def exchange_xp_to_cash(self, interaction: discord.Interaction, xp_amount: int):
-        await interaction.response.defer(ephemeral=True)
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'exchange' 권한이 있는지 체크 (channel_config.py의 value="exchange"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "exchange", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 교환이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
+        await interaction.response.defer(ephemeral=False)
         user_id = str(interaction.user.id)
         
         if not await is_registered(self.bot, interaction.guild_id, user_id):
@@ -242,7 +255,20 @@ class ExchangeCog(commands.Cog):
     @app_commands.command(name="경험치교환", description="현금을 XP로 교환합니다. 수수료가 부과됩니다.")
     @app_commands.describe(cash_amount="교환할 현금")
     async def exchange_cash_to_xp(self, interaction: discord.Interaction, cash_amount: int):
-        await interaction.response.defer(ephemeral=True)
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'exchange' 권한이 있는지 체크 (channel_config.py의 value="exchange"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "exchange", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 교환이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
+        await interaction.response.defer(ephemeral=False)
         user_id = str(interaction.user.id)
         
         if not await is_registered(self.bot, interaction.guild_id, user_id):

@@ -1,4 +1,4 @@
-# blackjack.py
+# blackjack.py - 블랙잭
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -134,28 +134,31 @@ class BlackjackModeSelectView(View):
     @discord.ui.button(label="🤖 싱글 모드", style=discord.ButtonStyle.secondary, emoji="👤")
     async def single_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         if POINT_MANAGER_AVAILABLE:
-            # 잔액 부족 시 세션 풀고 종료
             p_bal = await point_manager.get_point(self.bot, interaction.guild_id, str(self.user.id))
             if p_bal < self.bet:
                 self.cog.processing_users.discard(self.user.id)
                 return await interaction.response.send_message("❌ 잔액이 부족합니다.", ephemeral=True)
-        
+            
+            # 실제 포인트 차감 수행
             await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), -self.bet)
     
+        # 게임 뷰 생성 및 시작
         view = BlackjackView(self.cog, self.user, self.bet, self.bot)
         embed = view.create_game_embed()
 
-        # 블랙잭 즉시 확인
         if view.game.is_blackjack(view.game.player_cards):
             view.game.game_over = True
             view.game.determine_winner()
-            # 메시지 전송 후 결과 업데이트
+        
+            # 응답 후 메시지 객체 확보 (이 순서가 멈춤 현상을 방지합니다)
             await interaction.response.edit_message(embed=embed, view=None)
-            view.message = await interaction.original_response()
-            await view.end_game(None)
+            view.message = await interaction.original_response() #
+        
+            # 정산 로직 호출
+            await view.end_game(interaction) #
         else:
             await interaction.response.edit_message(embed=embed, view=view)
-            view.message = await interaction.original_response()
+            view.message = await interaction.original_response() #
 
     @discord.ui.button(label="👥 멀티 모드", style=discord.ButtonStyle.primary, emoji="⚔️")
     async def multi_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -419,10 +422,20 @@ class BlackjackView(View):
         return embed
 
     async def end_game(self, interaction: discord.Interaction = None):
+        if self.message is None and interaction:
+            try:
+                self.message = await interaction.original_response()
+            except: pass
+
         self.game.game_over = True
         self.game.determine_winner()
-        guild_id = self.message.guild.id
-        uid = str(self.user.id)
+    
+        # [보강] interaction과 self.message 둘 다 없을 경우를 대비
+        guild_id = None
+        if self.message: guild_id = self.message.guild.id
+        elif interaction: guild_id = interaction.guild_id
+        
+        if guild_id is None: return # 에러 방지
         
         payout = 0
         is_win = self.game.result in ["win", "dealer_bust"]
@@ -436,21 +449,25 @@ class BlackjackView(View):
             payout = int(self.bet * PUSH_RETENTION)
 
         if POINT_MANAGER_AVAILABLE and payout > 0:
-            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
+            await point_manager.add_point(self.bot, guild_id, str(self.user.id), payout)
 
-        record_blackjack_game(uid, self.user.display_name, self.bet, payout, is_win)
+        record_blackjack_game(str(self.user.id), self.user.display_name, self.bet, payout, is_win)
 
         final_embed = self.create_game_embed(final=True)
         result_text = f"{self.game.result.upper()} (정산: {payout:,}원)"
         if is_blackjack_win:
-            result_text = f"BLACKJACK! {result_text}"
+            result_text = f"♣️ BLACKJACK! {result_text}"
         final_embed.add_field(name="결과", value=result_text, inline=False)
         
-        if interaction: 
-            await interaction.response.edit_message(embed=final_embed, view=None)
-        else: 
-            await self.message.edit(embed=final_embed, view=None)
+        # 3. 응답 처리
+        try:
+            if interaction and not interaction.response.is_done(): 
+                await interaction.response.edit_message(embed=final_embed, view=None)
+            elif self.message:
+                await self.message.edit(embed=final_embed, view=None)
+        except: pass
         
+        # 4. 게임 종료 후 유저 고정 해제
         self.cog.processing_users.discard(self.user.id)
 
 # 메인 Cog. 명령어
@@ -462,6 +479,19 @@ class BlackjackCog(commands.Cog):
     @app_commands.command(name="블랙잭", description="🃏 블랙잭을 시작합니다.(100원 ~ 6,000원)")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'blackjack' 권한이 있는지 체크 (channel_config.py의 value="blackjack"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "blackjack", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+
         user_id = interaction.user.id
         
         # 이미 게임을 플레이 중인지 확인

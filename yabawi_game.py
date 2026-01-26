@@ -1,4 +1,4 @@
-# yabawi_game.py
+# yabawi_game.py - 야바위 게임
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -102,46 +102,55 @@ class YabawiGameView(View):
         self.processing = False
 
     async def handle_choice(self, interaction: discord.Interaction, chosen_idx: int):
-        """사용자가 컵을 선택했을 때의 메인 로직"""
+        """확률 판정 후 결과를 시각화하는 로직 (개선 버전)"""
         self.processing = True
         
-        # 게임 시작 시 첫 회에만 포인트 차감
+        # 1. 포인트 차감 로직 (기존과 동일)
         if not self.initial_bet_deducted:
             current_balance = await point_manager.get_point(self.bot, self.guild_id, self.user_id)
             if current_balance < self.base_bet:
                 self.processing = False
-                active_games_by_user.discard(self.user_id) # 게임 해제
+                active_games_by_user.discard(self.user_id)
                 return await interaction.response.send_message("❌ 잔액이 부족합니다!", ephemeral=True)
             
-            # 모든 조건 통과 시 포인트 차감
             await point_manager.add_point(self.bot, self.guild_id, self.user_id, -self.base_bet)
             self.initial_bet_deducted = True
 
-        # 2. 확률 판정 로직 적용
-        # SUCCESS_RATES = [0.6, 0.55, 0.5, 0.45, 0.4] 활용
+        # 2. 확률 판정 먼저 수행
         current_rate = SUCCESS_RATES[min(self.wins, len(SUCCESS_RATES)-1)]
-        is_correct = (chosen_idx == self.real_position) and (random.random() < current_rate)
-        
-        # 컵 표시 로직
-        display_cups = ["⬜", "⬜", "⬜"]
+        is_correct = random.random() < current_rate # 여기서 승패가 먼저 결정됨
+
+        # 3. 판정 결과에 따라 공의 위치(real_position)를 사후 결정
         if is_correct:
-            display_cups[chosen_idx] = "👑"
+            self.real_position = chosen_idx # 맞춘 것으로 판정되면 공을 그 자리에 둠
         else:
-            display_cups[chosen_idx] = "❌"
-            display_cups[self.real_position] = "💰"
+            # 틀린 것으로 판정되면, 사용자가 고른 곳이 아닌 다른 곳에 공을 배치
+            wrong_positions = [i for i in range(3) if i != chosen_idx]
+            self.real_position = random.choice(wrong_positions)
+        
+        # 4. 결과 시각화 (이미지 버그 해결)
+        display_cups = ["⬜", "⬜", "⬜"]
+
+        if is_correct:
+            # 맞춘 경우: 선택한 위치에 왕관(또는 보상) 표시
+            display_cups[chosen_idx] = "👑" 
+        else:
+            # 틀린 경우: 실제 공 위치와 내가 틀린 위치를 각각 명확히 표시
+            display_cups[self.real_position] = "💰"  # 실제 정답 위치
+            display_cups[chosen_idx] = "❌"         # 유저가 선택한 오답 위치
+
         cups_display = " ".join(display_cups)
 
+        # 5. 후속 처리 (연승 및 보상)
         if is_correct:
             self.wins += 1
             self.current_pot = self.base_bet * (2 ** self.wins)
             
             if self.wins >= MAX_CHALLENGES:
-                # 5연승 달성 시 강제 종료 및 보상 지급
                 final_payout = int(self.current_pot * WINNER_RETENTION)
                 await point_manager.add_point(self.bot, self.guild_id, self.user_id, final_payout)
                 record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, final_payout, True)
-                self.processing = False # 해제
-
+                
                 self.ended = True
                 active_games_by_user.discard(self.user_id)
                 
@@ -149,18 +158,15 @@ class YabawiGameView(View):
                 embed.add_field(name="💰 최종 수령액", value=f"{final_payout:,}원")
                 await interaction.response.edit_message(embed=embed, view=None)
             else:
-                # 다음 단계 진행 여부 묻기
                 embed = discord.Embed(title="🎉 성공!", description=f"정답입니다! 현재 {self.wins}연승 중!\n{cups_display}", color=discord.Color.green())
                 embed.add_field(name="💰 현재 잠재 보상", value=f"{self.current_pot:,}원")
                 
                 self.clear_items()
-                self.add_item(ContinueButton()) # 다음 단계 버튼
-                self.add_item(StopButton())     # 중단 버튼
+                self.add_item(ContinueButton())
+                self.add_item(StopButton())
                 self.processing = False
                 await interaction.response.edit_message(embed=embed, view=self)
         else:
-            
-            # 틀렸을 경우: 전액 상실 및 종료
             self.ended = True
             active_games_by_user.discard(self.user_id)
             record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, 0, False)
@@ -222,6 +228,19 @@ class YabawiGameCog(commands.Cog):
     @app_commands.command(name="야바위", description="야바위 게임을 시작합니다.")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 3,000원)")
     async def yabawi_game(self, interaction: discord.Interaction, 배팅: int = 100): # 기본값을 100으로 변경 권장
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'yabawi' 권한이 있는지 체크 (channel_config.py의 value="yabawi"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "yabawi", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:

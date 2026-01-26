@@ -1,4 +1,4 @@
-# dice_game.py
+# dice_game.py - 주사위 게임
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -260,6 +260,19 @@ class DiceCog(commands.Cog):
 
     @app_commands.command(name="주사위", description="주사위 게임을 시작합니다.(100원 ~ 5,000원)")
     async def dice_game(self, interaction: discord.Interaction, 배팅: int = 100):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'dice' 권한이 있는지 체크 (channel_config.py의 value="dice"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "dice", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터!", ephemeral=True)
         if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
         

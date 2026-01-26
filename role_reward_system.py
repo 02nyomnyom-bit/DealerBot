@@ -1,4 +1,4 @@
-# role_reward_system.py
+# role_reward_system.py - 역할 보상 시스템
 from __future__ import annotations
 import discord
 from discord import app_commands

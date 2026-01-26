@@ -1,4 +1,4 @@
-# enhancement_system.py
+# enhancement_system.py - 강화 시스템
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -523,6 +523,19 @@ class EnhancementSystemCog(commands.Cog):
 
     @app_commands.command(name="강화", description="아이템을 강화합니다.")
     async def enhance_item(self, interaction: discord.Interaction, 아이템명: str):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'enhancement' 권한이 있는지 체크 (channel_config.py의 value="enhancement"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "enhancement", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:
@@ -742,6 +755,19 @@ class EnhancementSystemCog(commands.Cog):
 
     @app_commands.command(name="내강화", description="내가 소유한 아이템 목록을 확인합니다.")
     async def my_items(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'enhancement' 권한이 있는지 체크 (channel_config.py의 value="enhancement"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "enhancement", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         user_id = str(interaction.user.id)
         username = interaction.user.display_name
         
@@ -790,6 +816,19 @@ class EnhancementSystemCog(commands.Cog):
 
     @app_commands.command(name="강화순위", description="전체 강화 순위를 확인합니다.")
     async def enhancement_ranking(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'enhancement' 권한이 있는지 체크 (channel_config.py의 value="enhancement"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "enhancement", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         try:
             guild_id = str(interaction.guild_id)
             # ⚠️ 이 부분의 인자를 2개로 수정했습니다.
@@ -844,6 +883,18 @@ class EnhancementSystemCog(commands.Cog):
     @app_commands.command(name="공격", description="상대방의 아이템을 공격합니다. (등급별 일일 횟수 제한)")
     @app_commands.describe(내아이템="내가 사용할 아이템 이름", 상대방="공격할 대상 유저", 상대아이템="상대방의 아이템 이름")
     async def attack_item(self, interaction: discord.Interaction, 내아이템: str, 상대방: discord.Member, 상대아이템: str):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'enhancement' 권한이 있는지 체크 (channel_config.py의 value="enhancement"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "enhancement", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
         # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:
@@ -963,6 +1014,19 @@ class EnhancementSystemCog(commands.Cog):
 
     @app_commands.command(name="강화정보", description="강화 시스템에 대한 정보를 확인합니다.")
     async def enhancement_info(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'enhancement' 권한이 있는지 체크 (channel_config.py의 value="enhancement"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "enhancement", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         embed = discord.Embed(
             title="⚒️ 순수 강화 시스템",
             description="🎲 **완전 무료 랜덤 레벨 변동 시스템 (보상 없음)**",

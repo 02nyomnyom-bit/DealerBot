@@ -1,4 +1,4 @@
-# statistics_system.py
+# statistics_system.py - 통계 명령어
 from __future__ import annotations
 import os
 import json
@@ -609,6 +609,19 @@ class StatisticsCog(commands.Cog):
 
     @app_commands.command(name="통계", description="서버 전체 게임 통계를 확인합니다.")
     async def server_statistics(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'statistics' 권한이 있는지 체크 (channel_config.py의 value="statistics"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "statistics", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         if not self.stats:
             return await interaction.response.send_message("❌ 통계 시스템이 초기화되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
             

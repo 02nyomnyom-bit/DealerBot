@@ -1,3 +1,4 @@
+# rock_paper_scissors.py - 가위바위보
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -253,6 +254,19 @@ class RPSCog(commands.Cog):
 
     @app_commands.command(name="가위바위보", description="가위바위보 게임을 시작합니다. (100원 ~ 5,000원)")
     async def rps(self, interaction: discord.Interaction, 배팅: int = 100):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'point_2' 권한이 있는지 체크 (channel_config.py의 value="point_2"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_2", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 게임이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:

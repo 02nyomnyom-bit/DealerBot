@@ -1,4 +1,4 @@
-# welcome_system.py
+# welcome_system.py - 환영 시스템
 from __future__ import annotations
 import discord
 from discord.ext import commands

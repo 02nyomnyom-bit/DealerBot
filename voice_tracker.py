@@ -1,4 +1,4 @@
-# voice_tracker.py
+# voice_tracker.py - 음성 추적
 from __future__ import annotations
 import datetime
 import discord
@@ -261,6 +261,19 @@ class VoiceTracker(commands.Cog):
     @app_commands.command(name="보이스랭크", description="사용자의 통화 시간을 공개적으로 확인합니다.")
     @app_commands.describe(사용자="확인할 사용자")
     async def voice_rank(self, interaction: discord.Interaction, 사용자: discord.Member):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'voice' 권한이 있는지 체크 (channel_config.py의 value="voice"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "voice", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         """보이스 랭크 확인 명령어 (공개)"""
         await interaction.response.defer()
         user_id = str(사용자.id)
@@ -346,6 +359,19 @@ class VoiceTracker(commands.Cog):
         app_commands.Choice(name="📋 한달 (30일)", value="30")
     ])
     async def voice_statistics(self, interaction: discord.Interaction, 기간: app_commands.Choice[str]):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'voice' 권한이 있는지 체크 (channel_config.py의 value="voice"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "voice", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         """보이스 통계 명령어 (공개, 상위 10명만)"""
         await interaction.response.defer()
         try:

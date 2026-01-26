@@ -1,4 +1,4 @@
-# point_manager.py
+# point_manager.py - 포인트 시스템
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member, User
@@ -222,6 +222,19 @@ class PointManager(commands.Cog):
 
     @app_commands.command(name="등록", description="서버의 멤버로 등록합니다.")
     async def register(self, interaction: Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'point_1' 권한이 있는지 체크 (channel_config.py의 value="point_1"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_1", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 등록이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         user_id = str(interaction.user.id)
         username = interaction.user.name
         display_name = interaction.user.display_name
@@ -302,7 +315,20 @@ class PointManager(commands.Cog):
 
     @app_commands.command(name="지갑", description="현재 보유 현금을 확인합니다.")
     @app_commands.describe(사용자="[선택사항] 다른 사용자의 지갑을 확인")
-    async def wallet(self, interaction: Interaction, 사용자: Optional[Member] = None):
+    async def wallet(self, interaction: Interaction, 사용자: Optional[Member] = None):\
+    # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'point_2' 권한이 있는지 체크 (channel_config.py의 value="point_2"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_2", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         target_user = 사용자 or interaction.user
         user_id = str(target_user.id)
         
@@ -357,6 +383,19 @@ class PointManager(commands.Cog):
         금액="선물할 현금 최소현금과 최대현금은 바뀔수있습니다."
     )
     async def gift(self, interaction: Interaction, 받는사람: Member, 금액: int):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'point_2' 권한이 있는지 체크 (channel_config.py의 value="point_2"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_2", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 선물이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         sender_id = str(interaction.user.id)
         receiver_id = str(받는사람.id)
         
@@ -528,6 +567,19 @@ class PointManager(commands.Cog):
     @app_commands.command(name="현금순위", description="현금 보유 순위를 확인합니다")
     @app_commands.describe(페이지="확인할 페이지 (기본값: 1)")
     async def cash_ranking(self, interaction: Interaction, 페이지: int = 1):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'r_p_s' 권한이 있는지 체크 (channel_config.py의 value="r_p_s"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "r_p_s", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         try:
             db = self._get_db(interaction.guild_id)
             # 상위 100명 조회

@@ -1,4 +1,4 @@
-# common_utils.py
+# common_utils.py - 공통 유틸리티
 from __future__ import annotations
 import os
 import json

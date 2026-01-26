@@ -13,9 +13,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
-import traceback # Add this import for error handling
-
-# ✅ 누락된 discord 관련 모듈 import
+import traceback
 import discord
 from discord import app_commands
 from discord.ext import commands

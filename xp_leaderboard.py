@@ -1,4 +1,4 @@
-# xp_leaderboard.py
+# xp_leaderboard.py - XP 리더보드
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member
@@ -178,6 +178,19 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.command(name="레벨", description="자신 또는 다른 사용자의 레벨 및 XP를 확인합니다.")
     @app_commands.describe(사용자="[선택사항] 레벨을 확인할 사용자")
     async def level(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'xp' 권한이 있는지 체크 (channel_config.py의 value="xp"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "xp", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         """레벨 조회 명령어"""
         await interaction.response.defer()
         target = 사용자 if 사용자 else interaction.user
@@ -446,6 +459,19 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.command(name="레벨순위", description="XP 리더보드를 확인합니다")
     @app_commands.describe(페이지="확인할 페이지 (기본값: 1)")
     async def level_leaderboard(self, interaction: Interaction, 페이지: int = 1):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'xp' 권한이 있는지 체크 (channel_config.py의 value="xp"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "xp", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         """레벨 순위 (XP 리더보드)"""
         await self._show_xp_leaderboard(interaction, 페이지)
     

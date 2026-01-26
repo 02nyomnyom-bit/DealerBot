@@ -5,15 +5,14 @@ import sys
 import signal
 import asyncio
 import logging
-import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 import traceback
 import psutil
 from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
-from discord import app_commands, Member
+from discord import app_commands
 from datetime import datetime, timedelta, timezone
 
 # 프로젝트 루트 디렉토리 설정
@@ -190,9 +189,9 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'attendance_master',         # 출석 시스템
         'voice_tracker',             # 음성 추적
         'improved_post_delete',      # 글 삭제
-        'help_command',             # 도움말
+        'help_command',              # 도움말
         'update_system',             # 업데이트 시스템
-        'improved_user_management',  # 향상된 사용자 관리
+        'improved_user_management',  # 사용자 관리
     ]
     
     # 게임 시스템
@@ -206,7 +205,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'yabawi_game',                  # 야바위 게임
         "rock_paper_scissors",          # 가위바위보
         'odd_even_game',                # 홀짝
-        'ladder_game',                  # 사다리타기
+        'ladder_game',                  # 제비뽑기
     ]
     
     # 관리 도구
@@ -214,11 +213,12 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'tax_system',                   # 세금 시스템
         'role_reward_system',           # 역할 보상 시스템
         'welcome_system',               # 환영 시스템
-        'anonymous',                    # 익명 시스템 추가
+        'anonymous',                    # 익명 시스템
     ]
     
     # 유틸리티
     utility_extensions = [
+        'channel_config',               # 채널 지정 파일
         'common_utils',                 # 공통 유틸리티
         'statistics_system',            # 통계 명령어
         'error_handler',                # 통합 에러 처리 시스템
@@ -330,7 +330,7 @@ class EnhancedBot(commands.Bot):
         else: # 24시 ~ 5시
             greeting = "“새벽의 깊은 승부 중”"
 
-        status_text = f"📅{date_str} | {greeting} | (v1.7.3)"
+        status_text = f"📅{date_str} | {greeting} | (v1.8.1)"
         
         await self.change_presence(
             activity=discord.CustomActivity(name=status_text),
@@ -386,7 +386,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="딜러양 v1.7.3 - 서버 제한 시스템")
+                    embed.set_footer(text="딜러양 v1.8.1 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -491,7 +491,7 @@ class EnhancedBot(commands.Bot):
                 inline=False
             )
         
-        embed.set_footer(text="딜러양 v1.7.3 - 서버 제한 시스템")
+        embed.set_footer(text="딜러양 v1.8.1 - 서버 제한 시스템")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -535,7 +535,7 @@ class EnhancedBot(commands.Bot):
             inline=True
         )
         
-        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.7.3")
+        embed.set_footer(text=f"점검자: {interaction.user.display_name} | 딜러양 v1.8.1")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
@@ -610,7 +610,7 @@ class EnhancedBot(commands.Bot):
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
         
         print("=" * 50)
-        print("🎉 딜러양 v1.7.3 구동 중 (60초 후 명령어 동기화 예정)")
+        print("🎉 딜러양 v1.8.1 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
 
@@ -694,7 +694,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 딜러양 v1.7.3 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 딜러양 v1.8.1 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

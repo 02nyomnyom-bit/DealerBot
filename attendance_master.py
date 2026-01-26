@@ -1,4 +1,4 @@
-# attendance_master.py
+# attendance_master.py - 출석 시스템
 from __future__ import annotations
 import discord
 from discord import app_commands
@@ -74,6 +74,19 @@ class AttendanceMasterCog(commands.Cog):
 
     @app_commands.command(name="출석체크", description="일일 현금과 경험치 지급")
     async def attendance_check_v2(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+            # 2. 현재 채널에 'attendance' 권한이 있는지 체크
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "attendance", interaction.guild.id)
+        
+            if not is_allowed:
+                return await interaction.response.send_message(
+                    "🚫 이 채널은 출석체크가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                    ephemeral=True
+                )
+        
         await interaction.response.defer()
         
         user_id = str(interaction.user.id)
@@ -232,6 +245,19 @@ class AttendanceMasterCog(commands.Cog):
 
     @app_commands.command(name="출석현황", description="나의 현재 출석 현황을 확인합니다.")
     async def attendance_status(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+            # 2. 현재 채널에 'attendance' 권한이 있는지 체크
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "attendance", interaction.guild.id)
+        
+            if not is_allowed:
+                return await interaction.response.send_message(
+                    "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                    ephemeral=True
+                )
+            
         await interaction.response.defer(ephemeral=False)
 
         user_id = str(interaction.user.id)
@@ -292,6 +318,19 @@ class AttendanceMasterCog(commands.Cog):
     @app_commands.command(name="출석랭킹", description="서버 내 출석 랭킹을 확인합니다.")
     async def attendance_ranking(self, interaction: discord.Interaction):
         """서버 내 연속 출석일 랭킹 표시"""
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+            # 2. 현재 채널에 'attendance' 권한이 있는지 체크
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "attendance", interaction.guild.id)
+        
+            if not is_allowed:
+                return await interaction.response.send_message(
+                    "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                    ephemeral=True
+                )
+            
         await interaction.response.defer()
 
         guild_id = str(interaction.guild.id)

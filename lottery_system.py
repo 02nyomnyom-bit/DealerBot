@@ -1,3 +1,4 @@
+# lottery_system.py - 로또 시스템
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -266,6 +267,19 @@ class LotterySystem(commands.Cog):
     @app_commands.command(name="로또구매", description="파워볼 로또를 구매합니다. (5,000원)")
     @app_commands.describe(numbers="일반볼 5개 (1~28, 쉼표 구분)", pb="파워볼 1개 (0~9)")
     async def buy_lottery(self, interaction: discord.Interaction, numbers: Optional[str] = None, pb: Optional[int] = None):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'lottery' 권한이 있는지 체크 (channel_config.py의 value="lottery"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "lottery", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 구매가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         db = self._get_db(interaction.guild.id)
         if db is None:
             return await interaction.response.send_message("데이터베이스 연결에 실패했습니다.", ephemeral=True)
@@ -292,6 +306,19 @@ class LotterySystem(commands.Cog):
 
     @app_commands.command(name="로또정보", description="상금 정보와 나의 티켓 목록을 확인합니다.")
     async def lottery_info(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'lottery' 권한이 있는지 체크 (channel_config.py의 value="lottery"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "lottery", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         db = self._get_db(interaction.guild.id)
         if db is None:
             return await interaction.response.send_message("데이터베이스 연결 실패", ephemeral=True)

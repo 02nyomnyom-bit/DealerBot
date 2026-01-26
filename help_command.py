@@ -1,4 +1,4 @@
-# update_system.py
+# help_command.py - 도움말
 from __future__ import annotations
 import datetime
 import discord

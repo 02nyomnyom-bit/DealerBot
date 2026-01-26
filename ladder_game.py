@@ -1,4 +1,4 @@
-# ladder_game.py
+# ladder_game.py - 제비뽑기
 from __future__ import annotations
 import discord
 from discord.ext import commands

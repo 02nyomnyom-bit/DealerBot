@@ -1,4 +1,4 @@
-# tax_system.py
+# tax_system.py - 세금 시스템
 from __future__ import annotations
 import discord
 from discord import app_commands

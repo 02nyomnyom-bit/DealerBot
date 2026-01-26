@@ -1,4 +1,4 @@
-# database_manager.py
+# database_manager.py - 데이터베이스 관리
 from __future__ import annotations
 import sqlite3
 import os
@@ -106,7 +106,6 @@ class DatabaseManager:
     def _create_tables(self):
         """테이블 생성 및 스키마 마이그레이션"""
         # 1. users 테이블 (기존 코드)
-
         self.execute_query("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
@@ -264,6 +263,7 @@ class DatabaseManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
+
         # 익명 전용 서버 설정 테이블 추가 (익명 채널 설정 등 저장용)
         self.create_table(
             "server_settings",
@@ -285,7 +285,25 @@ class DatabaseManager:
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 """
         )
+
+        self.execute_query('''
+            CREATE TABLE IF NOT EXISTS anonymous_messages (
+                msg_id TEXT PRIMARY KEY,
+                user_id TEXT,
+                user_name TEXT,
+                content TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     
+        self.execute_query('''
+            CREATE TABLE IF NOT EXISTS channel_configs (
+                channel_id TEXT,
+                feature_type TEXT,
+                PRIMARY KEY (channel_id, feature_type)
+            )
+        ''')
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
