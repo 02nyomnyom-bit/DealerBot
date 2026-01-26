@@ -136,6 +136,27 @@ class MultiSetupView(View):
         await interaction.response.edit_message(content=None, embed=embed, view=view)
         view.message = await interaction.original_response()
 
+    @discord.ui.button(label="수락", style=discord.ButtonStyle.green)
+    async def accept(self, interaction: discord.Interaction):
+        # 1. 지목된 상대방이 맞는지 먼저 확인
+        if interaction.user.id != self.p2.id:
+            return await interaction.response.send_message("❌ 당신은 이 게임의 상대방이 아닙니다.", ephemeral=True)
+
+        # 2. [핵심] 수락한 사람의 잔액을 실시간으로 확인
+        p2_bal = await point_manager.get_point(self.bot, interaction.guild_id, str(self.p2.id))
+    
+        if p2_bal < self.bet:
+            # 돈이 부족하면 게임을 시작하지 않고 종료
+            return await interaction.response.send_message(
+                f"❌ 잔액이 부족하여 수락할 수 없습니다! (보유: {p2_bal:,}원 / 필요: {self.bet:,}원)", 
+                ephemeral=True
+            )
+
+        # 3. 잔액이 충분할 때만 게임 시작
+        self.value = True
+        await interaction.response.defer() # 버튼 클릭 처리
+        self.stop() # View 대기 종료
+        
 class MultiRPSView(View):
     def __init__(self, bot, p1, bet, p2=None):
         super().__init__(timeout=60)

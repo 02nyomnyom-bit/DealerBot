@@ -63,6 +63,7 @@ except ImportError as e:
         def add_user_cash(self, user_id, amount):
             current = self.get_user_cash(user_id)
             new_amount = current + amount
+            
             if self.update_user_cash(user_id, new_amount):
                 print(f"[MOCK] 현금 추가 성공: {user_id} -> +{amount}원 (총 {new_amount}원)")
                 return new_amount
