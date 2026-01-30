@@ -223,9 +223,13 @@ class ExchangeCog(commands.Cog):
         # XP 차감 및 현금 지급
         try:
             cash_gained = int(xp_amount * self.exchange_system.settings['XP_to_현금_비율'])
-            
+
+           # 1. DB에서 XP 차감
             db.add_user_xp(user_id, -xp_amount)
-            new_cash = await add_point(self.bot, interaction.guild.id, user_id, cash_gained)
+            # 2. 현금 포인트 추가
+            await add_point(self.bot, interaction.guild_id, user_id, cash_gained)
+            # 3. ❗ 최신 현금 잔액 직접 조회 (1 방지)
+            actual_cash = await get_point(self.bot, interaction.guild_id, user_id)
 
             self.exchange_system.record_exchange(interaction, "xp_to_cash", xp_amount, cash_gained)
             self.exchange_system.update_cooldown(user_id)
@@ -235,16 +239,9 @@ class ExchangeCog(commands.Cog):
                 description=f"{db.format_xp(xp_amount)}를 교환하여 **{db.format_money(cash_gained)}**을(를) 획득했습니다!",
                 color=discord.Color.green()
             )
-            embed.add_field(
-                name="💰 남은 현금",
-                value=f"**{db.format_money(new_cash)}**",
-                inline=True
-            )
-            embed.add_field(
-                name="📊 남은 XP",
-                value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**",
-                inline=True
-            )
+            embed.add_field(name="💰 남은 현금", value=f"**{db.format_money(actual_cash)}**", inline=True)
+            embed.add_field(name="📊 남은 XP", value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**", inline=True)
+           
             embed.set_footer(text=f"현재 교환 비율: 1 XP = {self.exchange_system.settings['XP_to_현금_비율']:.2f}원 | 일일 {self.exchange_system.get_user_daily_exchanges(user_id)}회 사용")
             await interaction.followup.send(embed=embed)
         except Exception as e:
@@ -307,15 +304,9 @@ class ExchangeCog(commands.Cog):
                 color=discord.Color.green()
             )
             embed.add_field(
-                name="💰 남은 현금",
-                value=f"**{db.format_money(new_cash)}**",
-                inline=True
-            )
-            embed.add_field(
-                name="📊 남은 XP",
-                value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**",
-                inline=True
-            )
+                name="💰 남은 현금",value=f"**{db.format_money(new_cash)}**",inline=True)
+            embed.add_field(name="📊 남은 XP",value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**",inline=True)
+            
             embed.set_footer(text=f"현재 교환 비율: 1원 = {self.exchange_system.settings['현금_to_XP_비율']:.2f} XP | 일일 {self.exchange_system.get_user_daily_exchanges(user_id)}회 사용")
             await interaction.followup.send(embed=embed)
         except Exception as e:

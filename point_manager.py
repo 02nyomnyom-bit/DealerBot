@@ -143,6 +143,54 @@ class GiftSettings:
             print(f"❌ 선물 설정 저장 실패: {e}")
             return False
 
+class LeaveConfirmView(discord.ui.View):
+    def __init__(self, user_id: str, db, target_name: str):
+        super().__init__(timeout=30)
+        self.user_id = user_id
+        self.db = db
+        self.target_name = target_name
+
+    @discord.ui.button(label="✅ 탈퇴하기", style=discord.ButtonStyle.danger)
+    async def confirm_leave(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            # 1. 역할 제거 로직 추가
+            member = interaction.guild.get_member(int(self.user_id))
+            removed_roles_count = 0
+            
+            if member:
+                # @everyone을 제외한 모든 역할 필터링 (위치 기반으로 봇보다 높은 역할은 제거 불가)
+                roles_to_remove = [role for role in member.roles if not role.is_default()]
+                if roles_to_remove:
+                    try:
+                        await member.remove_roles(*roles_to_remove, reason="포인트 시스템 자발적 탈퇴")
+                        removed_roles_count = len(roles_to_remove)
+                    except discord.Forbidden:
+                        print(f"⚠️ {self.target_name}의 역할을 제거할 권한이 없습니다.")
+                    except Exception as e:
+                        print(f"⚠️ 역할 제거 중 오류 발생: {e}")
+
+            # 2. 데이터베이스 사용자 삭제 실행
+            self.db.delete_user(self.user_id)
+            
+            # 3. 결과 알림
+            role_msg = f" 및 {removed_roles_count}개의 역할이 회수" if removed_roles_count > 0 else ""
+            embed = discord.Embed(
+                title="👋 탈퇴 완료",
+                description=f"{self.target_name}님의 모든 데이터가 삭제{role_msg}되었습니다.\n언제든지 다시 가입할 수 있습니다.",
+                color=discord.Color.red()
+            )
+            await interaction.response.edit_message(embed=embed, view=None)
+            print(f"✅ 사용자 수동 탈퇴 및 역할 제거: {self.target_name} ({self.user_id})")
+
+        except Exception as e:
+            print(f"❌ 탈퇴 처리 중 오류: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ 오류가 발생했습니다: {e}", ephemeral=True)
+            else:
+                await interaction.edit_original_response(content=f"❌ 오류 발생: {e}", embed=None, view=None)
+    async def on_timeout(self):
+        self.stop()
+
 class PointManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -626,71 +674,32 @@ class PointManager(commands.Cog):
             print(f"❌ 순위 조회 중 오류: {e}")
             await interaction.response.send_message(f"❌ 순위 조회 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
-    # 탈퇴 시스템
-    class LeaveConfirmView(discord.ui.View):
-        def __init__(self, user_id: str, db):
-            super().__init__(timeout=30)
-            self.user_id = user_id
-            self.db = db
-
-        @discord.ui.button(label="✅ 탈퇴하기", style=discord.ButtonStyle.danger)
-        async def confirm_leave(self, interaction: discord.Interaction, button: discord.ui.Button):
-            try:
-                result = self.db.delete_user(self.user_id)
-                embed = discord.Embed(
-                    title="👋 탈퇴 완료",
-                    description="모든 데이터가 삭제되었습니다.\n언제든지 다시 가입할 수 있습니다.",
-                    color=discord.Color.red()
-                )
-                await interaction.response.edit_message(embed=embed, view=None)
-            except Exception as e:
-                print(f"❌ 탈퇴 처리 중 오류: {e}")
-                embed = discord.Embed(
-                    title="❌ 탈퇴 실패",
-                    description=f"탈퇴 처리 중 오류가 발생했습니다: {str(e)}",
-                    color=discord.Color.red()
-                )
-                await interaction.response.edit_message(embed=embed, view=None)
-
-        @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
-        async def cancel_leave(self, interaction: discord.Interaction, button: discord.ui.Button):
-            embed = discord.Embed(
-                title="❌ 탈퇴 취소",
-                description="탈퇴가 취소되었습니다.",
-                color=discord.Color.blue()
-            )
-            await interaction.response.edit_message(embed=embed, view=None)
-
-
-
-        async def on_timeout(self):
-            self.stop()
-
     @app_commands.command(name="탈퇴", description="서버에서 탈퇴합니다. (모든 데이터 삭제)")
     async def leave(self, interaction: Interaction):
         user_id = str(interaction.user.id)
-        
         db = self._get_db(interaction.guild_id)
         
-        if not db.get_user(user_id):
+        user_data = db.get_user(user_id)
+        if not user_data:
             await interaction.response.send_message("❌ 등록되지 않은 사용자입니다.", ephemeral=True)
             return
         
         try:
             cash = db.get_user_cash(user_id)
-            view = self.LeaveConfirmView(user_id, db)
+            # 외부로 뺀 LeaveConfirmView를 호출합니다.
+            view = LeaveConfirmView(user_id, db, interaction.user.display_name)
             
             embed = discord.Embed(
                 title="⚠️ 탈퇴 확인",
-                description=f"정말로 탈퇴하시겠습니까?\n\n**현재 보유 현금**: {format_money(cash)}\n\n⚠️ **주의**: 탈퇴시 모든 데이터가 영구 삭제됩니다.",
+                description=f"정말로 탈퇴하시겠습니까?\n\n**현재 보유 현금**: {format_money(cash)}\n\n⚠️ **주의**: 탈퇴 시 모든 데이터가 영구 삭제됩니다.",
                 color=discord.Color.orange()
             )
             
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             
         except Exception as e:
-            print(f"❌ 탈퇴 처리 중 오류: {e}")
-            await interaction.response.send_message(f"❌ 탈퇴 처리 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
+            print(f"❌ 탈퇴 명령어 오류: {e}")
+            await interaction.response.send_message(f"❌ 처리 중 오류가 발생했습니다.", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):

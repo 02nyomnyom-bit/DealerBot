@@ -22,7 +22,7 @@ except ImportError:
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
 # 상수 설정
-MAX_BET = 5000          # 최대 배팅금: 5천 원
+MAX_BET = 3000          # 최대 배팅금: 5천 원
 PUSH_RETENTION = 1.0      # 무승부 시 수수료 
 WINNER_RETENTION = 1.0    # 승리 시 수수료
 
@@ -279,7 +279,7 @@ class DiceCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="주사위", description="주사위 게임을 시작합니다.(100원 ~ 5,000원)")
+    @app_commands.command(name="주사위", description="주사위 게임을 시작합니다.(100원 ~ 3,000원)")
     async def dice_game(self, interaction: discord.Interaction, 배팅: int = 100):
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
