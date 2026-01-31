@@ -694,11 +694,10 @@ class XPLeaderboardCog(commands.Cog):
             if 작업 == "give_xp":
                 success = await self.add_xp(user_id, guild_id, 수량)
                 if not success:
-                    return await interaction.response.send_message("❌ XP 지급에 실패했습니다.", ephemeral=True)
-                    
+                    return await interaction.followup.send("❌ XP 지급에 실패했습니다.", ephemeral=True)
+                
                 new_level = self.get_user_level(user_id, guild_id)
                 new_xp = self.get_user_xp(user_id, guild_id)
-                role_update_needed = True  # 역할 업데이트 필요
                 
                 embed = discord.Embed(
                     title="✅ XP 지급 완료",
@@ -707,35 +706,22 @@ class XPLeaderboardCog(commands.Cog):
                                 f"현재 레벨: **{new_level}**",
                     color=discord.Color.green()
                 )
-                # 2. 변경 후 레벨 확인
-                new_level = self.get_user_level(user_id, guild_id)
-                level_diff = new_level - old_level
 
-                # 3. 레벨 상승 시 요약 알림 전송
-                if level_diff > 0:
-                    if level_diff > 1:
-                        msg = f"🎊 {대상자.mention}님이 관리자의 도움으로 **총 {level_diff}레벨** 상승하여 **Lv.{new_level}**이 되었습니다!"
-                    else:
-                        msg = f"🎊 {대상자.mention}님이 **Lv.{new_level}**로 레벨업했습니다!"
-            
-                    # 레벨업 알림 채널에 전송 (시스템 설정 채널 활용)
-                    await self.send_levelup_announcement(대상자, new_level, msg)
-
-                # 4. 역할 보상 시스템 연동 (최종 레벨 기준 1회 호출)
-                if ROLE_REWARD_AVAILABLE:
-                    try:
-                        # role_reward_manager를 통해 역할 부여 로직 실행
-                        await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
-                    except Exception as e:
-                        print(f"관리자 지급 역할 부여 중 오류: {e}")
-            
-                # 5. 관리자에게 결과 보고 (followup 사용)
-                await interaction.followup.send(content=f"✅ {대상자.display_name}님의 경험치 처리가 완료되었습니다. (Lv.{old_level} ➔ Lv.{new_level})", ephemeral=True)
-                
                 if new_level > old_level:
-                    embed.add_field(name="레벨업!", value=f"Lv.{old_level} → Lv.{new_level}", inline=False)
-                    # 레벨업 알림 호출
-                    await check_and_send_levelup_notification(self.bot, 대상자, interaction.guild, old_level, new_level)
+                    announcement = f"🎊 {대상자.mention}님이 관리자에 의해 **Lv.{new_level}**로 레벨업했습니다!"
+                    # 위에서 추가한 메서드 호출
+                    await self.send_levelup_announcement(대상자, new_level, announcement)
+                    
+                    # 역할 보상 시스템 연동
+                    if ROLE_REWARD_AVAILABLE:
+                        try:
+                            # role_reward_system.py의 매니저 호출
+                            await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
+                            embed.add_field(name="🎭 역할 업데이트", value=f"Lv.{new_level} 보상이 적용되었습니다.", inline=False)
+                        except Exception as e:
+                            print(f"역할 부여 중 오류: {e}")
+
+                return await interaction.followup.send(embed=embed, ephemeral=True)
                 
             elif 작업 == "remove_xp":
                 current_xp = self.get_user_xp(user_id, guild_id)
@@ -852,10 +838,11 @@ class XPLeaderboardCog(commands.Cog):
         
         # 최종 응답 전송 (defer를 사용했으므로 followup 사용 권장)
         await interaction.followup.send(embed=embed, ephemeral=True)
-        
+
     async def send_levelup_announcement(self, member, level, message_text):
-        """레벨업 알림 채널에 커스텀 메시지를 전송합니다."""
+        """관리자 조작으로 인한 레벨 변경 시 알림을 전송합니다."""
         guild_id = str(member.guild.id)
+        # common_utils나 전역에 정의된 함수 호출
         channel_id = get_levelup_channel_id(guild_id)
         
         if not channel_id:
@@ -864,7 +851,7 @@ class XPLeaderboardCog(commands.Cog):
         channel = self.bot.get_channel(int(channel_id))
         if channel and channel.permissions_for(member.guild.me).send_messages:
             embed = discord.Embed(
-                title="🎊 레벨 변경 알림",
+                title="🎊 레벨 변경 알림 (관리자)",
                 description=message_text,
                 color=discord.Color.gold()
             )
