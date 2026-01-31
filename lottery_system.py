@@ -184,15 +184,14 @@ class TicketPaginatorView(discord.ui.View):
             await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)    
 
 class DrawResultPaginatorView(discord.ui.View):
-    class DrawResultPaginatorView(discord.ui.View):
-        def __init__(self, draw_nums, draw_pb, summary_list, round_num):
-            super().__init__(timeout=60)
-            self.draw_nums = draw_nums
-            self.draw_pb = draw_pb
-            self.summary_list = summary_list
-            self.round_num = round_num
-            self.current_page = 0
-            self.items_per_page = 3 # 한 번에 보여줄 등수 개수 (조절 가능)
+    def __init__(self, draw_nums, draw_pb, summary_list, round_num):
+        super().__init__(timeout=60)
+        self.draw_nums = draw_nums
+        self.draw_pb = draw_pb
+        self.summary_list = summary_list
+        self.round_num = round_num
+        self.current_page = 0
+        self.items_per_page = 3 # 한 번에 보여줄 등수 개수 (조절 가능)
 
     def create_embed(self):
         embed = discord.Embed(
