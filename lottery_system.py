@@ -188,10 +188,11 @@ class DrawResultPaginatorView(discord.ui.View):
         super().__init__(timeout=60)
         self.draw_nums = draw_nums
         self.draw_pb = draw_pb
-        self.summary_list = summary_list
+        self.summary = summary_list  # 여기서 summary_list를 self.summary로 저장합니다
         self.round_num = round_num
         self.current_page = 0
-        self.items_per_page = 3 # 한 번에 보여줄 등수 개수 (조절 가능)
+        self.per_page = 5  # 한 페이지에 보여줄 당첨 등수 개수
+        self.total_pages = (len(summary_list) - 1) // self.per_page + 1 if summary_list else 1
 
     def create_embed(self):
         embed = discord.Embed(
@@ -204,7 +205,7 @@ class DrawResultPaginatorView(discord.ui.View):
             inline=False
         )
 
-        if not self.summary:
+        if not self.summary:  # 이제 self.summary를 정상적으로 참조할 수 있습니다
             embed.add_field(name="당첨 현황", value="당첨자가 없습니다.", inline=False)
         else:
             start_idx = self.current_page * self.per_page
@@ -217,8 +218,24 @@ class DrawResultPaginatorView(discord.ui.View):
                 inline=False
             )
         
-        embed.set_footer(text="버튼을 눌러 다른 등수의 당첨자를 확인하세요.")
+        embed.set_footer(text="버튼을 눌러 페이지를 넘기세요.")
         return embed
+
+    @discord.ui.button(label="이전", style=discord.ButtonStyle.gray)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        else:
+            await interaction.response.send_message("첫 페이지입니다.", ephemeral=True)
+
+    @discord.ui.button(label="다음", style=discord.ButtonStyle.gray)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+        else:
+            await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)
 
     @discord.ui.button(label="다음 당첨자 보기", style=discord.ButtonStyle.primary, emoji="⏭️")
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
