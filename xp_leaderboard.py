@@ -840,7 +840,7 @@ class XPLeaderboardCog(commands.Cog):
 
             # 최종 응답 (defer를 사용했다면 followup.send 사용)
             await interaction.followup.send(embed=embed, ephemeral=True)
-            
+
             if ROLE_REWARD_AVAILABLE:
                 # 역할 보상 시스템 연동 (최종 레벨 기준 1회 호출)
                 await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
@@ -852,7 +852,28 @@ class XPLeaderboardCog(commands.Cog):
         
         # 최종 응답 전송 (defer를 사용했으므로 followup 사용 권장)
         await interaction.followup.send(embed=embed, ephemeral=True)
-    
+        
+    async def send_levelup_announcement(self, member, level, message_text):
+        """레벨업 알림 채널에 커스텀 메시지를 전송합니다."""
+        guild_id = str(member.guild.id)
+        channel_id = get_levelup_channel_id(guild_id)
+        
+        if not channel_id:
+            return
+
+        channel = self.bot.get_channel(int(channel_id))
+        if channel and channel.permissions_for(member.guild.me).send_messages:
+            embed = discord.Embed(
+                title="🎊 레벨 변경 알림",
+                description=message_text,
+                color=discord.Color.gold()
+            )
+            embed.set_thumbnail(url=member.display_avatar.url)
+            try:
+                await channel.send(embed=embed)
+            except Exception as e:
+                print(f"❌ 알림 전송 실패: {e}")
+
     def update_xp_setting(self, setting_key: str, value: int) -> bool:
         """XP 설정 업데이트"""
         try:
