@@ -47,6 +47,8 @@ class IntegratedLeaderboardCog(commands.Cog):
     # ===== 통합 리더보드 명령어들 =====
 
     @app_commands.command(name="통합리더보드", description="통합 리더보드를 확인합니다. (현금+XP)")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         타입="확인할 리더보드 타입",
         페이지="페이지 번호 (기본: 1)"
@@ -57,18 +59,6 @@ class IntegratedLeaderboardCog(commands.Cog):
         app_commands.Choice(name="🏆 통합 순위", value="combined")
     ])
     async def integrated_leaderboard(self, interaction: discord.Interaction, 타입: app_commands.Choice[str] = None, 페이지: int = 1):
-        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
-        config_cog = self.bot.get_cog("ChannelConfig")
-    
-        if config_cog:
-        # 2. 현재 채널에 'leaderboard' 권한이 있는지 체크 (channel_config.py의 value="leaderboard"와 일치해야 함)
-            is_allowed = await config_cog.check_permission(interaction.channel_id, "leaderboard", interaction.guild.id)
-        
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
         
         if not self.db_cog:
             return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)

@@ -175,39 +175,53 @@ class XPLeaderboardCog(commands.Cog):
     
         return xp_required_for_next_level - user_xp
 
-    @app_commands.command(name="레벨", description="자신 또는 다른 사용자의 레벨 및 XP를 확인합니다.")
-    @app_commands.describe(사용자="[선택사항] 레벨을 확인할 사용자")
-    async def level(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None):
-        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+    @app_commands.command(name="레벨", description="자신의 레벨 및 XP를 확인합니다.")
+    @app_commands.describe(
+        사용자="[관리자 전용] 레벨을 확인할 사용자",
+        비공개="결과를 나만 볼지 여부 (기본값: 네)"
+    )
+    @app_commands.choices(비공개=[
+        app_commands.Choice(name="네", value="True"),
+        app_commands.Choice(name="아니오", value="False")
+    ])
+    async def level(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None, 비공개: str = "True"):
+        # 1. 관리자 권한 체크 (다른 사용자를 조회하려고 할 때)
+        if 사용자 and 사용자 != interaction.user:
+            if not interaction.user.guild_permissions.administrator:
+                return await interaction.response.send_message(
+                    "🚫 다른 사용자의 레벨 조회는 관리자만 가능합니다.", 
+                    ephemeral=True
+                )
+            
+        # 2. 중앙 설정 Cog(ChannelConfig) 가져오기 및 채널 권한 체크
         config_cog = self.bot.get_cog("ChannelConfig")
-    
         if config_cog:
-        # 2. 현재 채널에 'xp' 권한이 있는지 체크 (channel_config.py의 value="xp"와 일치해야 함)
             is_allowed = await config_cog.check_permission(interaction.channel_id, "xp", interaction.guild.id)
+            if not is_allowed:
+                return await interaction.response.send_message(
+                    "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                    ephemeral=True
+                )
         
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
+        # 3. 비공개 여부에 따른 응답 지연 (기본값: True)
+        is_ephemeral = True if 비공개 == "True" else False
+        await interaction.response.defer(ephemeral=is_ephemeral)
         
-        """레벨 조회 명령어"""
-        await interaction.response.defer()
         target = 사용자 if 사용자 else interaction.user
         user_id = str(target.id)
         guild_id = str(interaction.guild.id)
         
-        # 등록 확인
+        # 4. 등록 확인
         if not is_user_registered(user_id, guild_id):
             embed = discord.Embed(
                 title="❌ 등록되지 않은 사용자",
-                description="아직 서버에 등록되지 않았습니다. /등록을 사용하여 등록해주세요.",
+                description=f"{target.display_name}님은 아직 서버에 등록되지 않았습니다.",
                 color=discord.Color.red()
             )
             return await interaction.followup.send(embed=embed)
         
         try:
-            # get_user_level_info 함수를 사용, 모든 정보를 한 번에 가져옴
+            # 레벨 정보 가져오기 로직
             user_xp_info = self.get_user_level_info(user_id, guild_id)
             current_level = user_xp_info['level']
             total_xp = user_xp_info['total_xp']
@@ -223,8 +237,7 @@ class XPLeaderboardCog(commands.Cog):
                 WHERE guild_id = ? AND xp > ? 
             ''', (guild_id, total_xp), 'one')
             
-            user_rank = rank_result['rank'] if rank_result else 0
-
+            user_rank = rank_result['rank'] if rank_result else 0 # ser_rank 오타 수정
             progress_bar = self.create_progress_bar(progress_percentage)
             
             embed = discord.Embed(
@@ -237,24 +250,16 @@ class XPLeaderboardCog(commands.Cog):
             embed.add_field(name="🎯 다음 레벨까지", value=f"**{format_xp(xp_needed_for_level_up - xp_in_current_level)}** XP", inline=False)
             embed.add_field(name="📊 진행도", value=f"`{progress_bar}` {progress_percentage:.1f}%", inline=False)
             
-            # 순위에 따른 이모지 추가
             if user_rank == 1:
                 embed.add_field(name="🥇", value="길드의 1등! 축하합니다!", inline=False)
-            elif user_rank <= 10:
-                embed.add_field(name="🏆", value="상위 10위 안에 있습니다!", inline=False)
+            elif 1 < user_rank <= 10:
+                embed.add_field(name="🏆", value=f"현재 서버 {user_rank}위입니다!", inline=False)
             
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
             print(f"❌ 레벨 조회 중 오류 발생: {e}")
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description=f"레벨 조회 중 오류가 발생했습니다: {e}",
-                color=discord.Color.red()
-            )
-            await interaction.followup.send(embed=embed)
-
-    # 수정된 xp_leaderboard.py 파일
+            await interaction.followup.send(f"❌ 레벨 조회 중 오류가 발생했습니다.", ephemeral=True)
 
     @app_commands.command(name="레벨업채널설정", description="레벨업 알림이 전송될 채널을 설정합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
@@ -457,21 +462,10 @@ class XPLeaderboardCog(commands.Cog):
     
     # ===== 슬래시 명령어들 =====
     @app_commands.command(name="레벨순위", description="XP 리더보드를 확인합니다")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(페이지="확인할 페이지 (기본값: 1)")
     async def level_leaderboard(self, interaction: Interaction, 페이지: int = 1):
-        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
-        config_cog = self.bot.get_cog("ChannelConfig")
-    
-        if config_cog:
-        # 2. 현재 채널에 'xp' 권한이 있는지 체크 (channel_config.py의 value="xp"와 일치해야 함)
-            is_allowed = await config_cog.check_permission(interaction.channel_id, "xp", interaction.guild.id)
-        
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
-        
         """레벨 순위 (XP 리더보드)"""
         await self._show_xp_leaderboard(interaction, 페이지)
     

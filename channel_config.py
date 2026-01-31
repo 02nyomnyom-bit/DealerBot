@@ -20,7 +20,6 @@ class ChannelConfig(commands.Cog):
         app_commands.Choice(name="경험치", value="xp"),
         app_commands.Choice(name="등록", value="point_1"),
         app_commands.Choice(name="포인트", value="point_2"),
-        app_commands.Choice(name="리더보드", value="leaderboard"),
         app_commands.Choice(name="교환", value="exchange"),
 
         app_commands.Choice(name="블랙잭", value="blackjack"),

@@ -362,69 +362,85 @@ class PointManager(commands.Cog):
                 ephemeral=True
             )
 
-    @app_commands.command(name="지갑", description="현재 보유 현금을 확인합니다.")
-    @app_commands.describe(사용자="[선택사항] 다른 사용자의 지갑을 확인")
-    async def wallet(self, interaction: Interaction, 사용자: Optional[Member] = None):\
-    # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
-        config_cog = self.bot.get_cog("ChannelConfig")
-    
-        if config_cog:
-        # 2. 현재 채널에 'point_2' 권한이 있는지 체크 (channel_config.py의 value="point_2"와 일치해야 함)
-            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_2", interaction.guild.id)
+    @app_commands.command(name="지갑", description="자신의 보유 현금 또는 다른 사용자의 현금을 확인합니다.")
+    @app_commands.describe(
+        대상자="[관리자 전용] 현금을 확인할 사용자",
+        비공개="결과를 나만 볼지 여부 (기본값: 네)"
+    )
+    @app_commands.choices(비공개=[
+        app_commands.Choice(name="네", value="True"),
+        app_commands.Choice(name="아니오", value="False")
+    ])
+    async def wallet(self, interaction: Interaction, 대상자: Optional[Member] = None, 비공개: str = "True"):
+        """지갑(보유 현금) 및 오늘 활동 확인 명령어"""
         
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
+        # 1. 관리자 권한 체크 (다른 사용자를 조회하려고 할 때)
+        if 대상자 and 대상자 != interaction.user:
+            if not interaction.user.guild_permissions.administrator:
+                return await interaction.response.send_message(
+                    "🚫 다른 사용자의 지갑 조회는 관리자만 가능합니다.", 
+                    ephemeral=True
+                )
         
-        target_user = 사용자 or interaction.user
-        user_id = str(target_user.id)
+        # 2. 비공개 여부 결정 (기본값 True)
+        is_ephemeral = True if 비공개 == "True" else False
+        await interaction.response.defer(ephemeral=is_ephemeral)
         
-        print(f"🔍 지갑 조회: {target_user.display_name} (ID: {user_id})")
+        target = 대상자 if 대상자 else interaction.user
+        user_id = str(target.id)
         
         try:
-            db = self._get_db(interaction.guild_id)
-            user_data = db.get_user(user_id)
+            # 사용자 정보 가져오기
+            user_data = self.db_manager.get_user(user_id)
+            
             if not user_data:
-                if target_user == interaction.user:
-                    await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
-                else:
-                    await interaction.response.send_message(f"❗ {target_user.display_name}님은 등록되지 않은 사용자입니다.", ephemeral=True)
-                return
+                embed = discord.Embed(
+                    title="❌ 조회 실패",
+                    description=f"{target.display_name}님은 아직 서비스에 등록되지 않았습니다.\n`/등록` 명령어를 먼저 사용해주세요.",
+                    color=discord.Color.red()
+                )
+                return await interaction.followup.send(embed=embed)
 
-            cash = db.get_user_cash(user_id)
+            # 3. 오늘 보낸 선물 횟수 계산 (KST 기준)
+            today_str = datetime.now(KST).strftime('%Y-%m-%d')
+            
+            # point_history 테이블에서 보낸 사람(sender_id)이 대상자이고 날짜가 오늘인 기록 카운트
+            gift_count_query = """
+                SELECT COUNT(*) as count 
+                FROM point_history 
+                WHERE sender_id = ? AND type = 'gift' AND strftime('%Y-%m-%d', timestamp) = ?
+            """
+            
+            # 현재 사용중인 db_manager 구조에 맞춰 호출
+            gift_result = self.db_manager.execute_query(gift_count_query, (user_id, today_str), 'one')
+            today_gifts = gift_result['count'] if gift_result else 0
+            
+            # 4. 임베드 작성
+            cash = user_data.get('cash', 0)
+            formatted_cash = f"{cash:,}원"
             
             embed = discord.Embed(
-                title=f"💰 {target_user.display_name}님의 지갑",
-                description=f"**현재 보유 현금**: {format_money(cash)}",
-                color=discord.Color.blue()
+                title=f"💰 {target.display_name}님의 지갑",
+                color=discord.Color.gold(),
+                timestamp=datetime.now(KST)
             )
             
-            # 자신의 지갑인 경우 추가 정보 표시
-            if target_user == interaction.user:
-                daily_gifts = self._get_daily_count(user_id)
-                embed.add_field(
-                    name="📊 오늘의 활동",
-                    value=f"선물 보낸 횟수: {daily_gifts}/{self.gift_settings.settings['daily_limit']}회",
-                    inline=False
-                )
-                
-                # 쿨다운 확인
-                cooldown = self._check_cooldown(user_id)
-                if cooldown:
-                    minutes, seconds = divmod(cooldown, 60)
-                    embed.add_field(
-                        name="⏰ 선물 쿨다운",
-                        value=f"{minutes}분 {seconds}초 남음",
-                        inline=True
-                    )
+            embed.set_thumbnail(url=target.display_avatar.url)
+            embed.add_field(name="💵 현재 잔액", value=f"**{formatted_cash}**", inline=True)
+            embed.add_field(name="🎁 오늘 보낸 선물", value=f"**{today_gifts}회**", inline=True)
             
-            await interaction.response.send_message(embed=embed, ephemeral=False)
+            # 관리자 조회 시 푸터 표시
+            if 대상자 and 대상자 != interaction.user:
+                embed.set_footer(text=f"조회 관리자: {interaction.user.display_name}")
+            else:
+                embed.set_footer(text="자정(00:00) 기준 선물 횟수가 갱신됩니다.")
+            
+            await interaction.followup.send(embed=embed)
             
         except Exception as e:
-            print(f"❌ 지갑 조회 중 오류: {e}")
-            await interaction.response.send_message(f"❌ 지갑 조회 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
+            print(f"❌ 지갑 조회 중 오류 발생: {e}")
+            traceback.print_exc() # 자세한 오류 로그 출력
+            await interaction.followup.send("❌ 정보를 불러오는 중 오류가 발생했습니다.", ephemeral=True)
 
     @app_commands.command(name="선물", description="다른 사용자에게 현금을 선물합니다.")
     @app_commands.describe(
@@ -614,21 +630,10 @@ class PointManager(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="현금순위", description="현금 보유 순위를 확인합니다")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(페이지="확인할 페이지 (기본값: 1)")
     async def cash_ranking(self, interaction: Interaction, 페이지: int = 1):
-        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
-        config_cog = self.bot.get_cog("ChannelConfig")
-    
-        if config_cog:
-        # 2. 현재 채널에 'point_2' 권한이 있는지 체크 (channel_config.py의 value="point_2"와 일치해야 함)
-            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_2", interaction.guild.id)
-        
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
-        
         try:
             db = self._get_db(interaction.guild_id)
             # 상위 100명 조회
