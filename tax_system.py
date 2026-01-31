@@ -86,104 +86,8 @@ class TaxManager:
             print(f"❌ 세금 설정 실패: {e}")
             return False
     
-    def remove_tax(self, guild_id: str, role_id: str) -> bool:
-        """특정 역할의 세금 설정 제거"""
-        try:
-            if guild_id in self.tax_settings and role_id in self.tax_settings[guild_id]:
-                del self.tax_settings[guild_id][role_id]
-                
-                # 서버 내 설정이 하나도 없으면 서버 키 자체를 삭제
-                if not self.tax_settings[guild_id]:
-                    del self.tax_settings[guild_id]
-                
-                return self.save_data()
-            return False
-        except Exception as e:
-            print(f"❌ 세금 설정 제거 실패: {e}")
-            return False
-    
-    def clear_all_taxes(self, guild_id: str) -> bool:
-        """특정 서버의 모든 세금 설정 초기화"""
-        try:
-            if guild_id in self.tax_settings:
-                del self.tax_settings[guild_id]
-                return self.save_data()
-            return True
-        except Exception as e:
-            print(f"❌ 세금 설정 초기화 실패: {e}")
-            return False
-    
-    def get_tax_settings(self, guild_id: str) -> Dict[str, int]:
-        """특정 서버의 세금 설정 목록 반환"""
-        return self.tax_settings.get(guild_id, {})
-    
-    def get_tax_amount(self, guild_id: str, role_id: str) -> Optional[int]:
-        """특정 역할의 세금 XP 반환"""
-        guild_taxes = self.tax_settings.get(guild_id, {})
-        return guild_taxes.get(role_id)
-
 # 전역 인스턴스
 tax_manager = TaxManager()
-
-class TaxClearConfirmView(discord.ui.View):
-    """세금 초기화 확인 뷰"""
-    
-    def __init__(self, admin_id: int, guild_id: str, tax_manager):
-        super().__init__(timeout=60)
-        self.admin_id = admin_id
-        self.guild_id = guild_id
-        self.tax_manager = tax_manager
-    
-    @discord.ui.button(label="✅ 확인", style=discord.ButtonStyle.danger)
-    async def confirm_clear(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 권한 재확인
-        if interaction.user.id != self.admin_id:
-            return await interaction.response.send_message(
-                "❌ 본인만 이 작업을 승인할 수 있습니다.", 
-                ephemeral=True
-            )
-        
-        # 초기화 실행
-        success = self.tax_manager.clear_all_taxes(self.guild_id)
-        
-        if success:
-            embed = discord.Embed(
-                title="✅ 세금 설정 초기화 완료",
-                description="모든 세금 설정이 삭제되었습니다.",
-                color=discord.Color.green()
-            )
-            embed.add_field(
-                name="ℹ️ 안내",
-                value="새로운 세금을 설정하려면 `/세금설정` 명령어를 사용하세요.",
-                inline=False
-            )
-            
-            # 로그 기록
-            log_admin_action(f"[세금초기화] {interaction.user.display_name} ({interaction.user.id}) 모든 세금 설정 삭제")
-        else:
-            embed = discord.Embed(
-                title="❌ 초기화 실패",
-                description="세금 설정 초기화 중 오류가 발생했습니다.",
-                color=discord.Color.red()
-            )
-        
-        await interaction.response.edit_message(embed=embed, view=None)
-    
-    @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
-    async def cancel_clear(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 권한 재확인
-        if interaction.user.id != self.admin_id:
-            return await interaction.response.send_message(
-                "❌ 본인만 이 작업을 취소할 수 있습니다.", 
-                ephemeral=True
-            )
-        
-        embed = discord.Embed(
-            title="✅ 취소됨",
-            description="세금 설정 초기화가 취소되었습니다.",
-            color=discord.Color.blue()
-        )
-        await interaction.response.edit_message(embed=embed, view=None)
 
 class TaxPagingView(View):
     def __init__(self, title, members_list, chunk_size=15):
@@ -211,7 +115,7 @@ class TaxPagingView(View):
             button.disabled = True
             button.label = "마지막 페이지"
 
-        await interaction.response.send_message(embed=embed, ephemeral=True, view=self if not button.disabled else None)
+        await interaction.response.send_message(embed=embed, ephemeral=False, view=self if not button.disabled else None)
 
 class TaxSystemCog(commands.Cog):
     """등급별 세금 시스템 Cog"""
