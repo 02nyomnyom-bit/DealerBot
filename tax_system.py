@@ -220,101 +220,22 @@ class TaxSystemCog(commands.Cog):
         self.bot = bot
         self.tax_manager = tax_manager
     
-    @app_commands.command(name="세금설정", description="[관리자 전용] 특정 역할에 대한 세금 XP를 설정합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(역할="세금을 부과할 역할", xp="빼앗을 XP 양")
-    async def set_tax(self, interaction: discord.Interaction, 역할: discord.Role, xp: int):
-        # XP 유효성 검사
-        if xp <= 0:
-            return await interaction.response.send_message(
-                "❌ 세금 XP는 1 이상이어야 합니다.", 
-                ephemeral=True
-            )
-        
-        if xp > 100000:
-            return await interaction.response.send_message(
-                "❌ 세금 XP는 100,000 이하여야 합니다.", 
-                ephemeral=True
-            )
-        
-        # @everyone 역할 확인
-        if 역할.is_default():
-            return await interaction.response.send_message(
-                "❌ @everyone 역할에는 세금을 설정할 수 없습니다.", 
-                ephemeral=True
-            )
-        
-        guild_id = str(interaction.guild.id)
-        role_id = str(역할.id)
-        
-        # 기존 설정이 있는지 확인
-        existing_tax = self.tax_manager.get_tax_amount(guild_id, role_id)
-        
-        # 세금 설정
-        success = self.tax_manager.set_tax(guild_id, role_id, xp)
-        
-        if success:
-            embed = discord.Embed(
-                title="✅ 세금 설정 완료",
-                description=f"**{역할.name}** 역할에 대한 세금이 설정되었습니다.",
-                color=discord.Color.green()
-            )
-            
-            embed.add_field(
-                name="💰 세금 정보",
-                value=f"역할: **{역할.name}**\n"
-                      f"세금 XP: **{format_xp(xp)}**\n"
-                      f"대상 사용자: **{len([m for m in interaction.guild.members if 역할 in m.roles and not m.bot])}명**",
-                inline=True
-            )
-            
-            # 기존 설정과 비교
-            if existing_tax:
-                embed.add_field(
-                    name="🔄 변경사항",
-                    value=f"이전: **{format_xp(existing_tax)}**\n새로운: **{format_xp(xp)}**",
-                    inline=True
-                )
-            else:
-                embed.add_field(
-                    name="🆕 새 설정",
-                    value="처음 설정된 세금입니다.",
-                    inline=True
-                )
-            
-            embed.add_field(
-                name="ℹ️ 사용법",
-                value=f"`/세금수거 역할:{역할.name}`로 세금을 수거할 수 있습니다.",
-                inline=False
-            )
-            
-            # 로그 기록
-            log_admin_action(f"[세금설정] {interaction.user.display_name} ({interaction.user.id}) {역할.name} 세금 설정: {format_xp(xp)}")
-            
-            await interaction.response.send_message(embed=embed, ephemeral=False)
-        else:
-            await interaction.response.send_message(
-                "❌ 세금 설정에 실패했습니다. 다시 시도해주세요.", 
-                ephemeral=True
-            )
-    
-    @app_commands.command(name="세금수거", description="[관리자 전용] 특정 역할의 사용자들로부터 세금을 수거합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(역할="세금을 수거할 역할")
+    @app_commands.command(name="세금수거", description="[관리자 전용] 특정 역할 유저들에게 % 단위로 세금을 수거합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(역할="세금을 수거할 역할", 퍼센트="징수할 비율 (%)")
     async def collect_tax_percent(self, interaction: discord.Interaction, 역할: discord.Role, 퍼센트: float):
         if not 0 < 퍼센트 <= 100:
             return await interaction.response.send_message("❌ 퍼센트는 0보다 크고 100 이하이어야 합니다.", ephemeral=True)
 
-        await interaction.response.defer() # 처리 시간이 길어질 수 있으므로 defer
+        await interaction.response.defer()
         
         db = get_guild_db_manager_func(str(interaction.guild.id))
         members = 역할.members
         
+        tax_results = [] 
+        total_collected = 0 # 수거 총액 변수
         success_count = 0
-        total_collected = 0
-        insufficient_balance_list = [] # 잔고 부족자 명단
         
         for member in members:
             if member.bot: continue
@@ -322,219 +243,49 @@ class TaxSystemCog(commands.Cog):
             user_data = db.get_user(str(member.id))
             if not user_data: continue
             
-            current_cash = user_data.get('cash', 0)
-            tax_amount = int(current_cash * (퍼센트 / 100))
+            before_cash = user_data.get('cash', 0)
+            tax_amount = int(before_cash * (퍼센트 / 100))
+            after_cash = before_cash - tax_amount
             
-            # 세금이 0원보다 크고, 낼 돈이 있는 경우
-            if tax_amount > 0 and current_cash >= tax_amount:
-                db.update_user_cash(str(member.id), current_cash - tax_amount)
+            if tax_amount > 0:
+                db.update_user_cash(str(member.id), after_cash)
                 db.add_transaction(str(member.id), "세금징수", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
-                total_collected += tax_amount
-            else:
-                insufficient_balance_list.append(f"• {member.display_name} (보유: {current_cash:,}원)")
+                total_collected += tax_amount # 총액 누적
 
-        # 결과 메인 임베드
+            tax_results.append(f"{member.display_name} {before_cash:,}원 -> {after_cash:,}원 (수거액: {tax_amount:,}원)")
+
+        if not tax_results:
+            return await interaction.followup.send(f"ℹ️ {역할.name} 역할에 등록된 유저가 없습니다.")
+
+        # --- 출력 부분 ---
         embed = discord.Embed(
-            title=f"💸 {역할.name} 세금 징수 완료",
-            description=f"성공: **{success_count}명**\n총 징수액: **{total_collected:,}원**",
-            color=discord.Color.blue()
+            title="💰 세금 수거 및 국고 환수 결과",
+            description=f"**역할명:** {역할.name}\n**징수 비율:** {퍼센트}%\n**총 수거액:** ✨ `{total_collected:,}원` ✨",
+            color=discord.Color.gold(), # 총액 강조를 위해 금색으로 변경
+            timestamp=discord.utils.utcnow()
         )
 
-        # 잔고 부족자 처리
-        if insufficient_balance_list:
-            chunk_size = 15 # 한 페이지에 보여줄 인원 수
-            first_chunk = insufficient_balance_list[:chunk_size]
-            
-            embed.add_field(
-                name=f"⚠️ 잔고 부족자 ({len(insufficient_balance_list)}명)",
-                value="\n".join(first_chunk) if first_chunk else "없음",
-                inline=False
-            )
-            
-            # 명단이 많을 경우 페이징 버튼 추가
-            if len(insufficient_balance_list) > chunk_size:
-                view = TaxPagingView(f"{역할.name} 잔고 부족자", insufficient_balance_list)
-                await interaction.followup.send(embed=embed, view=view)
-            else:
-                await interaction.followup.send(embed=embed)
+        chunk_size = 15
+        first_chunk = tax_results[:chunk_size]
+        formatted_list = "\n".join([f"{i+1}. {line}" for i, line in enumerate(first_chunk)])
+
+        embed.add_field(
+            name=f"📊 상세 내역 (대상: {success_count}명)",
+            value=f"```\n{formatted_list}```",
+            inline=False
+        )
+
+        # 요약 필드 추가
+        embed.set_footer(text=f"합계: {total_collected:,}원 이 수거되었습니다.")
+
+        if len(tax_results) > chunk_size:
+            view = TaxPagingView(f"{역할.name} 수거 상세 목록", tax_results)
+            await interaction.followup.send(embed=embed, view=view)
         else:
             await interaction.followup.send(embed=embed)
-    
-    @app_commands.command(name="세금목록", description="현재 설정된 세금 목록을 확인합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def tax_list(self, interaction: discord.Interaction):
-        guild_id = str(interaction.guild.id)
-        guild_taxes = self.tax_manager.get_tax_settings(guild_id)
-        
-        embed = discord.Embed(
-            title="💸 세금 설정 목록",
-            description="현재 서버에 설정된 세금 목록입니다.",
-            color=discord.Color.gold()
-        )
-        
-        if not guild_taxes:
-            embed.add_field(
-                name="ℹ️ 설정 현황",
-                value="설정된 세금이 없습니다.\n`/세금설정` 명령어로 세금을 설정할 수 있습니다.",
-                inline=False
-            )
-        else:
-            # 세금 목록 정리
-            valid_taxes = []
-            invalid_taxes = []
-            total_target_users = 0
-            
-            for role_id, xp_amount in guild_taxes.items():
-                try:
-                    role = interaction.guild.get_role(int(role_id))
-                    if role:
-                        target_count = len([m for m in interaction.guild.members if role in m.roles and not m.bot])
-                        valid_taxes.append({
-                            'role': role,
-                            'xp': xp_amount,
-                            'target_count': target_count
-                        })
-                        total_target_users += target_count
-                    else:
-                        invalid_taxes.append({'role_id': role_id, 'xp': xp_amount})
-                except:
-                    invalid_taxes.append({'role_id': role_id, 'xp': xp_amount})
-            
-            # 유효한 세금 목록 표시
-            if valid_taxes:
-                # XP 높은 순으로 정렬
-                valid_taxes.sort(key=lambda x: x['xp'], reverse=True)
-                
-                tax_list = ""
-                for i, tax_info in enumerate(valid_taxes, 1):
-                    tax_list += f"**{i}. {tax_info['role'].name}**\n"
-                    tax_list += f"   세금: {format_xp(tax_info['xp'])}\n"
-                    tax_list += f"   대상: {tax_info['target_count']}명\n\n"
-                
-                embed.add_field(
-                    name="📋 세금 목록",
-                    value=tax_list,
-                    inline=False
-                )
-            
-            # 통계 정보
-            embed.add_field(
-                name="📊 통계",
-                value=f"**설정된 역할**: {len(valid_taxes)}개\n"
-                      f"**총 대상 사용자**: {total_target_users}명\n"
-                      f"**평균 세금**: {format_xp(sum(tax['xp'] for tax in valid_taxes) // max(len(valid_taxes), 1))}",
-                inline=True
-            )
-            
-            # 잘못된 설정 알림
-            if invalid_taxes:
-                embed.add_field(
-                    name="⚠️ 정리 필요",
-                    value=f"삭제된 역할 {len(invalid_taxes)}개의 세금 설정이 있습니다.\n관리자가 `/세금초기화`를 실행하여 정리할 수 있습니다.",
-                    inline=True
-                )
-        
-        embed.set_footer(text=f"확인자: {interaction.user.display_name}")
-        await interaction.response.send_message(embed=embed, ephemeral=False)
-    
-    @app_commands.command(name="세금삭제", description="[관리자 전용] 특정 역할의 세금 설정을 삭제합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(역할="세금 설정을 삭제할 역할")
-    async def remove_tax(self, interaction: discord.Interaction, 역할: discord.Role):
-        guild_id = str(interaction.guild.id)
-        role_id = str(역할.id)
-        
-        # 기존 설정 확인
-        existing_tax = self.tax_manager.get_tax_amount(guild_id, role_id)
-        if not existing_tax:
-            return await interaction.response.send_message(
-                f"❌ **{역할.name}** 역할에 설정된 세금이 없습니다.", 
-                ephemeral=True
-            )
-        
-        # 세금 설정 제거
-        success = self.tax_manager.remove_tax(guild_id, role_id)
-        
-        if success:
-            embed = discord.Embed(
-                title="✅ 세금 삭제 완료",
-                description=f"**{역할.name}** 역할의 세금 설정이 삭제되었습니다.",
-                color=discord.Color.orange()
-            )
-            
-            embed.add_field(
-                name="🗑️ 삭제된 세금",
-                value=f"{역할.name} → **{format_xp(existing_tax)}**",
-                inline=False
-            )
-            
-            embed.add_field(
-                name="ℹ️ 안내",
-                value="• 이미 수거된 세금은 되돌려지지 않습니다.\n"
-                      "• `/세금목록`으로 남은 세금 설정을 확인할 수 있습니다.",
-                inline=False
-            )
-            
-            # 로그 기록
-            log_admin_action(f"[세금삭제] {interaction.user.display_name} ({interaction.user.id}) {역할.name} 세금 삭제 ({format_xp(existing_tax)})")
-            
-            await interaction.response.send_message(embed=embed, ephemeral=False)
-        else:
-            await interaction.response.send_message(
-                "❌ 세금 삭제에 실패했습니다. 다시 시도해주세요.", 
-                ephemeral=True
-            )
-    
-    @app_commands.command(name="세금초기화", description="[관리자 전용] 모든 세금 설정을 초기화합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def clear_all_taxes(self, interaction: discord.Interaction):
-        guild_id = str(interaction.guild.id)
-        guild_taxes = self.tax_manager.get_tax_settings(guild_id)
-        
-        if not guild_taxes:
-            return await interaction.response.send_message(
-                "ℹ️ 삭제할 세금 설정이 없습니다.", 
-                ephemeral=True
-            )
-        
-        # 확인 버튼이 있는 임베드 표시
-        embed = discord.Embed(
-            title="⚠️ 세금 설정 전체 초기화",
-            description=f"정말로 **{len(guild_taxes)}개**의 모든 세금 설정을 삭제하시겠습니까?",
-            color=discord.Color.orange()
-        )
-        
-        # 현재 설정 미리보기
-        preview_list = ""
-        for i, (role_id, xp_amount) in enumerate(list(guild_taxes.items())[:5], 1):
-            try:
-                role = interaction.guild.get_role(int(role_id))
-                role_name = role.name if role else f"삭제된 역할 ({role_id})"
-                preview_list += f"{i}. {role_name}: {format_xp(xp_amount)}\n"
-            except:
-                preview_list += f"{i}. 오류 역할: {format_xp(xp_amount)}\n"
-        
-        if len(guild_taxes) > 5:
-            preview_list += f"... 외 {len(guild_taxes) - 5}개"
-        
-        embed.add_field(
-            name="🗑️ 삭제될 설정 (미리보기)",
-            value=preview_list,
-            inline=False
-        )
-        
-        embed.add_field(
-            name="⚠️ 주의사항",
-            value="• 이 작업은 **되돌릴 수 없습니다**\n• 이미 수거된 세금은 되돌려지지 않습니다",
-            inline=False
-        )
-        
-        view = TaxClearConfirmView(interaction.user.id, guild_id, self.tax_manager)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+        log_admin_action(f"[세금수거] {interaction.user.display_name} : {역할.name} {퍼센트}% 수거 (총액: {total_collected:,}원)") 
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TaxSystemCog(bot))

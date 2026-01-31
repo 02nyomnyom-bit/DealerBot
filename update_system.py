@@ -518,7 +518,7 @@ class RealtimeUpdateSystem(commands.Cog):
             inline=True
         )
         
-        embed.set_footer(text="딜러양 v1.8.1 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="딜러양 v1.8.2 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
