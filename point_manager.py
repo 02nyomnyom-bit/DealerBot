@@ -374,7 +374,7 @@ class PointManager(commands.Cog):
     async def wallet(self, interaction: Interaction, 대상자: Optional[Member] = None, 비공개: str = "True"):
         """지갑(보유 현금) 및 오늘 활동 확인 명령어"""
         
-        # 1. 관리자 권한 체크 (다른 사용자를 조회하려고 할 때)
+        # 1. 권한 체크
         if 대상자 and 대상자 != interaction.user:
             if not interaction.user.guild_permissions.administrator:
                 return await interaction.response.send_message(
@@ -382,40 +382,48 @@ class PointManager(commands.Cog):
                     ephemeral=True
                 )
         
-        # 2. 비공개 여부 결정 (기본값 True)
+        # 2. 비공개 설정 및 응답 지연
         is_ephemeral = True if 비공개 == "True" else False
         await interaction.response.defer(ephemeral=is_ephemeral)
         
         target = 대상자 if 대상자 else interaction.user
         user_id = str(target.id)
+        guild_id = str(interaction.guild.id)
         
         try:
-            # 사용자 정보 가져오기
-            user_data = self.db_manager.get_user(user_id)
+            # 3. 길드 전용 DB 매니저 가져오기 (에러 해결 핵심)
+            # 에러 메시지에 따라 self.db_managers를 사용하고, 없으면 생성하는 로직
+            if hasattr(self, 'db_managers'):
+                db = self.db_managers.get(guild_id)
+            else:
+                # db_managers가 아예 없다면 기존에 쓰던 방식 확인 (예: get_guild_db_manager)
+                from database_manager import get_guild_db_manager
+                db = get_guild_db_manager(guild_id)
             
+            if not db:
+                return await interaction.followup.send("❌ 데이터베이스 연결을 찾을 수 없습니다.", ephemeral=True)
+
+            # 4. 사용자 데이터 로드
+            user_data = db.get_user(user_id)
             if not user_data:
                 embed = discord.Embed(
                     title="❌ 조회 실패",
-                    description=f"{target.display_name}님은 아직 서비스에 등록되지 않았습니다.\n`/등록` 명령어를 먼저 사용해주세요.",
+                    description=f"{target.display_name}님은 아직 등록되지 않았습니다.",
                     color=discord.Color.red()
                 )
                 return await interaction.followup.send(embed=embed)
 
-            # 3. 오늘 보낸 선물 횟수 계산 (KST 기준)
+            # 5. 오늘 보낸 선물 횟수 조회 (KST 기준)
             today_str = datetime.now(KST).strftime('%Y-%m-%d')
-            
-            # point_history 테이블에서 보낸 사람(sender_id)이 대상자이고 날짜가 오늘인 기록 카운트
             gift_count_query = """
                 SELECT COUNT(*) as count 
                 FROM point_history 
-                WHERE sender_id = ? AND type = 'gift' AND strftime('%Y-%m-%d', timestamp) = ?
+                WHERE sender_id = ? AND type = 'gift' AND DATE(timestamp) = DATE(?)
             """
-            
-            # 현재 사용중인 db_manager 구조에 맞춰 호출
-            gift_result = self.db_manager.execute_query(gift_count_query, (user_id, today_str), 'one')
+            gift_result = db.execute_query(gift_count_query, (user_id, today_str), 'one')
             today_gifts = gift_result['count'] if gift_result else 0
             
-            # 4. 임베드 작성
+            # 6. 임베드 구성
             cash = user_data.get('cash', 0)
             formatted_cash = f"{cash:,}원"
             
@@ -424,23 +432,21 @@ class PointManager(commands.Cog):
                 color=discord.Color.gold(),
                 timestamp=datetime.now(KST)
             )
-            
             embed.set_thumbnail(url=target.display_avatar.url)
             embed.add_field(name="💵 현재 잔액", value=f"**{formatted_cash}**", inline=True)
             embed.add_field(name="🎁 오늘 보낸 선물", value=f"**{today_gifts}회**", inline=True)
             
-            # 관리자 조회 시 푸터 표시
             if 대상자 and 대상자 != interaction.user:
-                embed.set_footer(text=f"조회 관리자: {interaction.user.display_name}")
+                embed.set_footer(text=f"관리자 전용 조회 | 실행자: {interaction.user.display_name}")
             else:
-                embed.set_footer(text="자정(00:00) 기준 선물 횟수가 갱신됩니다.")
+                embed.set_footer(text="자정(00:00) 기준 선물 횟수가 초기화됩니다.")
             
             await interaction.followup.send(embed=embed)
             
         except Exception as e:
             print(f"❌ 지갑 조회 중 오류 발생: {e}")
-            traceback.print_exc() # 자세한 오류 로그 출력
-            await interaction.followup.send("❌ 정보를 불러오는 중 오류가 발생했습니다.", ephemeral=True)
+            traceback.print_exc()
+            await interaction.followup.send("❌ 정보를 불러오는 중 오류가 발생했습니다.", ephemeral=True)   
 
     @app_commands.command(name="선물", description="다른 사용자에게 현금을 선물합니다.")
     @app_commands.describe(
