@@ -252,66 +252,61 @@ class ExchangeCog(commands.Cog):
     @app_commands.command(name="경험치교환", description="현금을 XP로 교환합니다. 수수료가 부과됩니다.")
     @app_commands.describe(cash_amount="교환할 현금")
     async def exchange_cash_to_xp(self, interaction: discord.Interaction, cash_amount: int):
-        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
-    
         if config_cog:
-        # 2. 현재 채널에 'exchange' 권한이 있는지 체크 (channel_config.py의 value="exchange"와 일치해야 함)
             is_allowed = await config_cog.check_permission(interaction.channel_id, "exchange", interaction.guild.id)
-        
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 교환이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
+            if not is_allowed:
+                return await interaction.response.send_message("🚫 이 채널은 교환이 허용되지 않은 채널입니다.", ephemeral=True)
         
         await interaction.response.defer(ephemeral=False)
         user_id = str(interaction.user.id)
         
         if not await is_registered(self.bot, interaction.guild_id, user_id):
             return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 플레이어 등록을 해주세요!")
-            
+        
         if not self.db_cog or not POINT_MANAGER_AVAILABLE:
-            return await interaction.followup.send("❌ 시스템 오류: 데이터베이스 또는 포인트 관리 시스템을 불러올 수 없습니다. 관리자에게 문의해주세요.")
+            return await interaction.followup.send("❌ 시스템 오류가 발생했습니다.")
+        
+        if self.exchange_system.get_user_daily_exchanges(user_id) >= self.exchange_system.settings['일일_제한']:
+            return await interaction.followup.send("❌ 일일 교환 횟수 제한에 도달했습니다.")
         
         if cash_amount <= 0:
             return await interaction.followup.send("❌ 교환할 현금은 0보다 커야 합니다.")
             
-        if self.exchange_system.get_user_daily_exchanges(user_id) >= self.exchange_system.settings['일일_제한']:
-            return await interaction.followup.send("❌ 일일 교환 횟수 제한에 도달했습니다.")
-            
-        if not self.exchange_system.check_cooldown(user_id):
-            return await interaction.followup.send(f"❌ 쿨다운 중입니다. {self.exchange_system.settings['쿨다운_분']}분 후에 다시 시도해주세요.")
-
         current_cash = await get_point(self.bot, interaction.guild_id, user_id)
         db = self.db_cog.get_manager(str(interaction.guild.id))
+
         if current_cash < cash_amount:
             return await interaction.followup.send(f"❌ 보유 현금이 부족합니다. 현재 현금: {db.format_money(current_cash)}")
             
-        # 현금 차감 및 XP 지급
         try:
-            xp_gained = int(cash_amount * self.exchange_system.settings['현금_to_XP_비율'])
+            # 1. 계산 (round를 사용하여 오차 방지)
+            xp_gained = round(cash_amount * self.exchange_system.settings['현금_to_XP_비율'])
             
-            new_cash = await add_point(self.bot, interaction.guild_id, user_id, -cash_amount)
+            # 2. 포인트 차감 (단 한 번만 수행)
+            await add_point(self.bot, interaction.guild_id, user_id, -cash_amount)
+            # 3. XP 추가
             db.add_user_xp(user_id, xp_gained)
             
+            # 4. ❗ 중요: 차감 후 실제 DB 잔액을 새로 조회 (1원 오류 해결 핵심)
+            actual_remaining_cash = await get_point(self.bot, interaction.guild_id, user_id)
+
             self.exchange_system.record_exchange(interaction, "cash_to_xp", cash_amount, xp_gained)
             self.exchange_system.update_cooldown(user_id)
-            
+
             embed = discord.Embed(
                 title="💰 현금을 XP로 교환 완료",
                 description=f"{db.format_money(cash_amount)}를 교환하여 **{db.format_xp(xp_gained)}**을(를) 획득했습니다!",
                 color=discord.Color.green()
             )
-            embed.add_field(
-                name="💰 남은 현금",value=f"**{db.format_money(new_cash)}**",inline=True)
-            embed.add_field(name="📊 남은 XP",value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**",inline=True)
+            embed.add_field(name="💰 남은 현금", value=f"**{db.format_money(actual_remaining_cash)}**", inline=True)
+            embed.add_field(name="📊 남은 XP", value=f"**{db.format_xp(db.get_user_xp(user_id)['xp'])}**", inline=True)
             
-            embed.set_footer(text=f"현재 교환 비율: 1원 = {self.exchange_system.settings['현금_to_XP_비율']:.2f} XP | 일일 {self.exchange_system.get_user_daily_exchanges(user_id)}회 사용")
+            embed.set_footer(text=f"현재 교환 비율: 1원 = {self.exchange_system.settings['현금_to_XP_비율']:.2f} XP")
             await interaction.followup.send(embed=embed)
         except Exception as e:
-            logger.error(f"❌ 현금 to XP 교환 중 오류 발생: {e}")
-            await interaction.followup.send("❌ 교환 처리 중 오류가 발생했습니다. 관리자에게 문의해주세요.")
+            logger.error(f"❌ 교환 중 오류: {e}")
+            await interaction.followup.send("❌ 교환 처리 중 오류가 발생했습니다.")
 
     @app_commands.command(name="교환설정", description="[관리자 전용] 교환 시스템 설정을 변경합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
@@ -418,40 +413,23 @@ class ExchangeCog(commands.Cog):
 
         history_text = ""
         if weekly_guild_history:
-            # 날짜순으로 정렬 (최신이 위로)
             recent_exchanges = sorted(weekly_guild_history, key=lambda x: x['date'], reverse=True)
-            
-            truncated = len(recent_exchanges) > 25
-            if truncated:
-                recent_exchanges = recent_exchanges[:15]
-
-            for exchange in recent_exchanges:
+            lines = []
+            for exchange in recent_exchanges[:15]: # 상위 15개
                 ex_user_id = exchange.get('user_id')
                 member = interaction.guild.get_member(int(ex_user_id)) if ex_user_id else None
                 user_name = member.display_name if member else f"ID: {ex_user_id}"
-                
                 date = datetime.datetime.fromisoformat(exchange['date']).strftime('%m/%d %H:%M')
                 type_emoji = "💰→✨" if exchange['type'] == "cash_to_xp" else "✨→💰"
-                history_text += f"👤 **{user_name}**: {type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})\n"
-            
-            new_line = f"👤 **{user_name}**: {type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})\n"
                 
-            # 🔥 중요: 1000자가 넘어가면 추가를 중단하고 생략 표기
-            if len(history_text) + len(new_line) > 1000:
-                history_text += "\n... (데이터가 너무 많아 생략되었습니다.)"
+                line = f"👤 **{user_name}**: {type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})"
+                lines.append(line)
             
-            history_text += new_line
-            
-        if not history_text:
+            history_text = "\n".join(lines)
+            if len(weekly_guild_history) > 15:
+                history_text += "\n... (외 기록 생략)"
+        else:
             history_text = "지난 일주일간 교환 기록이 없습니다."
-
-        embed.add_field(
-            name="⏳ 서버 주간 교환 기록",
-            value=history_text,
-            inline=False
-        )
-            
-        await interaction.response.send_message(embed=embed, ephemeral=False)
 
 async def setup(bot: commands.Bot):
     point_manager_cog = bot.get_cog("PointManager")

@@ -184,15 +184,15 @@ class TicketPaginatorView(discord.ui.View):
             await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)    
 
 class DrawResultPaginatorView(discord.ui.View):
-    def __init__(self, draw_nums, draw_pb, winners_summary, round_num): # 인자 이름 확인
-        super().__init__(timeout=300)
-        self.draw_nums = draw_nums
-        self.draw_pb = draw_pb
-        self.summary = winners_summary  # 이 부분을 summary에서 winners_summary로 수정
-        self.round_num = round_num
-        self.current_page = 0
-        self.per_page = 5
-        self.total_pages = (len(self.summary) - 1) // self.per_page + 1 if self.summary else 1
+    class DrawResultPaginatorView(discord.ui.View):
+        def __init__(self, draw_nums, draw_pb, summary_list, round_num):
+            super().__init__(timeout=60)
+            self.draw_nums = draw_nums
+            self.draw_pb = draw_pb
+            self.summary_list = summary_list
+            self.round_num = round_num
+            self.current_page = 0
+            self.items_per_page = 3 # 한 번에 보여줄 등수 개수 (조절 가능)
 
     def create_embed(self):
         embed = discord.Embed(
@@ -221,22 +221,32 @@ class DrawResultPaginatorView(discord.ui.View):
         embed.set_footer(text="버튼을 눌러 다른 등수의 당첨자를 확인하세요.")
         return embed
 
-    @discord.ui.button(label="◀ 이전", style=discord.ButtonStyle.gray)
-    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.current_page > 0:
-            self.current_page -= 1
-            await interaction.response.edit_message(embed=self.create_embed(), view=self)
-        else:
-            await interaction.response.send_message("첫 페이지입니다.", ephemeral=True)
+    @discord.ui.button(label="다음 당첨자 보기", style=discord.ButtonStyle.primary, emoji="⏭️")
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page += 1
+        start = self.current_page * self.items_per_page
+        end = start + self.items_per_page
+        
+        page_items = self.summary_list[start:end]
+        
+        if not page_items:
+            button.disabled = True
+            button.label = "마지막 페이지"
+            return await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="다음 ▶", style=discord.ButtonStyle.gray)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.current_page < self.total_pages - 1:
-            self.current_page += 1
-            await interaction.response.edit_message(embed=self.create_embed(), view=self)
-        else:
-            await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)
+        embed = discord.Embed(
+            title=f"🎰 제 {self.round_num}회 로또 추첨 결과 (추가 목록)",
+            description="\n\n".join(page_items),
+            color=discord.Color.gold()
+        )
 
+        # 마지막 페이지 여부 확인
+        if end >= len(self.summary_list):
+            button.disabled = True
+            button.label = "마지막 페이지"
+
+        await interaction.response.send_message(embed=embed, ephemeral=True, view=self if not button.disabled else None)
+        
 class LotterySystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot

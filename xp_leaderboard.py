@@ -788,19 +788,18 @@ class XPLeaderboardCog(commands.Cog):
             # 역할 자동 조정 실행
             if role_update_needed and ROLE_REWARD_AVAILABLE:
                 try:
-                    await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
+                    # DB에 반영된 최종 레벨을 다시 확인
+                    final_level = self.get_user_level(user_id, guild_id) 
+                    await role_reward_manager.check_and_assign_level_role(대상자, final_level, old_level)
+        
+                    # 임베드에 안내 문구 추가 (이미 존재하는 embed 객체 활용)
                     embed.add_field(
                         name="🎭 역할 자동 조정",
-                        value="레벨 변경에 따른 역할이 자동으로 조정되었습니다.",
+                        value=f"현재 레벨(Lv.{final_level})에 맞춰 역할이 조정되었습니다.",
                         inline=False
                     )
                 except Exception as role_error:
-                    print(f"❌ 역할 자동 조정 실패: {role_error}")
-                    embed.add_field(
-                        name="⚠️ 역할 조정 알림",
-                        value="역할 자동 조정 중 오류가 발생했습니다.",
-                        inline=False
-                    )
+                    print(f"❌ 관리자 조작 역할 자동 조정 실패: {role_error}")
             
             # 관리자 작업 로그 기록
             log_admin_action(f"[경험치관리] {interaction.user.display_name} ({interaction.user.id}) - {작업}: {대상자.display_name} ({대상자.id})")
