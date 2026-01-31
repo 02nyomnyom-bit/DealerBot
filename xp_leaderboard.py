@@ -564,10 +564,14 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="출석XP설정", value="set_attendance_xp"),
         app_commands.Choice(name="채팅쿨다운설정", value="set_chat_cooldown")
     ])
-    async def xp_management(self, interaction: Interaction, 작업: str, 대상자: Member = None, 수량: int = None):
+    async def xp_management(self, interaction: discord.Interaction, 작업: Literal["give_xp", "set_xp", "set_level", "reset_user"], 대상자: discord.Member, 수량: int = 0):
         """XP 관리 명령어"""
+        # 1. 상호작용 지연 시간 확보 (에러 방지 핵심)
+        await interaction.response.defer(ephemeral=True)
+
+        user_id = str(대상자.id)
         guild_id = str(interaction.guild.id)
-        
+        old_level = self.get_user_level(user_id, guild_id)
         try:
             # 통계 보기
             if 작업 == "stats":
@@ -599,7 +603,7 @@ class XPLeaderboardCog(commands.Cog):
                 embed.add_field(name="📊 평균 레벨", value=f"Lv.{stats['avg_level']:.1f}", inline=True)
                 embed.add_field(name="🥇 최고 레벨", value=f"Lv.{stats['max_level']}", inline=True)
                 
-                return await interaction.response.send_message(embed=embed, ephemeral=True)
+                return await interaction.followup.send(embed=embed, ephemeral=True)
             
             # 설정 보기
             elif 작업 == "view_settings":
@@ -703,6 +707,30 @@ class XPLeaderboardCog(commands.Cog):
                                 f"현재 레벨: **{new_level}**",
                     color=discord.Color.green()
                 )
+                # 2. 변경 후 레벨 확인
+                new_level = self.get_user_level(user_id, guild_id)
+                level_diff = new_level - old_level
+
+                # 3. 레벨 상승 시 요약 알림 전송
+                if level_diff > 0:
+                    if level_diff > 1:
+                        msg = f"🎊 {대상자.mention}님이 관리자의 도움으로 **총 {level_diff}레벨** 상승하여 **Lv.{new_level}**이 되었습니다!"
+                    else:
+                        msg = f"🎊 {대상자.mention}님이 **Lv.{new_level}**로 레벨업했습니다!"
+            
+                    # 레벨업 알림 채널에 전송 (시스템 설정 채널 활용)
+                    await self.send_levelup_announcement(대상자, new_level, msg)
+
+                # 4. 역할 보상 시스템 연동 (최종 레벨 기준 1회 호출)
+                if ROLE_REWARD_AVAILABLE:
+                    try:
+                        # role_reward_manager를 통해 역할 부여 로직 실행
+                        await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
+                    except Exception as e:
+                        print(f"관리자 지급 역할 부여 중 오류: {e}")
+            
+                # 5. 관리자에게 결과 보고 (followup 사용)
+                await interaction.followup.send(content=f"✅ {대상자.display_name}님의 경험치 처리가 완료되었습니다. (Lv.{old_level} ➔ Lv.{new_level})", ephemeral=True)
                 
                 if new_level > old_level:
                     embed.add_field(name="레벨업!", value=f"Lv.{old_level} → Lv.{new_level}", inline=False)
@@ -786,28 +814,44 @@ class XPLeaderboardCog(commands.Cog):
                 embed.add_field(name="초기화 결과", value="Lv.1 (0 XP)", inline=False)
             
             # 역할 자동 조정 실행
-            if role_update_needed and ROLE_REWARD_AVAILABLE:
-                try:
-                    # DB에 반영된 최종 레벨을 다시 확인
-                    final_level = self.get_user_level(user_id, guild_id) 
-                    await role_reward_manager.check_and_assign_level_role(대상자, final_level, old_level)
-        
-                    # 임베드에 안내 문구 추가 (이미 존재하는 embed 객체 활용)
-                    embed.add_field(
-                        name="🎭 역할 자동 조정",
-                        value=f"현재 레벨(Lv.{final_level})에 맞춰 역할이 조정되었습니다.",
-                        inline=False
-                    )
-                except Exception as role_error:
-                    print(f"❌ 관리자 조작 역할 자동 조정 실패: {role_error}")
+            if role_update_needed:
+                # 최신 레벨 정보 갱신
+                new_level = self.get_user_level(user_id, guild_id)
+                level_diff = new_level - old_level
+
+                if level_diff > 0:
+                    # 알림 메시지 통합
+                    if level_diff > 1:
+                        announcement = f"🎊 {대상자.mention}님이 **총 {level_diff}레벨** 상승하여 **Lv.{new_level}**이 되었습니다!"
+                    else:
+                        announcement = f"🎊 {대상자.mention}님이 **Lv.{new_level}**로 레벨업했습니다!"
+                    
+                    # 레벨업 알림 채널에 전송
+                    await self.send_levelup_announcement(대상자, new_level, announcement)
+
+                # 역할 보상 시스템 연동 (최종 레벨 기준 1회)
+                if ROLE_REWARD_AVAILABLE:
+                    try:
+                        # role_reward_manager는 전역 인스턴스로 가정
+                        await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
+                        embed.add_field(name="🎭 역할 조정", value=f"현재 레벨(Lv.{new_level})에 맞춰 역할이 갱신되었습니다.", inline=False)
+                    except Exception as e:
+                        self.bot.logger.error(f"역할 지급 중 오류: {e}")
+
+            # 최종 응답 (defer를 사용했다면 followup.send 사용)
+            await interaction.followup.send(embed=embed, ephemeral=True)
             
-            # 관리자 작업 로그 기록
-            log_admin_action(f"[경험치관리] {interaction.user.display_name} ({interaction.user.id}) - {작업}: {대상자.display_name} ({대상자.id})")
-            
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            
+            if ROLE_REWARD_AVAILABLE:
+                # 역할 보상 시스템 연동 (최종 레벨 기준 1회 호출)
+                await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
+                embed.add_field(name="🎭 역할 조정", value=f"Lv.{new_level} 기준 역할이 업데이트되었습니다.", inline=False)
         except Exception as e:
-            await interaction.response.send_message(f"❌ 경험치 관리 중 오류: {str(e)}", ephemeral=True)
+            # 에러 발생 시 로그 출력 및 관리자 알림
+            print(f"❌ 관리자 조작 역할 지급 오류: {e}")
+            embed.add_field(name="⚠️ 역할 조정 실패", value=f"오류: {e}", inline=False)
+        
+        # 최종 응답 전송 (defer를 사용했으므로 followup 사용 권장)
+        await interaction.followup.send(embed=embed, ephemeral=True)
     
     def update_xp_setting(self, setting_key: str, value: int) -> bool:
         """XP 설정 업데이트"""
