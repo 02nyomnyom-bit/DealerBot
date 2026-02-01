@@ -267,6 +267,19 @@ class LotterySystem(commands.Cog):
     @app_commands.command(name="로또구매", description="로또를 구매합니다. (5,000원)")
     @app_commands.describe(numbers="일반볼 5개 (1~28, 쉼표 구분)", pb="파워볼 1개 (0~9)")
     async def buy_lottery(self, interaction: discord.Interaction, numbers: Optional[str] = None, pb: Optional[int] = None):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'lottery' 권한이 있는지 체크 (channel_config.py의 value="lottery"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "lottery", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 익명 메시지 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
         # 채널 권한 체크 생략(기존 로직 유지 가능)
         db = self._get_db(interaction.guild.id)
         
@@ -286,31 +299,65 @@ class LotterySystem(commands.Cog):
         await interaction.response.send_message(
             f"🎫 **로또를 구매하시겠습니까?**\n번호: `{', '.join(map(str, user_nums))}` [PB: `{user_pb}`]", view=view
         )
+        
+    @app_commands.command(name="로또정보", description="상금 정보와 나의 티켓 목록을 확인합니다.")
+    async def lottery_info(self, interaction: discord.Interaction):
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'lottery' 권한이 있는지 체크 (channel_config.py의 value="lottery"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "lottery", interaction.guild.id)
+        
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
+        
+        db = self._get_db(interaction.guild.id)
+        if db is None:
+            return await interaction.response.send_message("데이터베이스 연결 실패", ephemeral=True)
+
+        data = self.lottery_data.data
+        round_num = data['round']
+        jackpot = data.get('jackpot', 0)
+        total_prize = PRIZE_TABLE[1]['prize'] + jackpot
+        
+        # 상금 정보를 딕셔너리로 묶어서 뷰에 전달
+        jackpot_info = {'total': total_prize, 'jackpot': jackpot}
+        
+        user_id_str = str(interaction.user.id)
+        my_tickets = [t for t in self.lottery_tickets.tickets if t['round'] == round_num and t['user_id'] == user_id_str]
+        
+        if not my_tickets:
+            # 티켓이 없을 때는 기본 정보만 출력
+            embed = discord.Embed(title=f"🎰 제 {round_num}회 파워볼 정보", color=discord.Color.blue())
+            embed.add_field(name="현재 1등 예상 상금", value=f"**{db.format_money(total_prize)}**", inline=True)
+            embed.add_field(name="이월된 상금", value=db.format_money(jackpot), inline=True)
+            embed.add_field(name="🎫 내 티켓", value="구매한 티켓이 없습니다.", inline=False)
+            await interaction.response.send_message(embed=embed)
+        else:
+            # 티켓이 있을 때: 10장씩 보여주는 페이징 뷰 생성
+            view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, jackpot_info, per_page=10)
+            await interaction.response.send_message(embed=view.create_embed(), view=view)
+
 
     @app_commands.command(name="로또추첨", description="[관리자] 로또 추첨을 진행합니다. 번호를 지정하면 해당 번호로 당첨됩니다.")
-    @app_commands.describe(numbers="[테스트용] 당첨 번호 5개 (쉼표 구분)", pb="[테스트용] 당첨 파워볼 (0~9)")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def draw(self, interaction: discord.Interaction, numbers: Optional[str] = None, pb: Optional[int] = None):
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    async def draw(self, interaction: discord.Interaction):
         await interaction.response.defer()
         
-        # PointManager Cog를 통해 해당 서버 전용 DB 인스턴스 획득
         db = self._get_db(interaction.guild.id)
         if not db:
             return await interaction.followup.send("데이터베이스를 불러올 수 없습니다.")
 
         store = self.manager.get_guild_store(str(interaction.guild.id))
         
-        # 1. 당첨 번호 결정
-        if numbers:
-            try:
-                draw_nums = sorted([int(n.strip()) for n in numbers.split(',')])
-                draw_pb = pb if pb is not None else random.randint(0, 9)
-                if len(draw_nums) != 5: raise ValueError
-            except:
-                return await interaction.followup.send("테스트 번호 형식이 잘못되었습니다. (예: 1,2,3,4,5)")
-        else:
-            draw_nums = sorted(random.sample(range(1, 29), 5))
-            draw_pb = random.randint(0, 9)
+        # 1. 자동 당첨 번호 결정
+        draw_nums = sorted(random.sample(range(1, 29), 5))
+        draw_pb = random.randint(0, 9)
         
         data = store['data']
         round_num = data['round']
@@ -323,37 +370,50 @@ class LotterySystem(commands.Cog):
 
         first_prize_total = PRIZE_TABLE[1]['prize'] + data.get('jackpot', 0)
         summary = []
+        mention_list = []
         
-        # 2. 상금 지급 로직 (수정됨)
+        # 2. 상금 지급 로직 및 멘션 리스트 생성
         for rank, uids in winners.items():
             if not uids: continue
             
-            # 1등은 잭팟 포함 n분의 1, 나머지는 정해진 상금
             prize = first_prize_total // len(uids) if rank == 1 else PRIZE_TABLE[rank]['prize']
             
+            unique_winners = set(uids) 
+            rank_mentions = [f"<@{uid}>" for uid in unique_winners]
+            mention_list.append(f"🏆 **{PRIZE_TABLE[rank]['name']} 당첨자**: {' '.join(rank_mentions)}")
+
             for uid in uids:
-                # 중요: PointManager는 user_id를 str로 관리하므로 str(uid)로 전달
                 user_str_id = str(uid)
-                
-                # DB에 직접 금액 추가 및 트랜잭션 기록
                 db.add_user_cash(user_str_id, prize)
                 db.add_transaction(user_str_id, "로또 당첨", prize, f"제 {round_num}회 {rank}등 당첨")
-                print(f"💰 [로또지급] {user_str_id}님에게 {prize}원 지급 완료 ({rank}등)")
             
             summary.append(f"**{PRIZE_TABLE[rank]['name']}**: {len(uids)}명 ({db.format_money(prize)}씩)")
 
         # 3. 데이터 업데이트 및 저장
         data['last_draw_numbers'] = draw_nums
         data['last_draw_bonus'] = draw_pb
-        if winners[1]: data['jackpot'] = 0 # 1등 당첨자 있을 때만 잭팟 초기화
+        if winners[1]: data['jackpot'] = 0
         
         data['round'] += 1
-        store['tickets'] = [] # 티켓 초기화
+        store['tickets'] = []
         self.manager.save_all_data()
 
-        # 결과 전송
+        # 4. 결과 전송
         view = DrawResultPaginatorView(draw_nums, draw_pb, summary, round_num)
         await interaction.followup.send(content="🎊 추첨이 완료되었습니다!", embed=view.create_embed(), view=view)
+
+        # 5. 당첨자 언급
+        if mention_list:
+            current_message = "🎊 **축하합니다! 당첨자 명단입니다** 🎊\n\n"
+            for mention_line in mention_list:
+                if len(current_message) + len(mention_line) > 1900:
+                    await interaction.channel.send(current_message)
+                    current_message = mention_line + "\n"
+                else:
+                    current_message += mention_line + "\n"
+            
+            if current_message:
+                await interaction.channel.send(current_message)
 
 async def setup(bot):
     await bot.add_cog(LotterySystem(bot))

@@ -162,7 +162,7 @@ class DatabaseManager:
             """
         )
         self.create_table(
-            "point_transactions",
+            "point_history",
             """
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
@@ -284,7 +284,7 @@ class DatabaseManager:
                 content TEXT NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
                 """
-        )
+            )
 
         self.execute_query('''
             CREATE TABLE IF NOT EXISTS anonymous_messages (
@@ -304,6 +304,18 @@ class DatabaseManager:
             )
         ''')
 
+        self.create_table(
+            "point_history",
+            """
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id TEXT NOT NULL,
+            receiver_id TEXT,
+            type TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            """
+        )
+        
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -488,7 +500,7 @@ class DatabaseManager:
             # users 테이블은 guild_id와 user_id로 삭제
             deleted_counts['users'] = self._delete_from_table(conn, 'users', user_id, self.guild_id)
             # 나머지 테이블은 user_id로 삭제 (현재 DB가 이미 길드별로 분리되어 있으므로 guild_id는 필요 없음)
-            for table in ['user_xp', 'attendance', 'enhancement', 'point_transactions', 'voice_time', 'voice_time_log', 'levelup_channels']:
+            for table in ['user_xp', 'attendance', 'enhancement', 'point_history', 'voice_time', 'voice_time_log', 'levelup_channels']:
                 deleted_counts[table] = self._delete_from_table(conn, table, user_id)
         return deleted_counts
 
@@ -812,7 +824,7 @@ class DatabaseManager:
             balance_after = 0
             
         return self.execute_query('''
-            INSERT INTO point_transactions 
+            INSERT INTO point_history 
             (user_id, transaction_type, amount, balance_after, description)
             VALUES (?, ?, ?, ?, ?)
         ''', (user_id, transaction_type, amount, balance_after, description))
@@ -823,7 +835,7 @@ class DatabaseManager:
             logger.error("❌ get_user_transactions: guild_id가 설정되지 않았습니다.")
             return []
         results = self.execute_query('''
-            SELECT * FROM point_transactions 
+            SELECT * FROM point_history 
             WHERE user_id = ?
             ORDER BY created_at DESC
             LIMIT ?
@@ -929,7 +941,7 @@ class DatabaseManager:
     def get_database_stats(self) -> Dict:
         """데이터베이스 통계"""
         stats = {}
-        tables = ['users', 'user_xp', 'attendance', 'enhancement', 'point_transactions', 'voice_time', 'voice_time_log', 'levelup_channels', 'leaderboard_settings']
+        tables = ['users', 'user_xp', 'attendance', 'enhancement', 'point_history', 'voice_time', 'voice_time_log', 'levelup_channels', 'leaderboard_settings']
         
         for table in tables:
             try:

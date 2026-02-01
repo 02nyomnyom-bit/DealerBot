@@ -120,10 +120,10 @@ class AttendanceMasterCog(commands.Cog):
                 'streak_cash_per_day': 100,     # 연속 출석 일일 추가 지급 금액
                 'streak_xp_per_day': 10,        # 연속 출석 일일 추가 지급 경험치
                 'max_streak_bonus_days': 7,     # 보너스 최대 지급일
-                'weekly_cash_bonus': 5000,      # 일주일 7의 배수 날짜에 추가 지급
-                'weekly_xp_bonus': 500,         # 한달 30의 배수 날짜에 추가 지급
-                'monthly_cash_bonus': 20000,    # 출석 시 기본 지급 경험치
-                'monthly_xp_bonus': 2000,       # 출석 시 기본 지급 경험치
+                'weekly_cash_bonus': 5000,      # 7일 연속 출석 시 추가 보너스
+                'weekly_xp_bonus': 500,         # 7일 연속 출석 시 추가 경험치
+                'monthly_cash_bonus': 20000,    # 30일 연속 출석 시 추가 현금
+                'monthly_xp_bonus': 2000,       # 30일 연속 출석 시 추가 경험치
                 'exchange_fee_percent': 5,      # 환전이나 거래 시 발생하는 수수료
                 'daily_exchange_limit': 10      # 하루에 수행할 수 있는 최대 환전 횟수
             })

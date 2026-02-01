@@ -10,6 +10,7 @@ from typing import List, Optional
 # 안전한 point_manager import
 try:
     import point_manager as pm_module
+    point_manager = pm_module
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
