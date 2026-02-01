@@ -392,8 +392,8 @@ class PointManager(commands.Cog):
         try:
             db_cog = self.bot.get_cog('DatabaseCog')
             if not db_cog:
-                return await interaction.response.send_message("❌ 데이터베이스 코그를 찾을 수 없습니다.", ephemeral=True)
-            
+                return await interaction.followup.send("❌ 데이터베이스 코그를 찾을 수 없습니다.", ephemeral=True)
+        
             db = db_cog.get_manager(str(interaction.guild.id))
             user_data = db.get_user(user_id)
 

@@ -481,15 +481,17 @@ class XPLeaderboardCog(commands.Cog):
 
             # 해당 서버(guild_id) 데이터 조회
             results = db.execute_query('''
-                SELECT username, display_name, level, xp 
-                FROM users 
-                WHERE xp > 0
-                ORDER BY level DESC, xp DESC
-            ''', (), 'all')
+                SELECT u.user_id, u.username, u.display_name, ux.level, ux.xp 
+                FROM users u
+                JOIN user_xp ux ON u.user_id = ux.user_id
+                WHERE ux.guild_id = ? AND ux.xp > 0
+                ORDER BY ux.level DESC, ux.xp DESC
+            ''', (guild_id,), 'all')
             
             if not results:
                 return await interaction.followup.send("📊 해당 서버에 레벨 데이터가 없습니다.")
 
+            # 설정: 한 페이지에 100명 (임베드 5개 x 20명)
             users_per_page = 100
             chunk_size = 20
             total_pages = (len(results) - 1) // users_per_page + 1

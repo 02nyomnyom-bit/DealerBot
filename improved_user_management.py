@@ -332,7 +332,6 @@ class UserManagementCog(commands.Cog):
                 
                 user_list_text += f"**{rank}.** {name}\n"
                 user_list_text += f"   💰 {format_money(user.get('cash', 0))}원 | ✨ Lv.{level} ({format_xp(xp)})\n"
-                user_list_text += f"   📅 등록일: {user.get('created_at', 'Unknown')[:10]}\n\n"
             
             embed.description = user_list_text
             
