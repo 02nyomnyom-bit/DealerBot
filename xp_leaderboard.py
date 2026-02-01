@@ -9,9 +9,12 @@ import json
 import os
 import time
 import random
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Set, Optional, Literal, Union
 from collections import defaultdict
+
+# --- 시간대 설정 ---
+KST = timezone(timedelta(hours=9), 'KST')
 
 # 역할 보상 시스템 import 시도
 try:
@@ -464,77 +467,66 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.command(name="레벨순위", description="XP 리더보드를 확인합니다")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(페이지="확인할 페이지 (기본값: 1)")
-    async def level_leaderboard(self, interaction: Interaction, 페이지: int = 1):
-        """레벨 순위 (XP 리더보드)"""
-        await self._show_xp_leaderboard(interaction, 페이지)
-    
-    async def _show_xp_leaderboard(self, interaction: Interaction, 페이지: int = 1):
-        """XP 리더보드 표시 (공통 함수)"""
-        guild_id = str(interaction.guild.id)
+    @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1)")
+    async def leaderboard(self, interaction: discord.Interaction, 페이지: int = 1):
+        await interaction.response.defer()
         
-        # 페이지 검증
         if 페이지 < 1:
-            페이지 = 1
-        
-        offset = (페이지 - 1) * 10
-        
+            return await interaction.followup.send("❌ 페이지 번호는 1 이상이어야 합니다.", ephemeral=True)
+
         try:
-            # 🔒 등록된 사용자만 표시하도록 JOIN 추가
-            db = get_guild_db_manager(guild_id)
-            leaderboard_data = db.execute_query('''
-                SELECT u.user_id, u.username, u.display_name, x.xp, x.level
-                FROM user_xp x
-                JOIN users u ON x.user_id = u.user_id
-                WHERE x.guild_id = ? AND x.xp > 0
-                ORDER BY x.xp DESC
-                LIMIT 10 OFFSET ?
-            ''', (guild_id, offset), 'all')
+            # 해당 서버(guild_id) 데이터 조회
+            results = self.db_manager.execute_query('''
+                SELECT username, display_name, level, xp 
+                FROM users 
+                WHERE guild_id = ? AND xp > 0
+                ORDER BY level DESC, xp DESC
+            ''', (str(interaction.guild_id),), 'all')
             
-            if not leaderboard_data:
+            if not results:
+                return await interaction.followup.send("📊 해당 서버에 레벨 데이터가 없습니다.")
+
+            users_per_page = 100
+            chunk_size = 20
+            total_pages = (len(results) - 1) // users_per_page + 1
+
+            if 페이지 > total_pages:
+                return await interaction.followup.send(f"❌ 데이터가 부족합니다. (최대 페이지: {total_pages})", ephemeral=True)
+
+            start_idx = (페이지 - 1) * users_per_page
+            end_idx = start_idx + users_per_page
+            page_data = results[start_idx:end_idx]
+
+            embeds = []
+            for i in range(0, len(page_data), chunk_size):
+                chunk = page_data[i:i + chunk_size]
+                current_rank_start = start_idx + i + 1
+                
                 embed = discord.Embed(
-                    title="📊 XP 리더보드",
-                    description="아직 등록된 사용자의 XP 기록이 없습니다.\n`/등록` 명령어로 먼저 등록해주세요!",
-                    color=discord.Color.blue()
+                    title=f"✨ 서버 레벨 순위 ({페이지}/{total_pages} 페이지)" if i == 0 else None,
+                    description=f"**{current_rank_start}위 ~ {current_rank_start + len(chunk) - 1}위**",
+                    color=discord.Color.blue(),
+                    timestamp=datetime.now(KST)
                 )
-                return await interaction.response.send_message(embed=embed)
-            
-            # 전체 사용자 수 계산 (등록된 사용자만)
-            total_users_result = db.execute_query('''
-                SELECT COUNT(*) as count 
-                FROM user_xp x
-                JOIN users u ON x.user_id = u.user_id
-                WHERE x.guild_id = ? AND x.xp > 0
-            ''', (guild_id,), 'one')
-            total_users = total_users_result['count']
-            total_pages = math.ceil(total_users / 10)
-            
-            embed = discord.Embed(
-                title="📊 XP 리더보드 (등록된 사용자)",
-                color=discord.Color.gold()
-            )
-            
-            leaderboard_text = ""
-            for i, user_data in enumerate(leaderboard_data):
-                rank = offset + i + 1
-                user_id = user_data['user_id']
-                display_name = user_data['display_name'] or user_data['username']
-                xp = user_data['xp']
-                level = user_data['level']
                 
-                # 순위 이모지
-                rank_emoji = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}위"
+                leaderboard_text = []
+                for j, user in enumerate(chunk, current_rank_start):
+                    name = user['display_name'] or user['username'] or "알 수 없음"
+                    emoji = "👑" if j == 1 else "🥈" if j == 2 else "🥉" if j == 3 else f"**{j}.**"
+                    leaderboard_text.append(f"{emoji} {name} : `Lv.{user['level']}` (XP: {user['xp']:,})")
                 
-                leaderboard_text += f"{rank_emoji} **{display_name}**\n"
-                leaderboard_text += f"   💰 Lv.{level} ({format_xp(xp)} XP)\n\n"
-            
-            embed.description = leaderboard_text
-            embed.set_footer(text=f"페이지 {페이지}/{total_pages} • 총 {total_users}명 (등록된 사용자만)")
-            
-            await interaction.response.send_message(embed=embed)
+                embed.add_field(name="랭킹 목록", value="\n".join(leaderboard_text), inline=False)
+                
+                if i + chunk_size >= len(page_data):
+                    embed.set_footer(text=f"페이지 {페이지} / {total_pages} | 총 {len(results)}명")
+                
+                embeds.append(embed)
+
+            await interaction.followup.send(embeds=embeds)
             
         except Exception as e:
-            await interaction.response.send_message(f"❌ 리더보드 조회 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
+            print(f"❌ 레벨 순위 조회 오류: {e}")
+            await interaction.followup.send("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
     
     # ===== 관리자 명령어들 =====
     @app_commands.command(name="경험치관리", description="[관리자 전용] XP 및 레벨 관리")

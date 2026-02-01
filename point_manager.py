@@ -412,10 +412,11 @@ class PointManager(commands.Cog):
 
             # 5. 오늘 보낸 선물 횟수 계산 (KST 기준)
             today_str = datetime.now(KST).strftime('%Y-%m-%d')
+
             gift_count_query = """
                 SELECT COUNT(*) as count 
                 FROM point_history 
-                WHERE sender_id = ? AND type = 'gift' AND DATE(timestamp) = DATE(?)
+                WHERE user_id = ? AND type = '선물 보내기' AND DATE(timestamp) = DATE(?)
             """
             gift_result = db.execute_query(gift_count_query, (user_id, today_str), 'one')
             today_gifts = gift_result['count'] if gift_result else 0
@@ -633,55 +634,76 @@ class PointManager(commands.Cog):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="현금순위", description="현금 보유 순위를 확인합니다")
+    @app_commands.command(name="현금순위", description="해당 서버의 현금 보유 순위를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(페이지="확인할 페이지 (기본값: 1)")
+    @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1)")
     async def cash_ranking(self, interaction: Interaction, 페이지: int = 1):
+        await interaction.response.defer()
+        
+        if 페이지 < 1:
+            return await interaction.followup.send("❌ 페이지 번호는 1 이상이어야 합니다.", ephemeral=True)
+        
         try:
             db = self._get_db(interaction.guild_id)
-            # 상위 100명 조회
+            # 해당 서버(guild_id) 데이터 전체 조회
             results = db.execute_query('''
-                SELECT user_id, username, display_name, cash 
+                SELECT username, display_name, cash 
                 FROM users 
-                WHERE cash > 0 
-                ORDER BY cash DESC 
-                LIMIT 100
-            ''', (), 'all')
+                WHERE guild_id = ? 
+                ORDER BY cash DESC
+            ''', (str(interaction.guild_id),), 'all')
             
             if not results:
-                await interaction.response.send_message("📊 랭킹 데이터가 없습니다.", ephemeral=True)
-                return
+                return await interaction.followup.send("📊 해당 서버에 순위 데이터가 없습니다.")
+
+           # 설정: 한 페이지에 100명 (임베드 5개 x 20명)
+            users_per_page = 100
+            chunk_size = 20
+            total_pages = (len(results) - 1) // users_per_page + 1
+
+            if 페이지 > total_pages:
+                return await interaction.followup.send(f"❌ 데이터가 부족합니다. (최대 페이지: {total_pages})", ephemeral=True)
             
-            # 페이지네이션
-            per_page = 10
-            total_pages = (len(results) + per_page - 1) // per_page
-            페이지 = max(1, min(페이지, total_pages))
-            
-            start_idx = (페이지 - 1) * per_page
-            end_idx = start_idx + per_page
-            page_results = results[start_idx:end_idx]
-            
-            embed = discord.Embed(
-                title="💰 현금 보유 순위",
-                description=f"총 {len(results)}명 중 {start_idx + 1}위 ~ {start_idx + len(page_results)}위",
-                color=discord.Color.gold()
-            )
-            
-            ranking_text = []
-            for i, user in enumerate(page_results, start_idx + 1):
-                rank_emoji = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "🔸"
-                display_name = user['display_name'] or user['username'] or "알 수 없음"
-                ranking_text.append(f"{rank_emoji} **{i}위** {display_name}: {format_money(user['cash'])}")
-            
-            embed.description += "\n\n" + "\n".join(ranking_text)
-            embed.set_footer(text=f"페이지 {페이지}/{total_pages}")
-            
-            await interaction.response.send_message(embed=embed)
+            # 해당 페이지에 해당하는 유저 슬라이싱
+            start_idx = (페이지 - 1) * users_per_page
+            end_idx = start_idx + users_per_page
+            page_data = results[start_idx:end_idx]
+
+            embeds = []
+            # 20명씩 끊어서 임베드 생성 (최대 5개)
+            for i in range(0, len(page_data), chunk_size):
+                chunk = page_data[i:i + chunk_size]
+                current_rank_start = start_idx + i + 1
+                
+                embed = discord.Embed(
+                    title=f"💰 서버 현금 순위 ({페이지}/{total_pages} 페이지)" if i == 0 else None,
+                    description=f"**{current_rank_start}위 ~ {current_rank_start + len(chunk) - 1}위**",
+                    color=discord.Color.gold(),
+                    timestamp=datetime.now(KST)
+                )
+                
+                ranking_text = []
+                for j, user in enumerate(chunk, current_rank_start):
+                    name = user['display_name'] or user['username'] or "알 수 없음"
+                    cash = user['cash']
+                    emoji = "🥇" if j == 1 else "🥈" if j == 2 else "🥉" if j == 3 else f"**{j}.**"
+                    cash_str = f"🛑 `-{abs(cash):,}원`" if cash < 0 else f"`{cash:,}원`"
+                    ranking_text.append(f"{emoji} {name} : {cash_str}")
+                
+                embed.add_field(name="목록", value="\n".join(ranking_text), inline=False)
+                
+                if i + chunk_size >= len(page_data): # 마지막 임베드
+                    embed.set_footer(text=f"페이지 {페이지} / {total_pages} | 총 {len(results)}명")
+                
+                embeds.append(embed)
+
+            # 최대 10개의 임베드를 한 번에 전송 (디스코드 제한)
+            await interaction.followup.send(embeds=embeds)
             
         except Exception as e:
-            print(f"❌ 순위 조회 중 오류: {e}")
-            await interaction.response.send_message(f"❌ 순위 조회 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
+            print(f"❌ 순위 조회 오류: {e}")
+            await interaction.followup.send("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
 
     @app_commands.command(name="탈퇴", description="서버에서 탈퇴합니다. (모든 데이터 삭제)")
     async def leave(self, interaction: Interaction):
