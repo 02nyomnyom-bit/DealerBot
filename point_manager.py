@@ -390,13 +390,12 @@ class PointManager(commands.Cog):
         user_id = str(target.id)
         
         try:
-            db_cog = self.bot.get_cog('DatabaseCog')
-            if not db_cog:
-                return await interaction.followup.send("❌ 데이터베이스 코그를 찾을 수 없습니다.", ephemeral=True)
+            db = self._get_db(interaction.guild_id)
+            user_id = str(target.id)
         
-            db = db_cog.get_manager(str(interaction.guild.id))
+            # 사용자 데이터 조회
             user_data = db.get_user(user_id)
-
+            
             if user_data:
             # 닉네임이 변경되었다면 실시간 업데이트
                 if target.display_name != user_data.get('display_name'):
