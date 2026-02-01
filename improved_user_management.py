@@ -252,15 +252,14 @@ class UserManagementCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(페이지="확인할 페이지 번호 (기본값: 1)")
     async def list_registered_users(self, interaction: Interaction, 페이지: int = 1):
-        # DatabaseCog 로드 여부 확인
         if not self.db_cog:
-            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
-        
+            return await interaction.response.send_message("❌ 데이터베이스 시스템 미로드", ephemeral=True)
+    
         await interaction.response.defer(ephemeral=False)
         
         try:
             guild_id = str(interaction.guild.id)
-            db = self.db_cog.get_manager(guild_id) # db_cog를 통해 manager 가져오기
+            db = self.db_cog.get_manager(guild_id)
             
             # 페이지 설정 (1페이지당 10명)
             page_size = 10
@@ -268,16 +267,42 @@ class UserManagementCog(commands.Cog):
             
             # 사용자 목록 조회 (생성일순)
             users_results = db.execute_query('''
-                SELECT user_id, username, display_name, cash, created_at 
-                FROM users 
-                WHERE guild_id = ?
-                ORDER BY created_at DESC 
-                LIMIT ? OFFSET ?
-            ''', (guild_id, page_size, offset), 'all')
+                SELECT user_id, username, display_name, cash FROM users 
+                WHERE guild_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?
+            ''', (guild_id, 10, offset), 'all')
+
+            user_list_text = ""
+            for i, user in enumerate(users_results, 1):
+                user_id = int(user['user_id'])
+            member = interaction.guild.get_member(user_id)
+
+            display_name = user['display_name']
+            if member:
+                if member.display_name != user['display_name']:
+                    db.execute_query(
+                       'UPDATE users SET display_name = ?, username = ? WHERE user_id = ? AND guild_id = ?',
+                        (member.display_name, member.name, str(user_id), guild_id)
+                    )
+                    display_name = member.display_name
             
+            user_list_text += f"{offset + i}. {display_name} ({user['user_id']}) - 💰 {format_money(user['cash'])}원\n"
+            
+            current_display_name = user['display_name']
+
             if not users_results:
                 return await interaction.followup.send("📋 해당 페이지에 사용자가 없습니다.")
             
+            if member:
+                # DB의 닉네임과 현제 서버 닉네임이 다르면 업데이트
+                if member.display_name != user['display_name'] or member.name != user['username']:
+                        db.execute_query(
+                            'UPDATE users SET display_name = ?, username = ? WHERE user_id = ? AND guild_id = ?',
+                            (member.display_name, member.name, str(user_id), guild_id)
+                        )
+                        current_display_name = member.display_name
+
+            user_list_text += f"{offset + i}. {current_display_name} ({user['user_id']})\n"
+
             # ✅ Row 객체들을 딕셔너리로 변환
             users = [dict(row) for row in users_results]
             
@@ -505,6 +530,29 @@ class UserManagementCog(commands.Cog):
             
         except Exception as e:
             await interaction.response.send_message(f"❌ 데이터 초기화 중 오류: {str(e)}", ephemeral=True)
+            
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """사용자가 닉네임이나 이름을 변경했을 때 DB를 실시간으로 업데이트합니다."""
+        
+        # 이름이나 닉네임이 변경되었는지 확인
+        if before.display_name != after.display_name or before.name != after.name:
+            if self.db_cog is None:
+                self.db_cog = self.bot.get_cog('DatabaseCog') # DB 코그 가져오기
+                
+            if self.db_cog:
+                guild_id = str(after.guild.id)
+                db = self.db_cog.get_manager(guild_id)
+                
+                # DB에 해당 유저가 등록되어 있는지 확인
+                user_data = db.get_user(str(after.id))
+                if user_data:
+                    # 정보가 있다면 최신 이름으로 업데이트
+                    db.execute_query(
+                        'UPDATE users SET display_name = ?, username = ? WHERE user_id = ? AND guild_id = ?',
+                        (after.display_name, after.name, str(after.id), guild_id)
+                    )
+                    log_admin_action(f"닉네임 자동 동기화: {before.display_name} -> {after.display_name} ({after.id})")
 
 async def setup(bot):
     """Cog 로드를 위한 setup 함수"""

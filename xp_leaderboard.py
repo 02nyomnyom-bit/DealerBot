@@ -475,13 +475,17 @@ class XPLeaderboardCog(commands.Cog):
             return await interaction.followup.send("❌ 페이지 번호는 1 이상이어야 합니다.", ephemeral=True)
 
         try:
+            guild_id = str(interaction.guild_id)
+
+            db = get_guild_db_manager(guild_id)
+
             # 해당 서버(guild_id) 데이터 조회
-            results = self.db_manager.execute_query('''
+            results = db.execute_query('''
                 SELECT username, display_name, level, xp 
                 FROM users 
-                WHERE guild_id = ? AND xp > 0
+                WHERE xp > 0
                 ORDER BY level DESC, xp DESC
-            ''', (str(interaction.guild_id),), 'all')
+            ''', (), 'all')
             
             if not results:
                 return await interaction.followup.send("📊 해당 서버에 레벨 데이터가 없습니다.")
@@ -511,7 +515,19 @@ class XPLeaderboardCog(commands.Cog):
                 
                 leaderboard_text = []
                 for j, user in enumerate(chunk, current_rank_start):
+                    user_id = int(user['user_id'])
+                    member = interaction.guild.get_member(user_id)
+                    
                     name = user['display_name'] or user['username'] or "알 수 없음"
+
+                    if member:
+                        if member.display_name != user['display_name']:
+                            db.execute_query(
+                                'UPDATE users SET display_name = ?, username = ? WHERE user_id = ? AND guild_id = ?',
+                                (member.display_name, member.name, str(user_id), str(interaction.guild.id))
+                            )
+                            name = member.display_name
+
                     emoji = "👑" if j == 1 else "🥈" if j == 2 else "🥉" if j == 3 else f"**{j}.**"
                     leaderboard_text.append(f"{emoji} {name} : `Lv.{user['level']}` (XP: {user['xp']:,})")
                 

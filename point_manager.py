@@ -15,7 +15,7 @@ KST = timezone(timedelta(hours=9), 'KST')
 
 # 안전한 데이터베이스 매니저 import
 try:
-    from database_manager import DatabaseManager
+    from database_manager import DatabaseManager, get_guild_db_manager
     DATABASE_AVAILABLE = True
     print("✅ DatabaseManager를 성공적으로 불러왔습니다.")
 except ImportError as e:
@@ -388,16 +388,22 @@ class PointManager(commands.Cog):
         
         target = 대상자 if 대상자 else interaction.user
         user_id = str(target.id)
-        guild_id = str(interaction.guild.id)
         
         try:
-            # 3. 데이터베이스 매니저 가져오기 (에러 해결 포인트)
-            # xp_leaderboard.py에서 사용하는 방식과 동일하게 가져옵니다.
-            from database_manager import get_guild_db_manager
-            db = get_guild_db_manager(guild_id)
+            db_cog = self.bot.get_cog('DatabaseCog')
+            if not db_cog:
+                return await interaction.response.send_message("❌ 데이터베이스 코그를 찾을 수 없습니다.", ephemeral=True)
             
-            if not db:
-                return await interaction.followup.send("❌ 해당 서버의 데이터베이스 연결을 찾을 수 없습니다.", ephemeral=True)
+            db = db_cog.get_manager(str(interaction.guild.id))
+            user_data = db.get_user(user_id)
+
+            if user_data:
+            # 닉네임이 변경되었다면 실시간 업데이트
+                if target.display_name != user_data.get('display_name'):
+                    db.execute_query(
+                        'UPDATE users SET display_name = ?, username = ? WHERE user_id = ? AND guild_id = ?',
+                        (target.display_name, target.name, user_id, str(interaction.guild.id))
+                    )
 
             # 4. 사용자 데이터 조회
             user_data = db.get_user(user_id)
