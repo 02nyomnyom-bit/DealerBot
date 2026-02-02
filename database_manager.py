@@ -166,11 +166,11 @@ class DatabaseManager:
             """
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
-            transaction_type TEXT NOT NULL,
+            transaction_type TEXT NOT NULL,  # type -> transaction_type
             amount INTEGER NOT NULL,
-            balance_after INTEGER DEFAULT 0,
-            description TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            balance_after INTEGER NOT NULL,
+            description TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP  # created_at -> timestamp
             """
         )
         self.create_table(
@@ -303,18 +303,6 @@ class DatabaseManager:
                 PRIMARY KEY (channel_id, feature_type)
             )
         ''')
-
-        self.create_table(
-            "point_history",
-            """
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_id TEXT NOT NULL,
-            receiver_id TEXT,
-            type TEXT NOT NULL,
-            amount INTEGER NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            """
-        )
         
         with self.get_connection() as conn:
             cursor = conn.cursor()

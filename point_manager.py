@@ -421,8 +421,9 @@ class PointManager(commands.Cog):
             gift_count_query = """
                 SELECT COUNT(*) as count 
                 FROM point_history 
-                WHERE user_id = ? AND transaction_type = '선물 보내기' AND DATE(timestamp) = DATE(?)
+                WHERE user_id = ? AND transaction_type = '선물 보내기' AND DATE(created_at) = DATE(?)
             """
+            
             gift_result = db.execute_query(gift_count_query, (user_id, today_str), 'one')
             today_gifts = gift_result['count'] if gift_result else 0
             
