@@ -170,7 +170,7 @@ class DatabaseManager:
             amount INTEGER NOT NULL,
             balance_after INTEGER NOT NULL,
             description TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP  # created_at -> timestamp
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             """
         )
         self.create_table(
