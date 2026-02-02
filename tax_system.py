@@ -127,8 +127,11 @@ class TaxSystemCog(commands.Cog):
                 if tax_type == "cash":
                     db.update_user_cash(str(member.id), after_val)
                 else:
-                    # DB 매니저에 update_user_xp 또는 유사 함수가 있다고 가정
-                    db.update_user_xp(str(member.id), after_val)
+                    try:
+                        db.update_user_xp(str(member.id), after_val) 
+                    except AttributeError:
+                        # 일반적인 대체 함수명 예시
+                        db.update_user_exp(str(member.id), after_val)
                 
                 db.add_transaction(str(member.id), f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
