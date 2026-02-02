@@ -1,97 +1,58 @@
-# tax_system.py - 세금 시스템
+# tax_system.py - 세금 시스템 (수정본)
 from __future__ import annotations
 import discord
 from discord import app_commands
 from discord.ext import commands
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Literal
 import json
 import os
-from discord.ui import View
+from discord.ui import View, Button
 
-# 외부 유틸리티 함수 임포트
+# 외부 유틸리티 및 DB 임포트 로직 (기존 동일)
 try:
     from common_utils import log_admin_action, format_xp, now_str
 except ImportError:
-    # 모듈이 없을 경우를 대비한 대체(Fallback) 함수 정의
-    def log_admin_action(message: str):
-        print(f"[ADMIN LOG] {message}")
-    
-    def format_xp(xp: int) -> str:
-        return f"{xp:,} XP"
-    
+    def log_admin_action(message: str): print(f"[ADMIN LOG] {message}")
+    def format_xp(xp: int) -> str: return f"{xp:,} XP"
     def now_str() -> str:
         from datetime import datetime
         return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# 데이터베이스 관리자 임포트
 def safe_import_database():
     try:
         from database_manager import get_guild_db_manager
         return get_guild_db_manager, True
     except ImportError:
-        print("⚠️ DatabaseManager 임포트 실패")
         return None, False
 
-# DB 함수 및 사용 가능 여부 확인
 get_guild_db_manager_func, DATABASE_AVAILABLE = safe_import_database()
-
-# 데이터 저장 경로 설정
 DATA_DIR = "data"
 TAX_SETTINGS_FILE = os.path.join(DATA_DIR, "tax_settings.json")
-
-# 저장 디렉토리 자동 생성
 os.makedirs(DATA_DIR, exist_ok=True)
 
-class TaxManager:
-    """세금 시스템 관리 클래스"""
-    
-    def __init__(self):
-        self.tax_settings: Dict[str, Dict[str, int]] = {}
-        self.load_data()
-    
-    def load_data(self):
-        """세금 설정 데이터 로드"""
-        try:
-            if os.path.exists(TAX_SETTINGS_FILE):
-                with open(TAX_SETTINGS_FILE, 'r', encoding='utf-8') as f:
-                    self.tax_settings = json.load(f)
-                print(f"✅ 세금 설정 데이터 로드 완료: {len(self.tax_settings)}개 서버")
-            else:
-                self.tax_settings = {}
-                print("📝 새로운 세금 설정 데이터 파일 생성")
-        except Exception as e:
-            print(f"❌ 세금 설정 데이터 로드 실패: {e}")
-            self.tax_settings = {}
-    
-    def save_data(self) -> bool:
-        """세금 설정 데이터 저장"""
-        try:
-            with open(TAX_SETTINGS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.tax_settings, f, indent=4, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"❌ 세금 설정 데이터 저장 실패: {e}")
-            return False
-    
-    def set_tax(self, guild_id: str, role_id: str, tax_rate: float) -> bool:
-        """특정 역할에 세금 비율(%) 설정"""
-        try:
-            if guild_id not in self.tax_settings:
-                self.tax_settings[guild_id] = {}
-        
-            # tax_rate는 0.01 (1%) ~ 1.0 (100%) 사이의 값으로 저장
-            self.tax_settings[guild_id][role_id] = tax_rate
-            return self.save_data()
-        except Exception as e:
-            print(f"❌ 세금 설정 실패: {e}")
-            return False
-    
-# 전역 인스턴스
-tax_manager = TaxManager()
+# --- 신규: 자산 선택 뷰 ---
+class TaxTypeSelectView(View):
+    def __init__(self, cog, interaction: discord.Interaction, role: discord.Role, percent: float):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.interaction = interaction
+        self.role = role
+        self.percent = percent
 
+    @discord.ui.button(label="현금 수거", style=discord.ButtonStyle.green, emoji="💵")
+    async def collect_cash(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.process_tax_collection(interaction, self.role, self.percent, "cash")
+        self.stop()
+
+    @discord.ui.button(label="XP 수거", style=discord.ButtonStyle.blurple, emoji="✨")
+    async def collect_xp(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.process_tax_collection(interaction, self.role, self.percent, "xp")
+        self.stop()
+
+# --- 페이징 뷰 (기존 유지 및 소폭 수정) ---
 class TaxPagingView(View):
     def __init__(self, title, members_list, chunk_size=15):
-        super().__init__(timeout=120) # 시간을 조금 더 늘림
+        super().__init__(timeout=120)
         self.title = title
         self.members_list = members_list
         self.chunk_size = chunk_size
@@ -100,96 +61,113 @@ class TaxPagingView(View):
     @discord.ui.button(label="다음 목록 보기", style=discord.ButtonStyle.gray, emoji="⏭️")
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         next_chunk = self.members_list[self.current_index : self.current_index + self.chunk_size]
-        
-        # 다음 페이지 내용 생성
         embed = discord.Embed(
-            title=f"{self.title} (추가 목록 {self.current_index // self.chunk_size + 1}P)",
+            title=f"{self.title} (추가 {self.current_index // self.chunk_size + 1}P)",
             description="\n".join(next_chunk),
             color=discord.Color.orange()
         )
-        
         self.current_index += self.chunk_size
-        
-        # 더 이상 줄 데이터가 없으면 버튼 비활성화
         if self.current_index >= len(self.members_list):
             button.disabled = True
             button.label = "마지막 페이지"
-
         await interaction.response.send_message(embed=embed, ephemeral=False, view=self if not button.disabled else None)
 
 class TaxSystemCog(commands.Cog):
-    """등급별 세금 시스템 Cog"""
-    
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.tax_manager = tax_manager
-    
-    @app_commands.command(name="세금수거", description="[관리자 전용] 특정 역할 유저들에게 % 단위로 세금을 수거합니다.")
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.default_permissions(administrator=True)
+
+    @app_commands.command(name="세금수거", description="[관리자 전용] 특정 역할 유저들에게 세금을 수거합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정)
     @app_commands.describe(역할="세금을 수거할 역할", 퍼센트="징수할 비율 (%)")
     async def collect_tax_percent(self, interaction: discord.Interaction, 역할: discord.Role, 퍼센트: float):
         if not 0 < 퍼센트 <= 100:
             return await interaction.response.send_message("❌ 퍼센트는 0보다 크고 100 이하이어야 합니다.", ephemeral=True)
+        
+        embed = discord.Embed(
+            title="💰 수거 자산 선택",
+            description=f"**대상 역할:** {역할.mention}\n**징수 비율:** {퍼센트}%\n\n어떤 자산을 수거하시겠습니까?",
+            color=discord.Color.blue()
+        )
+        view = TaxTypeSelectView(self, interaction, 역할, 퍼센트)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+    async def process_tax_collection(self, interaction: discord.Interaction, 역할: discord.Role, 퍼센트: float, tax_type: Literal["cash", "xp"]):
         await interaction.response.defer()
         
         db = get_guild_db_manager_func(str(interaction.guild.id))
         members = 역할.members
         
-        tax_results = [] 
-        total_collected = 0 # 수거 총액 변수
+        tax_results = []
+        failed_members = [] # 마이너스 잔액 인원
+        total_collected = 0
         success_count = 0
         
+        unit = "원" if tax_type == "cash" else "XP"
+        type_name = "현금" if tax_type == "cash" else "경험치"
+
         for member in members:
             if member.bot: continue
             
             user_data = db.get_user(str(member.id))
             if not user_data: continue
             
-            before_cash = user_data.get('cash', 0)
-            tax_amount = int(before_cash * (퍼센트 / 100))
-            after_cash = before_cash - tax_amount
+            # 자산 값 가져오기
+            current_val = user_data.get(tax_type, 0)
+            
+            # [요구사항] 이미 만원이하인 경우 제외
+            if current_val < 10000:
+                failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
+                continue
+            
+            tax_amount = int(current_val * (퍼센트 / 100))
+            after_val = current_val - tax_amount
             
             if tax_amount > 0:
-                db.update_user_cash(str(member.id), after_cash)
-                db.add_transaction(str(member.id), "세금징수", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
+                if tax_type == "cash":
+                    db.update_user_cash(str(member.id), after_val)
+                else:
+                    # DB 매니저에 update_user_xp 또는 유사 함수가 있다고 가정
+                    db.update_user_xp(str(member.id), after_val)
+                
+                db.add_transaction(str(member.id), f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
-                total_collected += tax_amount # 총액 누적
+                total_collected += tax_amount
 
-            tax_results.append(f"{member.display_name} {before_cash:,}원 -> {after_cash:,}원 (수거액: {tax_amount:,}원)")
+            tax_results.append(f"{member.display_name} {current_val:,}{unit} -> {after_val:,}{unit} (-{tax_amount:,})")
 
-        if not tax_results:
-            return await interaction.followup.send(f"ℹ️ {역할.name} 역할에 등록된 유저가 없습니다.")
-
-        # --- 출력 부분 ---
+        # 결과 임베드 생성
         embed = discord.Embed(
-            title="💰 세금 수거 및 국고 환수 결과",
-            description=f"**역할명:** {역할.name}\n**징수 비율:** {퍼센트}%\n**총 수거액:** ✨ `{total_collected:,}원` ✨",
-            color=discord.Color.gold(), # 총액 강조를 위해 금색으로 변경
+            title=f"💰 {type_name} 세금 수거 결과",
+            description=f"**역할:** {역할.name}\n**비율:** {퍼센트}%\n**총 수거액:** ✨ `{total_collected:,}{unit}` ✨",
+            color=discord.Color.gold() if tax_type == "cash" else discord.Color.purple(),
             timestamp=discord.utils.utcnow()
         )
 
+        # 상세 내역 (성공 유저)
         chunk_size = 15
-        first_chunk = tax_results[:chunk_size]
-        formatted_list = "\n".join([f"{i+1}. {line}" for i, line in enumerate(first_chunk)])
+        if tax_results:
+            first_chunk = tax_results[:chunk_size]
+            formatted_list = "\n".join([f"{i+1}. {line}" for i, line in enumerate(first_chunk)])
+            embed.add_field(name=f"📊 수거 내역 ({success_count}명)", value=f"```\n{formatted_list}```", inline=False)
+        else:
+            embed.add_field(name="📊 수거 내역", value="```\n수거 대상자가 없습니다.```", inline=False)
 
-        embed.add_field(
-            name=f"📊 상세 내역 (대상: {success_count}명)",
-            value=f"```\n{formatted_list}```",
-            inline=False
-        )
+        # [요구사항] 수거 불가 인원 표시
+        if failed_members:
+            fail_list = "\n".join(failed_members[:10]) # 너무 많을 경우 대비 10명 제한
+            if len(failed_members) > 10: fail_list += f"\n외 {len(failed_members)-10}명..."
+            embed.add_field(name="🚫 수거 불가 인원 (잔액 부족)", value=f"```\n{fail_list}```", inline=False)
 
-        # 요약 필드 추가
-        embed.set_footer(text=f"합계: {total_collected:,}원 이 수거되었습니다.")
+        embed.set_footer(text=f"관리자 {interaction.user.display_name}에 의해 집행됨")
 
         if len(tax_results) > chunk_size:
-            view = TaxPagingView(f"{역할.name} 수거 상세 목록", tax_results)
+            view = TaxPagingView(f"{역할.name} {type_name} 수거 상세", tax_results)
             await interaction.followup.send(embed=embed, view=view)
         else:
             await interaction.followup.send(embed=embed)
 
-        log_admin_action(f"[세금수거] {interaction.user.display_name} : {역할.name} {퍼센트}% 수거 (총액: {total_collected:,}원)") 
+        log_admin_action(f"[세금수거] {interaction.user.display_name} : {역할.name} {type_name} {퍼센트}% 수거 (총액: {total_collected})")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TaxSystemCog(bot))

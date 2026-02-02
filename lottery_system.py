@@ -306,39 +306,41 @@ class LotterySystem(commands.Cog):
         config_cog = self.bot.get_cog("ChannelConfig")
     
         if config_cog:
-        # 2. 현재 채널에 'lottery' 권한이 있는지 체크 (channel_config.py의 value="lottery"와 일치해야 함)
             is_allowed = await config_cog.check_permission(interaction.channel_id, "lottery", interaction.guild.id)
-        
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
+            if not is_allowed:
+                return await interaction.response.send_message(
+                    "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                    ephemeral=True
+                )
         
         db = self._get_db(interaction.guild.id)
         if db is None:
             return await interaction.response.send_message("데이터베이스 연결 실패", ephemeral=True)
 
-        data = self.lottery_data.data
+        # 2. 서버별 데이터 가져오기 (manager 활용)
+        store = self.manager.get_guild_store(str(interaction.guild.id))
+        data = store['data']
+        
         round_num = data['round']
         jackpot = data.get('jackpot', 0)
         total_prize = PRIZE_TABLE[1]['prize'] + jackpot
         
-        # 상금 정보를 딕셔너리로 묶어서 뷰에 전달
+        # 3. 상금 정보를 딕셔너리로 묶음
         jackpot_info = {'total': total_prize, 'jackpot': jackpot}
         
+        # 4. 유저의 현재 회차 티켓 필터링
         user_id_str = str(interaction.user.id)
-        my_tickets = [t for t in self.lottery_tickets.tickets if t['round'] == round_num and t['user_id'] == user_id_str]
+        my_tickets = [t for t in store.get('tickets', []) if t['round'] == round_num and t['user_id'] == user_id_str]
         
+        # 5. 결과 출력 (티켓 유무에 따른 분기)
         if not my_tickets:
-            # 티켓이 없을 때는 기본 정보만 출력
             embed = discord.Embed(title=f"🎰 제 {round_num}회 파워볼 정보", color=discord.Color.blue())
             embed.add_field(name="현재 1등 예상 상금", value=f"**{db.format_money(total_prize)}**", inline=True)
             embed.add_field(name="이월된 상금", value=db.format_money(jackpot), inline=True)
             embed.add_field(name="🎫 내 티켓", value="구매한 티켓이 없습니다.", inline=False)
             await interaction.response.send_message(embed=embed)
         else:
-            # 티켓이 있을 때: 10장씩 보여주는 페이징 뷰 생성
+            # 티켓이 있을 때: 페이징 뷰 생성
             view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, jackpot_info, per_page=10)
             await interaction.response.send_message(embed=view.create_embed(), view=view)
 
