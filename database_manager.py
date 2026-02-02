@@ -166,7 +166,7 @@ class DatabaseManager:
             """
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
-            transaction_type TEXT NOT NULL,  # type -> transaction_type
+            transaction_type TEXT NOT NULL,
             amount INTEGER NOT NULL,
             balance_after INTEGER NOT NULL,
             description TEXT,
