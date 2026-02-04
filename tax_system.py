@@ -97,47 +97,46 @@ class TaxSystemCog(commands.Cog):
         
         db = get_guild_db_manager_func(str(interaction.guild.id))
         members = 역할.members
+        guild_id = str(interaction.guild.id)
         
         tax_results = []
-        failed_members = [] # 마이너스 잔액 인원
+        failed_members = []
         total_collected = 0
         success_count = 0
         
-        db_field = "cash" if tax_type == "cash" else "xp" 
         unit = "원" if tax_type == "cash" else "XP"
         type_name = "현금" if tax_type == "cash" else "경험치"
 
-        # ... 상단 로직 생략 ...
+        # --- XP인 경우 JSON 파일 로드 ---
+        xp_data_all = {}
+        if tax_type == "xp":
+            xp_file_path = "data/xp_settings.json"
+            if os.path.exists(xp_file_path):
+                with open(xp_file_path, "r", encoding="utf-8") as f:
+                    xp_data_all = json.load(f)
+
         for member in members:
             if member.bot: continue
-            
             user_id = str(member.id)
-            guild_id = str(interaction.guild.id)
             current_val = 0
-
+            
+            # 1. 값 가져오기
             if tax_type == "cash":
-                # 현금은 database_manager(SQLite) 사용
                 user_data = db.get_user(user_id)
                 if user_data:
                     current_val = user_data.get('cash', 0) if isinstance(user_data, dict) else getattr(user_data, 'cash', 0)
             else:
-                # [핵심] XP는 xp_leaderboard가 쓰는 JSON 파일에서 직접 로드
-                try:
-                    with open("data/xp_settings.json", "r", encoding="utf-8") as f:
-                        xp_data = json.load(f)
-                        # JSON 구조: {"guild_id": {"user_id": {"xp": 100}}}
-                        current_val = xp_data.get(guild_id, {}).get(user_id, {}).get("xp", 0)
-                except Exception as e:
-                    print(f"디버그: JSON 로드 실패 - {e}")
-                    current_val = 0
+                # JSON 데이터에서 해당 길드 -> 해당 유저의 XP 추출
+                current_val = xp_data_all.get(guild_id, {}).get(user_id, {}).get("xp", 0)
 
             print(f"디버그: {member.display_name}의 실제 추출된 {tax_type} 값 = {current_val}")
 
-            # 수거 기준 체크 (10000 미만 제외)
-            if current_val < 10000:
+            # 2. 수거 가능 여부 체크 (100 미만 제외)
+            if current_val < 100:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
             
+            # 3. 세금 계산 및 차감
             tax_amount = int(current_val * (퍼센트 / 100))
             after_val = current_val - tax_amount
             
@@ -145,20 +144,22 @@ class TaxSystemCog(commands.Cog):
                 if tax_type == "cash":
                     db.update_user_cash(user_id, after_val)
                 else:
-                    # [중요] XP 수정 시에도 JSON 파일을 업데이트해야 함
-                    try:
-                        with open("data/xp_settings.json", "r+", encoding="utf-8") as f:
-                            xp_data = json.load(f)
-                            if guild_id in xp_data and user_id in xp_data[guild_id]:
-                                xp_data[guild_id][user_id]["xp"] = after_val
-                                f.seek(0)
-                                json.dump(xp_data, f, indent=4, ensure_ascii=False)
-                                f.truncate()
-                    except Exception as e:
-                        print(f"디버그: XP 저장 실패 - {e}")
+                    # JSON 데이터 구조 유지하며 값 수정
+                    if guild_id not in xp_data_all: xp_data_all[guild_id] = {}
+                    if user_id not in xp_data_all[guild_id]: xp_data_all[guild_id][user_id] = {"xp": 0, "level": 1}
+                    xp_data_all[guild_id][user_id]["xp"] = after_val
                 
+                # 기록 추가 (DB 히스토리에는 남김)
                 db.add_transaction(user_id, f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
+                success_count += 1
+                total_collected += tax_amount
+                tax_results.append(f"{member.display_name} {current_val:,}{unit} -> {after_val:,}{unit} (-{tax_amount:,})")
 
+                # 4. XP인 경우 JSON 파일 최종 저장
+        if tax_type == "xp" and success_count > 0:
+            with open("data/xp_settings.json", "w", encoding="utf-8") as f:
+                json.dump(xp_data_all, f, indent=4, ensure_ascii=False)
+                
         # 결과 임베드 생성
         embed = discord.Embed(
             title=f"💰 {type_name} 세금 수거 결과",
