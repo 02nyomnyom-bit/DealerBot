@@ -104,7 +104,7 @@ class TaxSystemCog(commands.Cog):
         success_count = 0
         
         # [수정] DB 필드명 및 단위 설정
-        db_field = "cash" if tax_type == "cash" else "exp"
+        db_field = "cash" if tax_type == "cash" else "xp" 
         unit = "원" if tax_type == "cash" else "XP"
         type_name = "현금" if tax_type == "cash" else "경험치"
 
@@ -113,12 +113,11 @@ class TaxSystemCog(commands.Cog):
             
             user_data = db.get_user(str(member.id))
             if not user_data: continue
-            
-            # [수정] "exp" 키를 사용하도록 변경
+
             current_val = user_data.get(db_field, 0)
             print(f"디버그: {member.display_name}의 {db_field} 값 = {current_val}")
-            
-            # 최소 수거 기준
+
+            # 최소 수거 기준 (10000 미만은 제외하여 소수점 및 무의미한 수거 방지)
             if current_val < 10000:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
@@ -130,8 +129,8 @@ class TaxSystemCog(commands.Cog):
                 if tax_type == "cash":
                     db.update_user_cash(str(member.id), after_val)
                 else:
-                    # [수정] database_manager.py에 정의된 정확한 함수명 'set_exp' 사용
-                    db.set_exp(str(member.id), after_val)
+                    current_level = user_data.get("level", 1)
+                    db.set_exp(str(member.id), current_level, after_val)
                 
                 db.add_transaction(str(member.id), f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
