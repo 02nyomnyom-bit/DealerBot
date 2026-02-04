@@ -148,17 +148,14 @@ class AnonymousSystem(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True)
     async def anonymous_admin(self, interaction: discord.Interaction):
         db = self.get_db(interaction.guild.id)
-        # 최근 10개 메시지 조회
-        logs = db.execute_query("SELECT msg_id, user_name, content FROM anonymous_messages ORDER BY timestamp DESC LIMIT 10", (), 'all')
         
-        if not logs:
-            return await interaction.response.send_message("기록된 익명 메시지가 없습니다.", ephemeral=True)
-            
-        embed = discord.Embed(title="🌲 대나무숲 관리자 로그", color=discord.Color.dark_green())
-        for log in logs:
-            embed.add_field(name=f"ID: {log[0]} ({log[1]})", value=log[2][:100], inline=False)
-            
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        embed = discord.Embed(
+            title="🌲 대나무숲 관리자 시스템", 
+            description="익명 메시지의 발신자를 확인하려면 아래 버튼을 눌러 인증해주세요.",
+            color=discord.Color.dark_green()
+        )
+        
+        await interaction.response.send_message(embed=embed, view=AnonymousAdminView(db), ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AnonymousSystem(bot))
