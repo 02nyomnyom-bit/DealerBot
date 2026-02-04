@@ -607,21 +607,10 @@ class StatisticsCog(commands.Cog):
         else:
             self.stats = StatisticsManager(self.db_cog) # DatabaseCog 인스턴스를 전달
 
-    @app_commands.command(name="통계", description="서버 전체 게임 통계를 확인합니다.")
+    @app_commands.command(name="통계", description="[관리자 전용] 서버 전체 게임 통계를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def server_statistics(self, interaction: discord.Interaction):
-        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
-        config_cog = self.bot.get_cog("ChannelConfig")
-    
-        if config_cog:
-        # 2. 현재 채널에 'statistics' 권한이 있는지 체크 (channel_config.py의 value="statistics"와 일치해야 함)
-            is_allowed = await config_cog.check_permission(interaction.channel_id, "statistics", interaction.guild.id)
-        
-        if not is_allowed:
-            return await interaction.response.send_message(
-                "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
-                ephemeral=True
-            )
-        
         if not self.stats:
             return await interaction.response.send_message("❌ 통계 시스템이 초기화되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
             
@@ -704,7 +693,7 @@ class StatisticsCog(commands.Cog):
             await interaction.followup.send("❌ 통계 조회 중 오류가 발생했습니다.", ephemeral=True)
 
     # ✅ 디버깅 명령어 추가
-    @app_commands.command(name="통계디버그", description="통계 시스템 디버깅 정보를 확인합니다.")
+    @app_commands.command(name="통계디버그", description="[관리자 전용] 통계 시스템 디버깅 정보를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def statistics_debug(self, interaction: discord.Interaction):

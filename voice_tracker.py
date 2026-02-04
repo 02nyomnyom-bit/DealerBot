@@ -351,6 +351,8 @@ class VoiceTracker(commands.Cog):
             await interaction.followup.send("❌ 명령어 처리 중 오류가 발생했습니다.")
 
     @app_commands.command(name="보이스통계", description="기간별 통화 순위를 공개적으로 확인합니다. (상위 10명)")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(기간="통계 기간 선택")
     @app_commands.choices(기간=[
         app_commands.Choice(name="📅 하루 (24시간)", value="1"),

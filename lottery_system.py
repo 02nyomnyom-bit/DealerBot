@@ -345,7 +345,7 @@ class LotterySystem(commands.Cog):
             await interaction.response.send_message(embed=view.create_embed(), view=view)
 
 
-    @app_commands.command(name="로또추첨", description="[관리자] 로또 추첨을 진행합니다. 번호를 지정하면 해당 번호로 당첨됩니다.")
+    @app_commands.command(name="로또추첨", description="[관리자 전용] 로또 추첨을 진행합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def draw(self, interaction: discord.Interaction):

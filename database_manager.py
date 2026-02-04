@@ -199,8 +199,6 @@ class DatabaseManager:
             monthly_cash_bonus INTEGER DEFAULT 10000,
             monthly_xp_bonus INTEGER DEFAULT 5000,
             gift_fee_rate REAL DEFAULT 0.1,
-            exchange_fee_percent INTEGER DEFAULT 5,
-            daily_exchange_limit INTEGER DEFAULT 10,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """

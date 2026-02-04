@@ -372,65 +372,6 @@ class ExchangeCog(commands.Cog):
         logger.info(f"✅ {interaction.user.display_name}님이 교환 설정을 변경했습니다.")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="교환현황", description="XP/현금 교환 시스템의 현재 상태와 서버의 주간 교환 기록을 확인합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def exchange_status(self, interaction: discord.Interaction):
-        user_id = str(interaction.user.id)
-        guild_id = str(interaction.guild.id)
-        
-        # 시스템 설정
-        embed = discord.Embed(
-            title="🔄 XP | 현금 교환 시스템 현황",
-            description="현재 교환 시스템의 설정 및 교환 현황입니다.",
-            color=discord.Color.dark_green()
-        )
-        embed.add_field(
-            name="⚙️ 시스템 설정",
-            value=f"**현금→XP 수수료**: {self.exchange_system.settings['현금_수수료율']:.1f}%\n"
-                  f"**XP→현금 수수료**: {self.exchange_system.settings['XP_수수료율']:.1f}%\n"
-                  f"**일일 제한**: {self.exchange_system.settings['일일_제한']}회\n"
-                  f"**쿨다운**: {self.exchange_system.settings['쿨다운_분']}분",
-            inline=False
-        )
-        
-        # 서버의 주간 교환 기록 (최대 25개)
-        now = datetime.datetime.now()
-        one_week_ago = now - datetime.timedelta(days=7)
-        
-        guild_history = [e for e in self.exchange_system.exchange_history if e.get('guild_id') == guild_id]
-        
-        # 주간 기록 필터링
-        weekly_guild_history = []
-        for e in guild_history:
-            try:
-                # naive datetime으로 변환하여 비교
-                record_date = datetime.datetime.fromisoformat(e['date'])
-                if record_date > one_week_ago:
-                    weekly_guild_history.append(e)
-            except (ValueError, KeyError):
-                continue # 날짜 형식이 잘못된 기록은 건너뜀
-
-        history_text = ""
-        if weekly_guild_history:
-            recent_exchanges = sorted(weekly_guild_history, key=lambda x: x['date'], reverse=True)
-            lines = []
-            for exchange in recent_exchanges[:15]: # 상위 15개
-                ex_user_id = exchange.get('user_id')
-                member = interaction.guild.get_member(int(ex_user_id)) if ex_user_id else None
-                user_name = member.display_name if member else f"ID: {ex_user_id}"
-                date = datetime.datetime.fromisoformat(exchange['date']).strftime('%m/%d %H:%M')
-                type_emoji = "💰→✨" if exchange['type'] == "cash_to_xp" else "✨→💰"
-                
-                line = f"👤 **{user_name}**: {type_emoji} {exchange['amount']:,} → {exchange['result']:,} ({date})"
-                lines.append(line)
-            
-            history_text = "\n".join(lines)
-            if len(weekly_guild_history) > 15:
-                history_text += "\n... (외 기록 생략)"
-        else:
-            history_text = "지난 일주일간 교환 기록이 없습니다."
-
 async def setup(bot: commands.Bot):
     point_manager_cog = bot.get_cog("PointManager")
     if not point_manager_cog:

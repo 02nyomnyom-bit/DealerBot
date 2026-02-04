@@ -138,148 +138,109 @@ class MemberExitLogger(commands.Cog):
             icon_url=member.guild.icon.url if member.guild.icon else None
         )
         return embed
-
-    @app_commands.command(name="퇴장로그설정", description="[관리자 전용] 멤버 퇴장 로그 채널을 설정합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(채널="퇴장 로그를 전송할 채널")
-    async def setup_exit_log(self, interaction: discord.Interaction, 채널: discord.TextChannel):
-        permissions = 채널.permissions_for(interaction.guild.me)
-        if not permissions.send_messages or not permissions.embed_links:
-            return await interaction.response.send_message(
-                f"❌ {채널.mention} 채널에 메시지를 보낼 권한이 없습니다.\n"
-                "봇에게 `메시지 보내기`와 `링크 임베드` 권한을 부여해주세요.",
-                ephemeral=True
-            )
-        
-        db = DatabaseManager(str(interaction.guild.id))
-        # ✅ 데이터베이스에 설정 저장
-        query = """
-            INSERT OR REPLACE INTO log_settings (guild_id, channel_id, enabled)
-            VALUES (?, ?, ?)
-        """
-        db.execute_query(query, (str(interaction.guild.id), str(채널.id), 1))
-        
-        embed = discord.Embed(
-            title="✅ 퇴장 로그 설정 완료",
-            description=f"멤버 퇴장 로그가 {채널.mention} 채널로 설정되었습니다.",
-            color=discord.Color.green()
-        )
-        embed.add_field(
-            name="📋 설정 정보",
-            value=f"• 로그 채널: {채널.mention}\n• 설정자: {interaction.user.mention}\n• 설정 시간: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            inline=False
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
     
-    @app_commands.command(name="퇴장로그비활성화", description="[관리자 전용] 멤버 퇴장 로그를 비활성화합니다.")
+    @app_commands.command(name="퇴장로그관리", description="[관리자 전용] 퇴장 로그 시스템 관리")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def disable_exit_log(self, interaction: discord.Interaction):
-        db = DatabaseManager(str(interaction.guild.id))
-        # ✅ 데이터베이스에서 설정 비활성화
-        query = "UPDATE log_settings SET enabled = 0 WHERE guild_id = ?"
-        db.execute_query(query, (str(interaction.guild.id),))
+    @app_commands.describe(
+        작업="수행할 작업 선택",
+        채널="로그를 보낼 채널",
+        일수="로그 조회 시 필요한 기간"
+    )
+    @app_commands.choices(작업=[
+        app_commands.Choice(name="⚙️ 설정/변경", value="setup"),
+        app_commands.Choice(name="❌ 비활성화", value="disable"),
+        app_commands.Choice(name="📊 상태 확인", value="status"),
+        app_commands.Choice(name="📋 최근로그 조회", value="view")
+    ])
+    async def exit_log_admin(self, interaction: discord.Interaction, 작업: str, 채널: Optional[discord.TextChannel] = None, 일수: int = 7):
+        if 작업 == "setup":
+            if not 채널:
+                return await interaction.response.send_message("❌ 설정을 위해 채널을 선택해주세요.", ephemeral=True)
+            permissions = 채널.permissions_for(interaction.guild.me)
+            if not permissions.send_messages or not permissions.embed_links:
+                return await interaction.response.send_message(
+                    f"❌ {채널.mention} 채널에 메시지를 보낼 권한이 없습니다.",
+                    ephemeral=True
+                )
+            db = DatabaseManager(str(interaction.guild.id))
+            query = "INSERT OR REPLACE INTO log_settings (guild_id, channel_id, enabled) VALUES (?, ?, ?)"
+            db.execute_query(query, (str(interaction.guild.id), str(채널.id), 1))
         
-        embed = discord.Embed(
-            title="✅ 퇴장 로그 비활성화 완료",
-            description="멤버 퇴장 로그가 비활성화되었습니다.",
-            color=discord.Color.orange()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    
-    @app_commands.command(name="퇴장로그상태", description="[관리자 전용] 현재 퇴장 로그 설정 상태를 확인합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def exit_log_status(self, interaction: discord.Interaction):
-        db = DatabaseManager(str(interaction.guild.id))
-        setting = db.execute_query("SELECT * FROM log_settings WHERE guild_id = ?", (str(interaction.guild.id),), 'one')
-        
-        embed = discord.Embed(
-            title="📊 퇴장 로그 시스템 상태",
-            color=discord.Color.blue()
-        )
-        
-        if setting and setting['enabled']:
-            channel = self.bot.get_channel(int(setting['channel_id']))
-            embed.add_field(
-                name="🟢 시스템 상태",
-                value="**활성화됨**",
-                inline=True
-            )
-            embed.add_field(
-                name="📍 로그 채널",
-                value=channel.mention if channel else f"⚠️ 채널 없음 (ID: {setting['channel_id']})",
-                inline=True
-            )
-        else:
-            embed.add_field(
-                name="🔴 시스템 상태",
-                value="**비활성화됨**",
-                inline=True
-            )
-            embed.add_field(
-                name="📍 로그 채널",
-                value="설정되지 않음",
-                inline=True
-            )
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+            embed = discord.Embed(title="✅ 퇴장 로그 활성화", color=discord.Color.green())
+            embed.add_field(name="📍 설정 채널", value=채널.mention, inline=False)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="퇴장로그", description="서버를 떠난 멤버의 최근 로그를 확인합니다.")
-    @app_commands.describe(일수="조회할 일수 (기본값: 7일)")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def exit_log_command(self, interaction: discord.Interaction, 일수: int = 7):
-        await interaction.response.defer(ephemeral=True)
-
-        if 일수 <= 0:
-            return await interaction.followup.send("일수는 1 이상으로 설정해주세요.", ephemeral=True)
+        elif 작업 == "disable":
+            db = DatabaseManager(str(interaction.guild.id))
+            db.execute_query("UPDATE log_settings SET enabled = 0 WHERE guild_id = ?", (str(interaction.guild.id),))
+        
+            await interaction.response.send_message("🔴 퇴장 로그 시스템이 비활성화되었습니다.", ephemeral=True)
+        
+        elif 작업 == "status":
+            db = DatabaseManager(str(interaction.guild.id))
+            setting = db.execute_query("SELECT * FROM log_settings WHERE guild_id = ?", (str(interaction.guild.id),), 'one')
+        
+            embed = discord.Embed(title="📊 퇴장 로그 시스템 상태", color=discord.Color.blue())
+            if setting and setting['enabled']:
+                channel = self.bot.get_channel(int(setting['channel_id']))
+                embed.add_field(name="상태", value="🟢 활성", inline=True)
+                embed.add_field(name="채널", value=channel.mention if channel else "⚠️ 채널 찾을 수 없음", inline=True)
+            else:
+                embed.add_field(name="상태", value="🔴 비활성", inline=True)
             
-        cutoff_date = (datetime.datetime.now() - datetime.timedelta(days=일수)).isoformat()
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        elif 작업 == "view":
+            await interaction.response.defer(ephemeral=True)
+
+            if 일수 <= 0:
+                return await interaction.followup.send("일수는 1 이상으로 설정해주세요.", ephemeral=True)
+            
+            cutoff_date = (datetime.datetime.now() - datetime.timedelta(days=일수)).isoformat()
         
-        db = DatabaseManager(str(interaction.guild.id))
-        # ✅ 데이터베이스에서 최근 로그 조회
-        query = """
-            SELECT * FROM exit_logs
-            WHERE guild_id = ? AND left_at >= ?
-            ORDER BY left_at DESC
-        """
-        recent_logs = db.execute_query(query, (str(interaction.guild.id), cutoff_date), 'all')
+            db = DatabaseManager(str(interaction.guild.id))
+            # ✅ 데이터베이스에서 최근 로그 조회
+            query = """
+                SELECT * FROM exit_logs
+                WHERE guild_id = ? AND left_at >= ?
+                ORDER BY left_at DESC
+            """
+            recent_logs = db.execute_query(query, (str(interaction.guild.id), cutoff_date), 'all')
         
-        embed = discord.Embed(
-            title=f"📋 {interaction.guild.name} 서버 퇴장 로그",
-            description=f"최근 {일수}일 동안의 퇴장 기록입니다.",
-            color=discord.Color.brand_red()
-        )
+            embed = discord.Embed(
+                title=f"📋 {interaction.guild.name} 서버 퇴장 로그",
+                description=f"최근 {일수}일 동안의 퇴장 기록입니다.",
+                color=discord.Color.brand_red()
+            )
         
-        if recent_logs:
-            log_text = ""
-            for i, log in enumerate(recent_logs[:10]):  # 최대 10개만 표시
-                left_time = datetime.datetime.fromisoformat(log["left_at"])
-                time_str = left_time.strftime("%Y-%m-%d %H:%M")
+            if recent_logs:
+                log_text = ""
+                for i, log in enumerate(recent_logs[:10]):  # 최대 10개만 표시
+                    left_time = datetime.datetime.fromisoformat(log["left_at"])
+                    time_str = left_time.strftime("%Y-%m-%d %H:%M")
                 
-                user_type = "🤖" if log["is_bot"] else "👤"
-                log_text += f"{user_type} **{log['display_name']}** - {time_str}\n"
-                log_text += f"　└ 거주 시간: {log['server_time']}\n"
+                    user_type = "🤖" if log["is_bot"] else "👤"
+                    log_text += f"{user_type} **{log['display_name']}** - {time_str}\n"
+                    log_text += f"　└ 거주 시간: {log['server_time']}\n"
             
-            if len(recent_logs) > 10:
-                log_text += f"\n... 외 {len(recent_logs) - 10}명"
+                if len(recent_logs) > 10:
+                    log_text += f"\n... 외 {len(recent_logs) - 10}명"
             
-            embed.add_field(
-                name="👋 퇴장한 멤버들",
-                value=log_text,
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="ℹ️ 안내",
-                value="최근 퇴장한 멤버가 없습니다.",
-                inline=False
-            )
+                embed.add_field(
+                    name="👋 퇴장한 멤버들",
+                    value=log_text,
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="ℹ️ 안내",
+                    value="최근 퇴장한 멤버가 없습니다.",
+                    inline=False
+                )
         
-        embed.set_footer(text=f"조회 기간: {일수}일 | 요청자: {interaction.user.display_name}")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+            embed.set_footer(text=f"조회 기간: {일수}일 | 요청자: {interaction.user.display_name}")
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MemberExitLogger(bot))

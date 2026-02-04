@@ -254,7 +254,7 @@ class AttendanceMasterCog(commands.Cog):
         
             if not is_allowed:
                 return await interaction.response.send_message(
-                    "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                    "🚫 이 채널은 출석현황을 보지 못하는 채널입니다.\n지정된 채널을 이용해 주세요!", 
                     ephemeral=True
                 )
             
@@ -327,7 +327,7 @@ class AttendanceMasterCog(commands.Cog):
         
             if not is_allowed:
                 return await interaction.response.send_message(
-                    "🚫 이 채널은 해당 명령어가 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                    "🚫 이 채널은 출석랭킹을 보지 못하는 채널입니다.\n지정된 채널을 이용해 주세요!", 
                     ephemeral=True
                 )
             
@@ -350,7 +350,6 @@ class AttendanceMasterCog(commands.Cog):
             kst_date = self.get_korean_date_object()
 
             # 서버의 모든 사용자 출석 현황 조회
-            # 👇 수정: kst_date 인자 전달
             leaderboard = db.get_attendance_leaderboard(10, kst_date)
             
             if not leaderboard:

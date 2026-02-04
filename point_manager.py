@@ -267,7 +267,6 @@ class PointManager(commands.Cog):
         self.user_cooldowns[user_id] = now_kst + cooldown_duration
 
     # 기본 포인트 관리 명령어들
-    # point_manager.py - updated register command
 
     @app_commands.command(name="등록", description="서버의 멤버로 등록합니다.")
     async def register(self, interaction: Interaction):
@@ -373,7 +372,18 @@ class PointManager(commands.Cog):
     ])
     async def wallet(self, interaction: Interaction, 대상자: Optional[Member] = None, 비공개: str = "True"):
         """지갑(보유 현금) 및 오늘 활동 확인 명령어"""
+        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
+        config_cog = self.bot.get_cog("ChannelConfig")
+    
+        if config_cog:
+        # 2. 현재 채널에 'point_2' 권한이 있는지 체크 (channel_config.py의 value="point_2"와 일치해야 함)
+            is_allowed = await config_cog.check_permission(interaction.channel_id, "point_2", interaction.guild.id)
         
+        if not is_allowed:
+            return await interaction.response.send_message(
+                "🚫 이 채널은 등록이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
+                ephemeral=True
+            )
         # 1. 권한 체크: 다른 사용자를 볼 때는 관리자 권한 필요
         if 대상자 and 대상자 != interaction.user:
             if not interaction.user.guild_permissions.administrator:
@@ -381,7 +391,6 @@ class PointManager(commands.Cog):
                     "🚫 다른 사용자의 지갑 조회는 관리자만 가능합니다.", 
                     ephemeral=True
                 )
-        
         # 2. 비공개 설정 적용
         is_ephemeral = True if 비공개 == "True" else False
         await interaction.response.defer(ephemeral=is_ephemeral)
@@ -582,8 +591,6 @@ class PointManager(commands.Cog):
             await interaction.response.send_message(f"❌ 선물 처리 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="데이터베이스상태", description="현재 데이터베이스 연결 상태를 확인합니다")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def database_status(self, interaction: Interaction):
         """데이터베이스 연결 상태 확인"""
         
@@ -756,63 +763,57 @@ class PointManager(commands.Cog):
                 print(f"❌ 자동 탈퇴 처리 중 오류: {member.display_name} - {e} (Guild: {guild_id})")
 
 # ==================== 관리자 명령어들 ====================
-
-    @app_commands.command(name="현금지급", description="[관리자 전용] 사용자에게 현금을 지급합니다.")
+    @app_commands.command(name="금액관리", description="[관리자 전용] 금액관리")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(사용자="현금을 받을 사용자", 금액="지급할 현금")
-    async def give_cash(self, interaction: Interaction, 사용자: Member, 금액: int): 
-        # 🟢 추가: 길드별 DB 인스턴스를 가져옵니다.
+    @app_commands.describe(
+        작업="수행할 작업 (지급 또는 차감)",
+        대상자="대상 사용자",
+        금액="금액 수량",
+    )
+    @app_commands.choices(작업=[
+        app_commands.Choice(name="💰 현금 지급", value="give_cash"),
+        app_commands.Choice(name="💸 현금 차감", value="remove_cash"),
+    ])
+    async def money_admin(self, interaction: discord.Interaction, 작업: str, 대상자: discord.Member, 금액: int):
+        if 금액 <= 0:
+            return await interaction.response.send_message("❌ 금액은 0원보다 커야 합니다.", ephemeral=True)
+
         db = self._get_db(interaction.guild_id)
+        user_id = str(대상자.id)
         
-        user_id = str(사용자.id)
+        # 등록 여부 확인
         if not db.get_user(user_id):
-            await interaction.response.send_message("❌ 등록되지 않은 사용자입니다.", ephemeral=True)
-            return
-        
+            return await interaction.response.send_message(f"❌ {대상자.display_name}님은 등록되지 않은 사용자입니다.", ephemeral=True)
+
         try:
-            db.add_user_cash(user_id, 금액)
-            db.add_transaction(user_id, "관리자 지급", 금액, f"{interaction.user.display_name}이 지급")
-            
-            embed = discord.Embed(
-                title="💰 현금 지급 완료",
-                description=f"{사용자.display_name}님에게 {format_money(금액)}을 지급했습니다.",
-                color=discord.Color.green()
-            )
+            if 작업 == "give_cash":
+                # 현금 지급 로직
+                db.add_user_cash(user_id, 금액)
+                db.add_transaction(user_id, "관리자 지급", 금액, f"{interaction.user.display_name}이 지급")
+                
+                embed = discord.Embed(
+                    title="💰 현금 지급 완료",
+                    description=f"{대상자.mention}님에게 {format_money(금액)}을 지급했습니다.",
+                    color=discord.Color.green()
+                )
+                
+            elif 작업 == "remove_cash":
+                # 현금 차감 로직
+                db.add_user_cash(user_id, -금액)
+                db.add_transaction(user_id, "관리자 차감", -금액, f"{interaction.user.display_name}이 차감")
+                
+                embed = discord.Embed(
+                    title="💸 현금 차감 완료",
+                    description=f"{대상자.mention}님의 현금 {format_money(금액)}을 차감했습니다.",
+                    color=discord.Color.red()
+                )
+
             await interaction.response.send_message(embed=embed, ephemeral=True)
             
         except Exception as e:
-
-
-            print(f"❌ 현금 지급 중 오류: {e}")
-            await interaction.response.send_message(f"❌ 현금 지급 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
-
-    @app_commands.command(name="현금차감", description="[관리자 전용] 사용자의 현금을 차감합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(사용자="현금을 차감할 사용자", 금액="차감할 현금")
-    async def deduct_cash(self, interaction: Interaction, 사용자: Member, 금액: int):
-        db = self._get_db(interaction.guild_id)
-        
-        user_id = str(사용자.id)
-        if not db.get_user(user_id): 
-            await interaction.response.send_message("❌ 등록되지 않은 사용자입니다.", ephemeral=True)
-            return
-        
-        try:
-            db.add_user_cash(user_id, -금액)
-            db.add_transaction(user_id, "관리자 차감", -금액, f"{interaction.user.display_name}이 차감")
-            
-            embed = discord.Embed(
-                title="💸 현금 차감 완료",
-                description=f"{사용자.display_name}님의 현금 {format_money(금액)}을 차감했습니다.",
-                color=discord.Color.red()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            
-        except Exception as e:
-            print(f"❌ 현금 차감 중 오류: {e}")
-            await interaction.response.send_message(f"❌ 현금 차감 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
+            print(f"❌ 금액관리 실행 중 오류: {e}")
+            await interaction.response.send_message(f"❌ 처리 중 오류가 발생했습니다: {str(e)}", ephemeral=True)
 
     @app_commands.command(name="선물설정", description="[관리자 전용] 선물 시스템 설정을 변경합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크

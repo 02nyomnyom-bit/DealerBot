@@ -497,7 +497,7 @@ class BlackjackCog(commands.Cog):
         self.bot = bot
         self.processing_users = set() # 현재 게임을 플레이 중인 사용자 ID
 
-    @app_commands.command(name="블랙잭", description="🃏 블랙잭을 시작합니다.(100원 ~ 6,000원)")
+    @app_commands.command(name="블랙잭", description="블랙잭을 시작합니다.(100원 ~ 6,000원)")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기

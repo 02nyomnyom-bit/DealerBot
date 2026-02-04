@@ -157,7 +157,6 @@ async def check_and_send_levelup_notification(bot, member, guild, old_level, new
             print(f"❌ 레벨업 알림 전송 실패: {e}")
 
 # ==================== 메인 COG 클래스 ====================
-
 class XPLeaderboardCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -547,333 +546,122 @@ class XPLeaderboardCog(commands.Cog):
             await interaction.followup.send("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
     
     # ===== 관리자 명령어들 =====
-    @app_commands.command(name="경험치관리", description="[관리자 전용] XP 및 레벨 관리")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(
-        작업="수행할 작업",
-        대상자="대상 사용자 (일부 작업에만 필요)",
-        수량="XP나 레벨 수량 (일부 작업에만 필요)"
-    )
+    @app_commands.command(name="경험치관리", description="[관리자 전용] 특정 사용자의 XP 및 레벨 직접 수정")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(작업="수행할 작업", 대상자="대상 사용자", 수량="XP나 레벨 수량")
     @app_commands.choices(작업=[
         app_commands.Choice(name="XP 지급", value="give_xp"),
         app_commands.Choice(name="XP 차감", value="remove_xp"),
         app_commands.Choice(name="XP 설정", value="set_xp"),
-        app_commands.Choice(name="레벨 설정", value="set_level"),
-        app_commands.Choice(name="사용자 초기화", value="reset_user"),
-        app_commands.Choice(name="서버 통계", value="stats"),
-        app_commands.Choice(name="설정 보기", value="view_settings"),
-        app_commands.Choice(name="채팅XP설정", value="set_chat_xp"),
-        app_commands.Choice(name="음성XP설정", value="set_voice_xp"),
-        app_commands.Choice(name="출석XP설정", value="set_attendance_xp"),
-        app_commands.Choice(name="채팅쿨다운설정", value="set_chat_cooldown")
+        app_commands.Choice(name="레벨 설정", value="set_level")
     ])
-    async def xp_management(self, interaction: discord.Interaction, 작업: Literal["give_xp", "set_xp", "set_level", "reset_user"], 대상자: discord.Member, 수량: int = 0):
-        """XP 관리 명령어"""
-        # 1. 상호작용 지연 시간 확보 (에러 방지 핵심)
-        await interaction.response.defer(ephemeral=True)
+    async def xp_management(self, interaction: discord.Interaction, 작업: str, 대상자: discord.Member, 수량: int = 0):
+        await interaction.response.defer(ephemeral=True) # 지연 응답 시작
 
         user_id = str(대상자.id)
         guild_id = str(interaction.guild.id)
+        
+        if not is_user_registered(user_id, guild_id):
+            return await interaction.followup.send(f"❌ **{대상자.display_name}**님은 등록되지 않은 사용자입니다.", ephemeral=True)
+
         old_level = self.get_user_level(user_id, guild_id)
-        try:
-            # 통계 보기
-            if 작업 == "stats":
-                db = get_guild_db_manager(guild_id)
-                stats = db.execute_query('''
-                    SELECT 
-                        COUNT(*) as total_users,
-                        SUM(xp) as total_xp,
-                        AVG(xp) as avg_xp,
-                        MAX(xp) as max_xp,
-                        AVG(level) as avg_level,
-                        MAX(level) as max_level
-                    FROM user_xp x
-                    JOIN users u ON x.user_id = u.user_id
-                    WHERE x.guild_id = ? AND x.xp > 0
-                ''', (guild_id,), 'one')
-                
-                if not stats or stats['total_users'] == 0:
-                    return await interaction.response.send_message("❌ 아직 등록된 사용자의 XP 데이터가 없습니다.", ephemeral=True)
-                
-                embed = discord.Embed(
-                    title="📊 서버 XP 통계 (등록된 사용자)",
-                    color=discord.Color.blue()
-                )
-                embed.add_field(name="👥 총 사용자", value=f"{stats['total_users']:,}명", inline=True)
-                embed.add_field(name="⭐ 총 XP", value=f"{int(stats['total_xp']):,}", inline=True)
-                embed.add_field(name="📈 평균 XP", value=f"{int(stats['avg_xp']):,}", inline=True)
-                embed.add_field(name="🏆 최고 XP", value=f"{int(stats['max_xp']):,}", inline=True)
-                embed.add_field(name="📊 평균 레벨", value=f"Lv.{stats['avg_level']:.1f}", inline=True)
-                embed.add_field(name="🥇 최고 레벨", value=f"Lv.{stats['max_level']}", inline=True)
-                
-                return await interaction.followup.send(embed=embed, ephemeral=True)
-            
-            # 설정 보기
-            elif 작업 == "view_settings":
-                embed = discord.Embed(
-                    title="⚙️ 현재 XP 설정",
-                    color=discord.Color.green()
-                )
-                embed.add_field(name="💬 채팅 XP", value=f"{self.xp_settings['chat_xp']} XP", inline=True)
-                embed.add_field(name="🎤 음성방 XP", value=f"{self.xp_settings.get('voice_xp', 0)} XP/분", inline=True)
-                embed.add_field(name="📅 출석체크 XP", value=f"{self.xp_settings.get('attendance_xp', 0)} XP", inline=True)
-                embed.add_field(name="⏰ 채팅 쿨타임", value=f"{self.xp_settings['chat_cooldown']}초", inline=True)
-                embed.add_field(name="🔒 등록 요구", value="✅ 활성화됨", inline=True)
-                
-                return await interaction.response.send_message(embed=embed, ephemeral=True)
-            
-            # XP 설정 변경
-            elif 작업 in ["set_chat_xp", "set_voice_xp", "set_attendance_xp", "set_chat_cooldown"]:
-                if 수량 is None:
-                    return await interaction.response.send_message("❌ 설정값을 입력해주세요.", ephemeral=True)
-                
-                if 수량 < 0:
-                    return await interaction.response.send_message("❌ 설정값은 0 이상이어야 합니다.", ephemeral=True)
-                
-                setting_key = {
-                    "set_chat_xp": "chat_xp",
-                    "set_voice_xp": "voice_xp",
-                    "set_attendance_xp": "attendance_xp",
-                    "set_chat_cooldown": "chat_cooldown"
-                }[작업]
-                
-                setting_name = {
-                    "set_chat_xp": "채팅 XP",
-                    "set_voice_xp": "음성방 XP",
-                    "set_attendance_xp": "출석체크 XP",
-                    "set_chat_cooldown": "채팅 쿨타임"
-                }[작업]
-                
-                setting_unit = {
-                    "set_chat_xp": "XP",
-                    "set_voice_xp": "XP",
-                    "set_attendance_xp": "XP",
-                    "set_chat_cooldown": "초"
-                }[작업]
-                
-                if self.update_xp_setting(setting_key, 수량):
-                    embed = discord.Embed(
-                        title="✅ XP 설정 변경 완료",
-                        description=f"**{setting_name}**을(를) **{수량}{setting_unit}**로 설정했습니다.",
-                        color=discord.Color.green()
-                    )
-                    embed.add_field(
-                        name="📝 적용 안내",
-                        value="설정 변경사항은 즉시 적용됩니다.",
-                        inline=False
-                    )
-                    await interaction.response.send_message(embed=embed)
-                else:
-                    await interaction.response.send_message("❌ 설정 저장에 실패했습니다.", ephemeral=True)
-                return
-            
-            # 대상자와 수량이 필요한 작업들
-            if not 대상자:
-                return await interaction.response.send_message("❌ 대상자를 지정해주세요.", ephemeral=True)
-            
-            # 대상자 등록 확인
-            user_id = str(대상자.id)
-            if not is_user_registered(user_id, guild_id):
-                return await interaction.response.send_message(
-                    f"❌ **{대상자.display_name}**님이 등록되지 않았습니다.\n"
-                    f"먼저 `/등록` 명령어로 등록해주세요.",
-                    ephemeral=True
-                )
-            
-            if 작업 != "reset_user" and not 수량:
-                return await interaction.response.send_message("❌ 수량을 입력해주세요.", ephemeral=True)
-            
-            # XP 레코드 생성 (필요시)
-            db = get_guild_db_manager(guild_id)
-            db.execute_query('''
-                INSERT OR IGNORE INTO user_xp (user_id, guild_id, xp, level)
-                VALUES (?, ?, 0, 1)
-            ''', (user_id, guild_id))
-            
-            # 레벨 변경 추적을 위한 변수들
-            old_level = self.get_user_level(user_id, guild_id)
-            role_update_needed = False
-            
-            if 작업 == "give_xp":
-                success = await self.add_xp(user_id, guild_id, 수량)
-                if not success:
-                    return await interaction.followup.send("❌ XP 지급에 실패했습니다.", ephemeral=True)
-                
-                new_level = self.get_user_level(user_id, guild_id)
-                new_xp = self.get_user_xp(user_id, guild_id)
-                
-                embed = discord.Embed(
-                    title="✅ XP 지급 완료",
-                    description=f"{대상자.mention}님에게 {format_xp(수량)} XP를 지급했습니다.\n"
-                                f"현재 XP: **{format_xp(new_xp)}**\n"
-                                f"현재 레벨: **{new_level}**",
-                    color=discord.Color.green()
-                )
+        db = get_guild_db_manager(guild_id)
+        embed = discord.Embed(color=discord.Color.blue())
+        role_update_needed = False
 
-                if new_level > old_level:
-                    announcement = f"🎊 {대상자.mention}님이 관리자에 의해 **Lv.{new_level}**로 레벨업했습니다!"
-                    # 위에서 추가한 메서드 호출
-                    await self.send_levelup_announcement(대상자, new_level, announcement)
-                    
-                    # 역할 보상 시스템 연동
-                    if ROLE_REWARD_AVAILABLE:
-                        try:
-                            # role_reward_system.py의 매니저 호출
-                            await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
-                            embed.add_field(name="🎭 역할 업데이트", value=f"Lv.{new_level} 보상이 적용되었습니다.", inline=False)
-                        except Exception as e:
-                            print(f"역할 부여 중 오류: {e}")
+        if 작업 == "give_xp":
+            await self.add_xp(user_id, guild_id, 수량)
+            new_xp = self.get_user_xp(user_id, guild_id)
+            new_level = self.get_user_level(user_id, guild_id)
+            embed.title, embed.color = "✅ XP 지급 완료", discord.Color.green()
+            embed.description = f"{대상자.mention}님에게 {format_xp(수량)} XP를 지급했습니다.\n현재: **Lv.{new_level}** ({format_xp(new_xp)} XP)"
+            if new_level > old_level: role_update_needed = True
 
-                return await interaction.followup.send(embed=embed, ephemeral=True)
-                
-            elif 작업 == "remove_xp":
-                current_xp = self.get_user_xp(user_id, guild_id)
-                new_xp = max(0, current_xp - 수량)
-                
-                db = get_guild_db_manager(guild_id)
-                db.execute_query('''
-                    UPDATE user_xp SET xp = ? WHERE user_id = ? AND guild_id = ?
-                ''', (new_xp, user_id, guild_id))
-                self.update_user_level(user_id, guild_id)
-                
-                new_level = self.get_user_level(user_id, guild_id)
-                role_update_needed = True  # 역할 업데이트 필요
-                
-                embed = discord.Embed(
-                    title="✅ XP 차감 완료",
-                    description=f"{대상자.mention}님의 XP를 {format_xp(수량)} 차감했습니다.",
-                    color=discord.Color.orange()
-                )
-                
-                if new_level < old_level:
-                    embed.add_field(name="레벨 다운", value=f"Lv.{old_level} → Lv.{new_level}", inline=False)
-                    
-            elif 작업 == "set_xp":
-                db = get_guild_db_manager(guild_id)
-                db.execute_query('''
-                    UPDATE user_xp SET xp = ? WHERE user_id = ? AND guild_id = ?
-                ''', (수량, user_id, guild_id))
-                self.update_user_level(user_id, guild_id)
-                
-                new_level = self.get_user_level(user_id, guild_id)
-                role_update_needed = True  # 역할 업데이트 필요
-                
-                embed = discord.Embed(
-                    title="✅ XP 설정 완료",
-                    description=f"{대상자.mention}님의 XP를 {format_xp(수량)}로 설정했습니다.",
-                    color=discord.Color.blue()
-                )
-                
-                if new_level != old_level:
-                    embed.add_field(name="레벨 변경", value=f"Lv.{old_level} → Lv.{new_level}", inline=False)
-                    
-            elif 작업 == "set_level":
-                required_xp = self.calculate_xp_for_level(수량)
-                db = get_guild_db_manager(guild_id)
-                db.execute_query('''
-                    UPDATE user_xp SET xp = ?, level = ? WHERE user_id = ? AND guild_id = ?
-                ''', (required_xp, 수량, user_id, guild_id))
-                
-                new_level = 수량
-                role_update_needed = True  # 역할 업데이트 필요
-                
-                embed = discord.Embed(
-                    title="✅ 레벨 설정 완료",
-                    description=f"{대상자.mention}님의 레벨을 Lv.{수량}로 설정했습니다.",
-                    color=discord.Color.purple()
-                )
-                
+        elif 작업 == "remove_xp":
+            new_xp = max(0, self.get_user_xp(user_id, guild_id) - 수량)
+            db.execute_query('UPDATE user_xp SET xp = ? WHERE user_id = ? AND guild_id = ?', (new_xp, user_id, guild_id))
+            self.update_user_level(user_id, guild_id)
+            new_level = self.get_user_level(user_id, guild_id)
+            embed.title, embed.description = "✅ XP 차감 완료", f"{대상자.mention}님의 XP를 {format_xp(수량)} 차감했습니다."
+            role_update_needed = True
+
+        elif 작업 == "set_xp":
+            db.execute_query('UPDATE user_xp SET xp = ? WHERE user_id = ? AND guild_id = ?', (수량, user_id, guild_id))
+            self.update_user_level(user_id, guild_id)
+            new_level = self.get_user_level(user_id, guild_id)
+            embed.title, embed.description = "✅ XP 설정 완료", f"{대상자.mention}님의 XP를 {format_xp(수량)}로 설정했습니다."
+            role_update_needed = True
+
+        elif 작업 == "set_level":
+            required_xp = self.calculate_xp_for_level(수량)
+            db.execute_query('UPDATE user_xp SET xp = ?, level = ? WHERE user_id = ? AND guild_id = ?', (required_xp, 수량, user_id, guild_id))
+            new_level = 수량
+            embed.title, embed.description = "✅ 레벨 설정 완료", f"{대상자.mention}님의 레벨을 **Lv.{수량}**으로 설정했습니다."
+            role_update_needed = True
+
+        # 역할 업데이트 및 알림 로직 (하나로 통합)
+        if role_update_needed:
+            new_level = self.get_user_level(user_id, guild_id)
+            if new_level != old_level:
                 embed.add_field(name="레벨 변경", value=f"Lv.{old_level} → Lv.{new_level}", inline=False)
+                if new_level > old_level:
+                    await self.send_levelup_announcement(대상자, new_level, f"🎊 {대상자.mention}님이 관리자에 의해 **Lv.{new_level}**이 되었습니다!")
                 
-            elif 작업 == "reset_user":
-                db = get_guild_db_manager(guild_id)
-                db.execute_query('''
-                    UPDATE user_xp SET xp = 0, level = 1 WHERE user_id = ? AND guild_id = ?
-                ''', (user_id, guild_id))
-                
-                new_level = 1
-                role_update_needed = True  # 역할 업데이트 필요
-                
-                embed = discord.Embed(
-                    title="✅ 사용자 초기화 완료",
-                    description=f"{대상자.mention}님의 XP와 레벨이 초기화되었습니다.",
-                    color=discord.Color.red()
-                )
-                
-                embed.add_field(name="초기화 결과", value="Lv.1 (0 XP)", inline=False)
-            
-            # 역할 자동 조정 실행
-            if role_update_needed:
-                # 최신 레벨 정보 갱신
-                new_level = self.get_user_level(user_id, guild_id)
-                level_diff = new_level - old_level
-
-                if level_diff > 0:
-                    # 알림 메시지 통합
-                    if level_diff > 1:
-                        announcement = f"🎊 {대상자.mention}님이 **총 {level_diff}레벨** 상승하여 **Lv.{new_level}**이 되었습니다!"
-                    else:
-                        announcement = f"🎊 {대상자.mention}님이 **Lv.{new_level}**로 레벨업했습니다!"
-                    
-                    # 레벨업 알림 채널에 전송
-                    await self.send_levelup_announcement(대상자, new_level, announcement)
-
-                # 역할 보상 시스템 연동 (최종 레벨 기준 1회)
                 if ROLE_REWARD_AVAILABLE:
                     try:
-                        # role_reward_manager는 전역 인스턴스로 가정
                         await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
-                        embed.add_field(name="🎭 역할 조정", value=f"현재 레벨(Lv.{new_level})에 맞춰 역할이 갱신되었습니다.", inline=False)
+                        embed.add_field(name="🎭 역할 조정", value="레벨에 맞춰 역할이 갱신되었습니다.", inline=False)
                     except Exception as e:
-                        self.bot.logger.error(f"역할 지급 중 오류: {e}")
+                        print(f"역할 조정 오류: {e}")
 
-            # 최종 응답 (defer를 사용했다면 followup.send 사용)
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-            if ROLE_REWARD_AVAILABLE:
-                # 역할 보상 시스템 연동 (최종 레벨 기준 1회 호출)
-                await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
-                embed.add_field(name="🎭 역할 조정", value=f"Lv.{new_level} 기준 역할이 업데이트되었습니다.", inline=False)
-        except Exception as e:
-            # 에러 발생 시 로그 출력 및 관리자 알림
-            print(f"❌ 관리자 조작 역할 지급 오류: {e}")
-            embed.add_field(name="⚠️ 역할 조정 실패", value=f"오류: {e}", inline=False)
-        
-        # 최종 응답 전송 (defer를 사용했으므로 followup 사용 권장)
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-    async def send_levelup_announcement(self, member, level, message_text):
-        """관리자 조작으로 인한 레벨 변경 시 알림을 전송합니다."""
-        guild_id = str(member.guild.id)
-        # common_utils나 전역에 정의된 함수 호출
-        channel_id = get_levelup_channel_id(guild_id)
+        log_admin_action(f"[경험치관리] {interaction.user} -> {대상자.display_name} ({작업}: {수량})")
         
-        if not channel_id:
-            return
+    @app_commands.command(name="획득량관리", description="[관리자 전용] 시스템 XP 획득 및 쿨다운 설정")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(작업="수행할 설정 작업", 수량="변경할 설정 값 (숫자)")
+    @app_commands.choices(작업=[
+        app_commands.Choice(name="📊 설정 보기", value="view_settings"),
+        app_commands.Choice(name="💬 채팅 XP 설정", value="set_chat_xp"),
+        app_commands.Choice(name="🎤 음성 XP 설정", value="set_voice_xp"),
+        app_commands.Choice(name="📅 명령어 XP 설정", value="command_xp"),
+        app_commands.Choice(name="⏰ 채팅 쿨다운 설정", value="set_chat_cooldown")
+    ])
+    async def manage_xp_rates(self, interaction: discord.Interaction, 작업: str, 수량: Optional[int] = None):
+        """서버 전체의 XP 시스템 수치를 관리합니다."""
+        if 작업 == "view_settings":
+            embed = discord.Embed(title="⚙️ 현재 XP 시스템 설정", color=discord.Color.blue())
+            # 기존 설정값 로드
+            embed.add_field(name="💬 채팅 XP", value=f"{self.xp_settings.get('chat_xp', 0)} XP", inline=True)
+            embed.add_field(name="🎤 음성 XP (분당)", value=f"{self.xp_settings.get('voice_xp_per_minute', 0)} XP", inline=True)
+            embed.add_field(name="📅 명령어 XP", value=f"{self.xp_settings.get('command_xp', 0)} XP", inline=True)
+            embed.add_field(name="⏰ 채팅 쿨타임", value=f"{self.xp_settings.get('chat_cooldown', 0)}초", inline=True)
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        channel = self.bot.get_channel(int(channel_id))
-        if channel and channel.permissions_for(member.guild.me).send_messages:
-            embed = discord.Embed(
-                title="🎊 레벨 변경 알림 (관리자)",
-                description=message_text,
-                color=discord.Color.gold()
-            )
-            embed.set_thumbnail(url=member.display_avatar.url)
-            try:
-                await channel.send(embed=embed)
-            except Exception as e:
-                print(f"❌ 알림 전송 실패: {e}")
+        if 수량 is None or 수량 < 0:
+            return await interaction.response.send_message("❌ 올바른 수량(0 이상)을 입력해주세요.", ephemeral=True)
 
-    def update_xp_setting(self, setting_key: str, value: int) -> bool:
-        """XP 설정 업데이트"""
-        try:
-            self.xp_settings[setting_key] = value
-            return save_xp_settings(self.xp_settings)
-        except Exception as e:
-            print(f"XP 설정 업데이트 실패: {e}")
-            return False
+        setting_map = {
+            "set_chat_xp": ("chat_xp", "채팅 XP", "XP"),
+            "set_voice_xp": ("voice_xp_per_minute", "음성 XP", "XP"),
+            "command_xp": ("attendance_xp", "명령어 XP", "XP"),
+            "set_chat_cooldown": ("chat_cooldown", "채팅 쿨타임", "초")
+        }
 
+        key, name, unit = setting_map[작업]
+        if self.update_xp_setting(key, 수량):
+            await interaction.response.send_message(f"✅ **{name}**이(가) **{수량}{unit}**(으)로 변경되었습니다.", ephemeral=True)
+            log_admin_action(f"[설정변경] {interaction.user} - {name}: {수량}")
+        else:
+            await interaction.response.send_message("❌ 설정 저장 중 오류가 발생했습니다.", ephemeral=True)
+
+    def update_xp_setting(self, key, value):
+        """설정 값을 변경하고 파일에 저장합니다."""
+        self.xp_settings[key] = value
+        return save_xp_settings(self.xp_settings) # 외부 함수 호출
+    
     @app_commands.command(name="경험치데이터확인", description="[관리자 전용] 등록되지 않은 사용자의 경험치 데이터를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정

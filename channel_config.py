@@ -16,27 +16,25 @@ class ChannelConfig(commands.Cog):
 
     # 공통 선택지 정의
     feature_choices = [
-        app_commands.Choice(name="출석체크", value="attendance"),
-        app_commands.Choice(name="경험치", value="xp"),
+        app_commands.Choice(name="출석체크,출석현황,출석랭킹", value="attendance"),
+        app_commands.Choice(name="레벨", value="xp"),
         app_commands.Choice(name="등록", value="point_1"),
-        app_commands.Choice(name="포인트", value="point_2"),
-        app_commands.Choice(name="교환", value="exchange"),
+        app_commands.Choice(name="지갑,선물", value="point_2"),
+        app_commands.Choice(name="현금교환,경험치교환", value="exchange"),
 
         app_commands.Choice(name="블랙잭", value="blackjack"),
         app_commands.Choice(name="주사위", value="dice"),
-        app_commands.Choice(name="강화", value="enhancement"),
+        app_commands.Choice(name="강화,내강화,강화순위,공격,강화정보", value="enhancement"),
         app_commands.Choice(name="로또", value="lottery"),
         app_commands.Choice(name="홀짝", value="odd_even"),
         app_commands.Choice(name="가위바위보", value="r_p_s"),
         app_commands.Choice(name="슬롯머신", value="slot"),
         app_commands.Choice(name="야바위", value="yabawi"),
-        app_commands.Choice(name="익명 시스템", value="anonymous"),
-
-        app_commands.Choice(name="통계", value="statistics"),
+        app_commands.Choice(name="익명", value="anonymous"),
         app_commands.Choice(name="보이스", value="voice"),
     ]
 
-    @app_commands.command(name="채널설정", description="특정 기능이 작동할 채널을 관리합니다.")
+    @app_commands.command(name="채널설정", description="[관리자 전용] 특정 기능이 작동할 채널을 관리합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(기능="설정할 기능을 선택하세요", 채널="설정할 채널 (미입력 시 현재 채널)", 상태="True: 활성화, False: 비활성화")
@@ -64,7 +62,7 @@ class ChannelConfig(commands.Cog):
             logger.error(f"Config Error: {e}")
             await interaction.response.send_message("❌ 설정 중 오류가 발생했습니다.", ephemeral=True)
 
-    @app_commands.command(name="카테고리설정", description="카테고리 내 모든 채널의 기능을 한 번에 설정합니다.")
+    @app_commands.command(name="카테고리설정", description="[관리자 전용] 카테고리 내 모든 채널의 기능을 한 번에 설정합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(카테고리="설정할 카테고리를 선택하세요", 기능="설정할 기능", 상태="True: 전체 활성화, False: 전체 비활성화")
@@ -92,7 +90,7 @@ class ChannelConfig(commands.Cog):
         action = "활성화" if 상태 else "비활성화"
         await interaction.followup.send(f"📂 **{카테고리.name}** 카테고리 내 {count}개 채널에 **{기능.name}** 기능을 {action}했습니다.")
 
-    @app_commands.command(name="채널설정확인", description="현재 서버의 모든 채널 기능 설정 목록을 보여줍니다.")
+    @app_commands.command(name="채널설정확인", description="[관리자 전용] 현재 서버의 모든 채널 기능 설정 목록을 보여줍니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def list_config(self, interaction: discord.Interaction):

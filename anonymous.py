@@ -142,7 +142,7 @@ class AnonymousSystem(commands.Cog):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❌ 메시지 전송 중 오류가 발생했습니다.", ephemeral=True)
 
-    @app_commands.command(name="대나무숲", description="관리자 메뉴: 최근 익명 메시지를 확인합니다.")
+    @app_commands.command(name="대나무숲", description="[관리자 전용] 최근 익명 메시지를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.checks.has_permissions(administrator=True)

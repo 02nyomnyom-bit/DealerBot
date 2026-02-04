@@ -45,274 +45,78 @@ class IntegratedLeaderboardCog(commands.Cog):
             print("✅ DatabaseManager Cog 연결 성공.")
 
     # ===== 통합 리더보드 명령어들 =====
-
-    @app_commands.command(name="통합리더보드", description="통합 리더보드를 확인합니다. (현금+XP)")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(
-        타입="확인할 리더보드 타입",
-        페이지="페이지 번호 (기본: 1)"
-    )
-    @app_commands.choices(타입=[
-        app_commands.Choice(name="💰 현금 순위", value="cash"),
-        app_commands.Choice(name="✨ XP 순위", value="xp"),
-        app_commands.Choice(name="🏆 통합 순위", value="combined")
-    ])
-    async def integrated_leaderboard(self, interaction: discord.Interaction, 타입: app_commands.Choice[str] = None, 페이지: int = 1):
+    @app_commands.command(name="통합리더보드", description="[관리자 전용] 서버의 XP 및 자산 통합 통계를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def integrated_stats(self, interaction: discord.Interaction):
+        """서버의 전체 XP와 자산(돈) 데이터를 분석하여 리포트를 생성합니다."""
+        await interaction.response.defer(ephemeral=True)
         
-        if not self.db_cog:
-            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)
-            
-        await interaction.response.defer()
-        
-        try:
-            board_type = 타입.value if 타입 else "combined"
-            page = max(1, 페이지)
-            
-            if board_type == "cash":
-                await self.show_cash_leaderboard(interaction, page)
-            elif board_type == "xp":
-                await self.show_xp_leaderboard(interaction, page)
-            else:
-                await self.show_combined_leaderboard(interaction, page)
-                
-        except Exception as e:
-            await interaction.followup.send(f"❌ 리더보드 조회 중 오류: {str(e)}")
-            print(f"리더보드 오류: {e}")
-
-    async def show_cash_leaderboard(self, interaction: discord.Interaction, page: int):
-        """현금 리더보드 표시"""
-        if not self.db_cog:
-            embed = discord.Embed(
-                title="💰 현금 리더보드",
-                description="❌ 데이터베이스를 사용할 수 없습니다.",
-                color=discord.Color.red()
-            )
-            return await interaction.followup.send(embed=embed)
-        
-        try:
-            guild_id = str(interaction.guild.id)
-            db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
-            # 현금 리더보드 조회
-            leaderboard = db.get_cash_leaderboard(10)
-            
-            if not leaderboard:
-                embed = discord.Embed(
-                    title="💰 현금 리더보드",
-                    description="아직 등록된 사용자가 없습니다.",
-                    color=discord.Color.gold()
-                )
-                return await interaction.followup.send(embed=embed)
-            
-            embed = discord.Embed(
-                title=f"💰 현금 리더보드 (페이지 {page})",
-                color=discord.Color.gold()
-            )
-            
-            ranking_text = ""
-            for i, user in enumerate(leaderboard[:10], 1):
-                rank = i
-                username = user.get('display_name') or user.get('username') or "Unknown"
-                cash = user.get('cash', 0)
-                
-                # 순위 이모지
-                if rank == 1:
-                    rank_emoji = "🥇"
-                elif rank == 2:
-                    rank_emoji = "🥈" 
-                elif rank == 3:
-                    rank_emoji = "🥉"
-                else:
-                    rank_emoji = f"**{rank}.**"
-                
-                ranking_text += f"{rank_emoji} {username}\n   💰 {format_money(cash)}\n\n"
-            
-            embed.description = ranking_text
-            embed.set_footer(text="💡 /등록으로 시작하고 /출석체크로 현금을 받으세요!")
-            
-            await interaction.followup.send(embed=embed)
-            
-        except Exception as e:
-            await interaction.followup.send(f"❌ 현금 리더보드 조회 실패: {str(e)}")
-
-    async def show_xp_leaderboard(self, interaction: discord.Interaction, page: int):
-        """XP 리더보드 표시"""
-        if not self.db_cog:
-            embed = discord.Embed(
-                title="✨ XP 리더보드",
-                description="❌ 데이터베이스를 사용할 수 없습니다.",
-                color=discord.Color.red()
-            )
-            return await interaction.followup.send(embed=embed)
-        
-        try:
-            guild_id = str(interaction.guild.id)
-            db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
-            
-            # XP 리더보드 조회
-            leaderboard_data = db.execute_query('''
-                SELECT u.user_id, u.username, u.display_name, x.xp, x.level
-                FROM user_xp x
-                JOIN users u ON x.user_id = u.user_id
-                WHERE u.guild_id = ? AND x.xp > 0
-                ORDER BY x.xp DESC
-                LIMIT 10
-            ''', (guild_id,), 'all')
-            
-            if not leaderboard_data:
-                embed = discord.Embed(
-                    title="✨ XP 리더보드",
-                    description="아직 XP 기록이 없습니다.",
-                    color=discord.Color.purple()
-                    )
-                return await interaction.followup.send(embed=embed)
-            
-            embed = discord.Embed(
-                title=f"✨ XP 리더보드 (페이지 {page})",
-                color=discord.Color.purple()
-            )
-            
-            ranking_text = ""
-            for i, user_data in enumerate(leaderboard_data, 1):
-                rank = i
-                username = user_data['display_name'] or user_data['username'] or "Unknown"
-                
-                # 순위 이모지
-                if rank == 1:
-                    rank_emoji = "🥇"
-                elif rank == 2:
-                    rank_emoji = "🥈"
-                elif rank == 3:
-                    rank_emoji = "🥉"
-                else:
-                    rank_emoji = f"**{rank}.**"
-                
-                ranking_text += f"{rank_emoji} {username}\n"
-                ranking_text += f"   🏆 Lv.{user_data['level']} | ✨ {format_xp(user_data['xp'])}\n\n"
-            
-            embed.description = ranking_text
-            embed.set_footer(text="💡 /내레벨로 내 정보를 확인하세요!")
-            
-            await interaction.followup.send(embed=embed)
-            
-        except Exception as e:
-            await interaction.followup.send(f"❌ XP 리더보드 조회 실패: {str(e)}")
-
-    async def show_combined_leaderboard(self, interaction: discord.Interaction, page: int):
-        """통합 리더보드 표시"""
-        try:
-            embed = discord.Embed(
-                title="🏆 통합 리더보드",
-                description="현금과 XP 상위 랭킹을 한눈에 확인하세요!",
-                color=discord.Color.gold()
-            )
-            
-            if self.db_cog:
-                guild_id = str(interaction.guild.id)
-                db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
-                cash_leaderboard = db.get_cash_leaderboard(5)
-                if cash_leaderboard:
-                    cash_text = ""
-                    for i, user in enumerate(cash_leaderboard, 1):
-                        username = user.get('display_name') or user.get('username') or "Unknown"
-                        cash = user.get('cash', 0)
-                        cash_text += f"{i}. {username}: {format_money(cash)}\n"
-                    
-                    embed.add_field(
-                        name="💰 현금 TOP 5",
-                        value=cash_text,
-                        inline=True
-                    )
-            
-            if self.db_cog:
-                guild_id = str(interaction.guild.id)
-                db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
-                xp_leaderboard = db.execute_query('''
-                    SELECT u.display_name, u.username, x.xp, x.level
-                    FROM user_xp x
-                    JOIN users u ON x.user_id = u.user_id
-                    WHERE u.guild_id = ? AND x.xp > 0
-                    ORDER BY x.xp DESC
-                    LIMIT 5
-                ''', (guild_id,), 'all') # Add guild_id to params
-                
-                if xp_leaderboard:
-                    xp_text = ""
-                    for i, user in enumerate(xp_leaderboard, 1):
-                        username = user['display_name'] or user['username'] or "Unknown"
-                        xp_text += f"{i}. {username}: Lv.{user['level']} ({format_xp(user['xp'])})\n"
-                    
-                    embed.add_field(
-                        name="✨ XP TOP 5",
-                        value=xp_text,
-                        inline=True
-                    )
-            
-            if self.db_cog:
-                guild_id = str(interaction.guild.id)
-                db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
-                stats = db.get_total_cash_stats()
-                
-                total_xp_result = db.execute_query(
-                    "SELECT COALESCE(SUM(xp), 0) FROM user_xp WHERE user_id IN (SELECT user_id FROM users WHERE guild_id = ?)", 
-                    (guild_id,), 'one' # Add guild_id to params
-                )
-                total_xp = total_xp_result[0] if total_xp_result else 0
-                
-                embed.add_field(
-                    name="📊 서버 통계",
-                    value=f"총 현금: {format_money(stats.get('total_cash', 0))}\n"
-                          f"총 XP: {format_xp(total_xp)}\n"
-                          f"등록 사용자: {stats.get('total_users', 0):,}명",
-                    inline=False
-                )
-        
-        except Exception as e:
-            embed.add_field(
-                name="❌ 오류",
-                value=f"일부 데이터를 불러올 수 없습니다: {str(e)}",
-                inline=False
-            )
-        
-        embed.set_footer(text="💡 /리더보드관리로 관리자 설정 가능")
-        await interaction.followup.send(embed=embed)
-
-    # ===== 관리자 명령어들 =====
-
-    @app_commands.command(name="리더보드관리", description="[관리자 전용] 리더보드 시스템 통합 관리 (환전/통계)")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def leaderboard_management(self, interaction: discord.Interaction): 
-        if not self.db_cog:
-            return await interaction.response.send_message("❌ 데이터베이스 시스템이 로드되지 않았습니다.", ephemeral=True)
-
         guild_id = str(interaction.guild.id)
-        db = self.db_cog.get_manager(guild_id) # DatabaseCog를 통해 manager 가져오기
-        settings = db.get_leaderboard_settings()
+        if not self.db_cog:
+            return await interaction.followup.send("❌ 데이터베이스 매니저를 찾을 수 없습니다.")
         
-        embed = discord.Embed(
-            title="🎛️ 리더보드 시스템 통합 관리 (환전/통계)",
-            description="환전 설정 및 주요 시스템 통계를 확인합니다. 출석 보상 설정은 `/리더보드설정` 명령어를 이용해주세요.",
-            color=discord.Color.blue()
-        )
+        db = self.db_cog.get_manager(guild_id)
         
-        default_settings = DEFAULT_LEADERBOARD_SETTINGS
+        # 1. XP 통계 쿼리
+        xp_stats = db.execute_query('''
+            SELECT 
+                COUNT(*) as total_users,
+                SUM(xp) as total_xp,
+                AVG(xp) as avg_xp,
+                MAX(xp) as max_xp,
+                AVG(level) as avg_level,
+                MAX(level) as max_level
+            FROM user_xp
+            WHERE guild_id = ? AND xp > 0
+        ''', (guild_id,), 'one')
 
-        embed.add_field(
-            name="📊 환전 수수료",
-            value=f"{settings.get('exchange_fee_percent', default_settings['exchange_fee_percent'])}%",
-            inline=True
+        # 2. 금액(포인트) 통계 쿼리
+        money_stats = db.execute_query('''
+            SELECT 
+                SUM(cash) as total_money,
+                AVG(cash) as avg_money,
+                MAX(cash) as max_money,
+                MIN(cash) as min_money
+            FROM users
+            WHERE user_id IN (SELECT user_id FROM user_xp WHERE guild_id = ?)
+        ''', (guild_id,), 'one')
+
+        # 3. 데이터 검증
+        if not xp_stats or xp_stats['total_users'] == 0:
+            return await interaction.followup.send("❌ 분석할 데이터가 충분하지 않습니다.")
+
+        # 4. 임베드 구성
+        embed = discord.Embed(
+            title=f"📊 {interaction.guild.name} 통합 데이터 리포트",
+            description="서버의 전체 경제 및 성장 지표입니다.",
+            color=discord.Color.gold(),
+            timestamp=datetime.datetime.now()
         )
-        
-        embed.add_field(
-            name="📈 일일 환전 한도",
-            value=f"{settings.get('daily_exchange_limit', default_settings['daily_exchange_limit'])}회",
-            inline=True
+
+        # XP 섹션
+        xp_text = (
+            f"👥 **참여 인원:** {xp_stats['total_users']:,}명\n"
+            f"✨ **누적 총 XP:** {int(xp_stats['total_xp']):,} XP\n"
+            f"📈 **평균 레벨:** Lv.{xp_stats['avg_level']:.1f}\n"
+            f"🏆 **최고 레벨:** Lv.{xp_stats['max_level']}"
         )
+        embed.add_field(name="✨ 경험치(XP) 지표", value=xp_text, inline=False)
+
+        # 금액 섹션 (요청하신 항목 포함)
+        if money_stats and money_stats['total_money'] is not None:
+            money_text = (
+                f"💰 **누적 총 금액:** {int(money_stats['total_money']):,}원\n"
+                f"📈 **평균 보유액:** {int(money_stats['avg_money']):,}원\n"
+                f"🏆 **최고 보유액:** {int(money_stats['max_money']):,}원\n"
+                f"📉 **최저 보유액:** {int(money_stats['min_money']):,}원"
+            )
+            embed.add_field(name="💵 자산(Money) 지표", value=money_text, inline=False)
+        else:
+            embed.add_field(name="💵 자산(Money) 지표", value="데이터가 없습니다.", inline=False)
+
+        embed.set_footer(text=f"Admin: {interaction.user.display_name} | 분석 완료")
         
-        embed.set_footer(text="관리자만 사용 가능한 통합 관리 시스템")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=False)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(name="리더보드설정", description="[관리자 전용] 출석 및 환전 등 리더보드 시스템의 모든 설정을 확인하고 수정합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
@@ -324,15 +128,13 @@ class IntegratedLeaderboardCog(commands.Cog):
     @app_commands.choices(설정=[
         app_commands.Choice(name="💰 출석 현금 보상", value="attendance_cash"),
         app_commands.Choice(name="✨ 출석 XP 보상", value="attendance_xp"),
-        app_commands.Choice(name="🔥 연속 현금 보너스/일", value="streak_cash_per_day"),
-        app_commands.Choice(name="✨ 연속 XP 보너스/일", value="streak_xp_per_day"),
+        app_commands.Choice(name="🔥 연속 현금 보너스 일수", value="streak_cash_per_day"),
+        app_commands.Choice(name="✨ 연속 XP 보너스 일수", value="streak_xp_per_day"),
         app_commands.Choice(name="🗓️ 최대 연속 보너스 일수", value="max_streak_bonus_days"),
         app_commands.Choice(name="🎁 7일 현금 보너스", value="weekly_cash_bonus"),
         app_commands.Choice(name="✨ 7일 XP 보너스", value="weekly_xp_bonus"),
         app_commands.Choice(name="🏆 30일 현금 보너스", value="monthly_cash_bonus"),
         app_commands.Choice(name="⭐ 30일 XP 보너스", value="monthly_xp_bonus"),
-        app_commands.Choice(name="📊 환전 수수료", value="exchange_fee_percent"),
-        app_commands.Choice(name="📈 일일 환전 한도", value="daily_exchange_limit")
     ])
     async def leaderboard_settings(self, interaction: discord.Interaction, 설정: app_commands.Choice[str] = None, 값: int = None):
         if not self.db_cog:
@@ -354,8 +156,6 @@ class IntegratedLeaderboardCog(commands.Cog):
                             "weekly_xp_bonus": "7일 XP 보너스",
                             "monthly_cash_bonus": "30일 현금 보너스",
                             "monthly_xp_bonus": "30일 XP 보너스",
-                            "exchange_fee_percent": "환전 수수료",
-                            "daily_exchange_limit": "일일 환전 한도"
                             }
         
         # 설정 확인만 하는 경우
@@ -375,10 +175,6 @@ class IntegratedLeaderboardCog(commands.Cog):
                     formatted_value = format_money(value)
                 elif "xp" in key:
                     formatted_value = format_xp(value)
-                elif "percent" in key:
-                    formatted_value = f"{value}%"
-                elif "days" in key or "limit" in key: # max_streak_bonus_days, daily_exchange_limit
-                    formatted_value = f"{value}일" if "days" in key else f"{value}회"
                 else:
                     formatted_value = str(value)
                 
@@ -401,9 +197,6 @@ class IntegratedLeaderboardCog(commands.Cog):
         # 값 유효성 검사
         if 값 < 0:
             return await interaction.response.send_message("❌ 설정값은 0 이상이어야 합니다.", ephemeral=True)
-        
-        if setting_key == "exchange_fee_percent" and 값 > 50:
-            return await interaction.response.send_message("❌ 환전 수수료는 50%를 초과할 수 없습니다.", ephemeral=True)
         
         # 설정 업데이트
         old_value = settings.get(setting_key, default_settings.get(setting_key)) # DEFAULT_SETTINGS 대신 default_settings 사용
