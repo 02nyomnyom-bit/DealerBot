@@ -85,7 +85,7 @@ class TaxSystemCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정)
     @app_commands.describe(역할="세금을 수거할 역할", 퍼센트="징수할 비율 (%)")
     async def process_tax_collection(self, interaction: discord.Interaction, 역할: discord.Role, 퍼센트: float, tax_type: Literal["cash", "xp"]):
-        await interaction.response.defer()
+        await interaction.response.defer()  
         
         db = get_guild_db_manager_func(str(interaction.guild.id))
         guild_id = str(interaction.guild.id)
@@ -111,23 +111,15 @@ class TaxSystemCog(commands.Cog):
             if tax_type == "cash":
                 user_data = db.get_user(user_id)
                 if user_data:
-                    current_val = user_data.get('cash', 0) if isinstance(user_data, dict) else getattr(user_data, 'cash', 0)
+                    current_val = user_data.get('cash', 0)
             else:
-                # [XP 핵심 로직] 리더보드 모듈의 실시간 데이터(xp_data)에서 직접 추출
-                if xp_cog and hasattr(xp_cog, 'xp_data'):
-                    # 리더보드 저장 구조: {guild_id: {user_id: {"xp": 100, "level": 1}}}
-                    guild_dict = xp_cog.xp_data.get(guild_id, {})
-                    user_dict = guild_dict.get(user_id, {})
-                    
-                    if isinstance(user_dict, dict):
-                        current_val = user_dict.get("xp", 0)
-                    else:
-                        # 혹시 데이터가 단순 숫자일 경우 대비
-                        current_val = user_dict if isinstance(user_dict, (int, float)) else 0
+                # [수정] 메모리(xp_cog) 대신 DB에서 직접 XP 데이터 가져오기
+                xp_data = db.get_user_xp(user_id)
+                current_val = xp_data.get('xp', 0) if xp_data else 0
 
             print(f"디버그: {member.display_name} ({user_id})의 추출된 {tax_type} = {current_val}")
 
-            # 2. 수거 기준 체크 (10000 미만 제외)
+            # 2. 수거 기준 체크 (10,000 미만 제외)
             if current_val < 10000:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
@@ -139,14 +131,14 @@ class TaxSystemCog(commands.Cog):
                 if tax_type == "cash":
                     db.update_user_cash(user_id, after_val)
                 else:
-                    # [XP 핵심 로직] 메모리 데이터 수정 후 파일 저장
-                    if xp_cog and guild_id in xp_cog.xp_data and user_id in xp_cog.xp_data[guild_id]:
-                        xp_cog.xp_data[guild_id][user_id]["xp"] = after_val
-                        # xp_leaderboard.py에 정의된 저장 함수 호출
-                        if hasattr(xp_cog, 'save_xp_data'):
-                            xp_cog.save_xp_data()
-                
-                # 로그 기록
+                    # [수정] DB의 user_xp 테이블을 직접 업데이트
+                    # database_manager에 update_user_xp가 없다면 execute_query를 직접 사용
+                    db.execute_query(
+                        "UPDATE user_xp SET xp = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?",
+                        (after_val, user_id)
+                    )
+
+            # 로그 기록 (공통)
                 db.add_transaction(user_id, f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
                 total_collected += tax_amount
