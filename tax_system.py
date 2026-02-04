@@ -103,6 +103,8 @@ class TaxSystemCog(commands.Cog):
         total_collected = 0
         success_count = 0
         
+        # [수정] DB 필드명 및 단위 설정
+        db_field = "cash" if tax_type == "cash" else "exp" # xp -> exp로 변경
         unit = "원" if tax_type == "cash" else "XP"
         type_name = "현금" if tax_type == "cash" else "경험치"
 
@@ -112,10 +114,10 @@ class TaxSystemCog(commands.Cog):
             user_data = db.get_user(str(member.id))
             if not user_data: continue
             
-            # 자산 값 가져오기
-            current_val = user_data.get(tax_type, 0)
+            # [수정] "exp" 키를 사용하도록 변경
+            current_val = user_data.get(db_field, 0)
             
-            # [요구사항] 이미 만원이하인 경우 제외
+            # 최소 수거 기준 (테스트를 위해 필요하다면 이 수치를 낮추세요)
             if current_val < 10000:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
@@ -127,11 +129,8 @@ class TaxSystemCog(commands.Cog):
                 if tax_type == "cash":
                     db.update_user_cash(str(member.id), after_val)
                 else:
-                    try:
-                        db.update_user_xp(str(member.id), after_val) 
-                    except AttributeError:
-                        # 일반적인 대체 함수명 예시
-                        db.update_user_exp(str(member.id), after_val)
+                    # [수정] database_manager.py에 정의된 정확한 함수명 'set_exp' 사용
+                    db.set_exp(str(member.id), after_val)
                 
                 db.add_transaction(str(member.id), f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
