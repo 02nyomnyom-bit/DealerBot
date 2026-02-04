@@ -91,7 +91,7 @@ class TaxSystemCog(commands.Cog):
         guild_id = str(interaction.guild.id)
         members = 역할.members
         
-        # 리더보드 코그(모듈) 가져오기
+        # 리더보드 코그 실시간 인스턴스 가져오기
         xp_cog = self.bot.get_cog("XPLeaderboard")
         
         tax_results = []
@@ -107,28 +107,28 @@ class TaxSystemCog(commands.Cog):
             user_id = str(member.id)
             current_val = 0
 
-            # 1. 데이터 추출
+            # 1. 자산 데이터 가져오기
             if tax_type == "cash":
                 user_data = db.get_user(user_id)
                 if user_data:
                     current_val = user_data.get('cash', 0) if isinstance(user_data, dict) else getattr(user_data, 'cash', 0)
             else:
-                # [핵심 수정] 리더보드 모듈의 메모리 데이터에서 직접 추출
+                # [XP 핵심 로직] 리더보드 모듈의 실시간 데이터(xp_data)에서 직접 추출
                 if xp_cog and hasattr(xp_cog, 'xp_data'):
-                    # xp_leaderboard.py의 구조: self.xp_data[guild_id][user_id]['xp']
-                    try:
-                        current_val = xp_cog.xp_data.get(guild_id, {}).get(user_id, {}).get('xp', 0)
-                    except:
-                        current_val = 0
-                
-                # 만약 위 방법으로도 0이라면 get_user_xp 함수 사용 시도
-                if current_val == 0 and xp_cog:
-                    current_val = xp_cog.get_user_xp(user_id, guild_id)
+                    # 리더보드 저장 구조: {guild_id: {user_id: {"xp": 100, "level": 1}}}
+                    guild_dict = xp_cog.xp_data.get(guild_id, {})
+                    user_dict = guild_dict.get(user_id, {})
+                    
+                    if isinstance(user_dict, dict):
+                        current_val = user_dict.get("xp", 0)
+                    else:
+                        # 혹시 데이터가 단순 숫자일 경우 대비
+                        current_val = user_dict if isinstance(user_dict, (int, float)) else 0
 
-            print(f"디버그: {member.display_name}의 실제 {tax_type} 값 = {current_val}")
+            print(f"디버그: {member.display_name} ({user_id})의 추출된 {tax_type} = {current_val}")
 
-            # 2. 수거 기준 체크
-            if current_val < 100:
+            # 2. 수거 기준 체크 (10000 미만 제외)
+            if current_val < 10000:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
             
@@ -139,13 +139,14 @@ class TaxSystemCog(commands.Cog):
                 if tax_type == "cash":
                     db.update_user_cash(user_id, after_val)
                 else:
-                    # [핵심 수정] 리더보드 메모리 데이터 수정 및 파일 저장
-                    if xp_cog and guild_id in xp_cog.xp_data:
-                        if user_id in xp_cog.xp_data[guild_id]:
-                            xp_cog.xp_data[guild_id][user_id]['xp'] = after_val
-                            # 변경사항을 파일(xp_settings.json)에 즉시 저장
+                    # [XP 핵심 로직] 메모리 데이터 수정 후 파일 저장
+                    if xp_cog and guild_id in xp_cog.xp_data and user_id in xp_cog.xp_data[guild_id]:
+                        xp_cog.xp_data[guild_id][user_id]["xp"] = after_val
+                        # xp_leaderboard.py에 정의된 저장 함수 호출
+                        if hasattr(xp_cog, 'save_xp_data'):
                             xp_cog.save_xp_data()
                 
+                # 로그 기록
                 db.add_transaction(user_id, f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
                 total_collected += tax_amount
