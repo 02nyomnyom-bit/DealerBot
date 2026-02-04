@@ -602,22 +602,33 @@ class XPLeaderboardCog(commands.Cog):
 
         # 역할 업데이트 및 알림 로직
         if role_update_needed:
-            new_level = self.get_user_level(user_id, guild_id)
+            # 타입을 정수로 확실히 변환하여 비교 오류 방지
+            new_level = int(self.get_user_level(user_id, guild_id))
+            old_level = int(old_level) 
+
             if new_level != old_level:
                 embed.add_field(name="📈 레벨 변경", value=f"**Lv.{old_level} → Lv.{new_level}**", inline=False)
-                
+        
+                # 로그 추가: 레벨 변경 감지 확인
+                print(f"[DEBUG] Level Change Detected: {old_level} -> {new_level} for {user_id}")
+        
                 # 레벨이 올랐을 경우에만 알림 및 역할 부여
                 if new_level > old_level:
-                    # 1. 설정된 채널로 레벨업 축하 알림 전송
-                    await check_and_send_levelup_notification(self.bot, 대상자, interaction.guild, old_level, new_level)
-                    
-                    # 2. 역할 보상 시스템 연동
-                    if ROLE_REWARD_AVAILABLE:
-                        try:
+                    try:
+                        # 1. 설정된 채널로 레벨업 축하 알림 전송
+                        await check_and_send_levelup_notification(self.bot, 대상자, interaction.guild, old_level, new_level)
+                
+                        # 2. 역할 보상 시스템 연동
+                        # ROLE_REWARD_AVAILABLE 변수가 전역 혹은 클래스 내에 정의되어 있는지 확인 필수
+                        if ROLE_REWARD_AVAILABLE:
                             await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
                             embed.add_field(name="🎭 역할 조정", value="레벨에 맞춰 역할이 자동으로 갱신되었습니다.", inline=False)
-                        except Exception as e:
-                            print(f"역할 조정 오류: {e}")
+                        else:
+                            print("[DEBUG] ROLE_REWARD_AVAILABLE is False")
+                    
+                    except Exception as e:
+                        # 상세 에러 로그 기록
+                        print(f"[ERROR] 레벨업 처리 중 오류 발생: {e}")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
         log_admin_action(f"[경험치관리] {interaction.user} -> {대상자.display_name} ({작업}: {수량})")
