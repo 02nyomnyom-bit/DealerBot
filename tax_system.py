@@ -84,43 +84,23 @@ class TaxSystemCog(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정)
     @app_commands.describe(역할="세금을 수거할 역할", 퍼센트="징수할 비율 (%)")
-    async def collect_tax_percent(self, interaction: discord.Interaction, 역할: discord.Role, 퍼센트: float):
-        if not 0 < 퍼센트 <= 100:
-            return await interaction.response.send_message("❌ 퍼센트는 0보다 크고 100 이하이어야 합니다.", ephemeral=True)
-        
-        embed = discord.Embed(
-            title="💰 수거 자산 선택",
-            description=f"**대상 역할:** {역할.mention}\n**징수 비율:** {퍼센트}%\n\n어떤 자산을 수거하시겠습니까?",
-            color=discord.Color.blue()
-        )
-        view = TaxTypeSelectView(self, interaction, 역할, 퍼센트)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
     async def process_tax_collection(self, interaction: discord.Interaction, 역할: discord.Role, 퍼센트: float, tax_type: Literal["cash", "xp"]):
         await interaction.response.defer()
         
         db = get_guild_db_manager_func(str(interaction.guild.id))
         guild_id = str(interaction.guild.id)
-        
-        # [에러 방지] 변수 선언
         members = 역할.members
-        unit = "원" if tax_type == "cash" else "XP"
-        type_name = "현금" if tax_type == "cash" else "경험치"
+        
+        # 리더보드 코그(모듈) 가져오기
+        xp_cog = self.bot.get_cog("XPLeaderboard")
         
         tax_results = []
         failed_members = []
         total_collected = 0
         success_count = 0
-
-        # XP를 위해 JSON 파일 미리 로드
-        xp_data_all = {}
-        if tax_type == "xp":
-            try:
-                if os.path.exists("data/xp_settings.json"):
-                    with open("data/xp_settings.json", "r", encoding="utf-8") as f:
-                        xp_data_all = json.load(f)
-            except Exception as e:
-                print(f"디버그: XP 파일 로드 실패 - {e}")
+        
+        unit = "원" if tax_type == "cash" else "XP"
+        type_name = "현금" if tax_type == "cash" else "경험치"
 
         for member in members:
             if member.bot: continue
@@ -133,12 +113,21 @@ class TaxSystemCog(commands.Cog):
                 if user_data:
                     current_val = user_data.get('cash', 0) if isinstance(user_data, dict) else getattr(user_data, 'cash', 0)
             else:
-                # [핵심] JSON 구조에 맞춰서 XP 추출 (guild_id -> user_id -> xp)
-                current_val = xp_data_all.get(guild_id, {}).get(user_id, {}).get("xp", 0)
+                # [핵심 수정] 리더보드 모듈의 메모리 데이터에서 직접 추출
+                if xp_cog and hasattr(xp_cog, 'xp_data'):
+                    # xp_leaderboard.py의 구조: self.xp_data[guild_id][user_id]['xp']
+                    try:
+                        current_val = xp_cog.xp_data.get(guild_id, {}).get(user_id, {}).get('xp', 0)
+                    except:
+                        current_val = 0
+                
+                # 만약 위 방법으로도 0이라면 get_user_xp 함수 사용 시도
+                if current_val == 0 and xp_cog:
+                    current_val = xp_cog.get_user_xp(user_id, guild_id)
 
             print(f"디버그: {member.display_name}의 실제 {tax_type} 값 = {current_val}")
 
-            # 2. 수거 기준 (100 미만 제외)
+            # 2. 수거 기준 체크
             if current_val < 100:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
@@ -150,27 +139,17 @@ class TaxSystemCog(commands.Cog):
                 if tax_type == "cash":
                     db.update_user_cash(user_id, after_val)
                 else:
-                    # [핵심] JSON 데이터 수정
-                    if guild_id not in xp_data_all: xp_data_all[guild_id] = {}
-                    if user_id not in xp_data_all[guild_id]: xp_data_all[guild_id][user_id] = {"xp": 0, "level": 1}
-                    xp_data_all[guild_id][user_id]["xp"] = after_val
+                    # [핵심 수정] 리더보드 메모리 데이터 수정 및 파일 저장
+                    if xp_cog and guild_id in xp_cog.xp_data:
+                        if user_id in xp_cog.xp_data[guild_id]:
+                            xp_cog.xp_data[guild_id][user_id]['xp'] = after_val
+                            # 변경사항을 파일(xp_settings.json)에 즉시 저장
+                            xp_cog.save_xp_data()
                 
-                # 트랜잭션 기록
                 db.add_transaction(user_id, f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
                 total_collected += tax_amount
                 tax_results.append(f"{member.display_name} {current_val:,}{unit} -> {after_val:,}{unit} (-{tax_amount:,})")
-
-        # 3. XP일 경우 JSON 파일 최종 저장
-        if tax_type == "xp" and success_count > 0:
-            try:
-                with open("data/xp_settings.json", "w", encoding="utf-8") as f:
-                    json.dump(xp_data_all, f, indent=4, ensure_ascii=False)
-                # 만약 리더보드 코그가 켜져있다면 메모리 데이터도 갱신 (선택사항)
-                xp_cog = self.bot.get_cog("XPLeaderboard")
-                if xp_cog: xp_cog.xp_data = xp_data_all
-            except Exception as e:
-                print(f"디버그: XP 저장 실패 - {e}")
 
         # 결과 임베드 생성
         embed = discord.Embed(
