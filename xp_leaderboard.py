@@ -600,20 +600,24 @@ class XPLeaderboardCog(commands.Cog):
             embed.title, embed.description = "✅ 레벨 설정 완료", f"{대상자.mention}님의 레벨을 **Lv.{수량}**으로 설정했습니다."
             role_update_needed = True
 
-        # 역할 업데이트 및 알림 로직 (하나로 통합)
+        # 역할 업데이트 및 알림 로직
         if role_update_needed:
             new_level = self.get_user_level(user_id, guild_id)
             if new_level != old_level:
-                embed.add_field(name="레벨 변경", value=f"Lv.{old_level} → Lv.{new_level}", inline=False)
-                if new_level > old_level:
-                    await self.send_levelup_announcement(대상자, new_level, f"🎊 {대상자.mention}님이 관리자에 의해 **Lv.{new_level}**이 되었습니다!")
+                embed.add_field(name="📈 레벨 변경", value=f"**Lv.{old_level} → Lv.{new_level}**", inline=False)
                 
-                if ROLE_REWARD_AVAILABLE:
-                    try:
-                        await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
-                        embed.add_field(name="🎭 역할 조정", value="레벨에 맞춰 역할이 갱신되었습니다.", inline=False)
-                    except Exception as e:
-                        print(f"역할 조정 오류: {e}")
+                # 레벨이 올랐을 경우에만 알림 및 역할 부여
+                if new_level > old_level:
+                    # 1. 설정된 채널로 레벨업 축하 알림 전송
+                    await check_and_send_levelup_notification(self.bot, 대상자, interaction.guild, old_level, new_level)
+                    
+                    # 2. 역할 보상 시스템 연동
+                    if ROLE_REWARD_AVAILABLE:
+                        try:
+                            await role_reward_manager.check_and_assign_level_role(대상자, new_level, old_level)
+                            embed.add_field(name="🎭 역할 조정", value="레벨에 맞춰 역할이 자동으로 갱신되었습니다.", inline=False)
+                        except Exception as e:
+                            print(f"역할 조정 오류: {e}")
 
         await interaction.followup.send(embed=embed, ephemeral=True)
         log_admin_action(f"[경험치관리] {interaction.user} -> {대상자.display_name} ({작업}: {수량})")

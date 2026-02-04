@@ -91,29 +91,60 @@ class ChannelConfig(commands.Cog):
         await interaction.followup.send(f"📂 **{카테고리.name}** 카테고리 내 {count}개 채널에 **{기능.name}** 기능을 {action}했습니다.")
 
     @app_commands.command(name="채널설정확인", description="[관리자 전용] 현재 서버의 모든 채널 기능 설정 목록을 보여줍니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
     async def list_config(self, interaction: discord.Interaction):
         db = self.get_db(interaction.guild.id)
         results = db.execute_query("SELECT channel_id, feature_type FROM channel_configs", (), 'all')
 
         if not results:
-            return await interaction.response.send_message("📢 설정된 채널이 없습니다.", ephemeral=True)
+            return await interaction.response.send_message("📢 설정된 채널이 없습니다. (현재 모든 채널에서 모든 기능 사용 가능)", ephemeral=True)
 
-        embed = discord.Embed(title="⚙️ 채널 기능 설정 현황", color=discord.Color.green())
+        # --- 1. 임베드 생성 ---
+        embed = discord.Embed(
+            title="⚙️ 채널 기능 설정 현황", 
+            description="목록에 있는 채널에서만 해당 기능이 작동합니다.\n**[전체 초기화]** 버튼을 누르면 모든 제한이 해제됩니다.",
+            color=discord.Color.blue()
+        )
         
-        # 데이터를 보기 좋게 가공
         config_map = {}
         for ch_id, f_type in results:
             if f_type not in config_map: config_map[f_type] = []
             config_map[f_type].append(f"<#{ch_id}>")
 
         for f_type, channels in config_map.items():
-            # 기능 이름 매칭 (anonymous -> 익명 시스템 등)
+            # feature_choices에서 이름 매칭
             f_name = next((c.name for c in self.feature_choices if c.value == f_type), f_type)
             embed.add_field(name=f"🔹 {f_name}", value=", ".join(channels), inline=False)
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        # --- 2. 초기화 버튼 뷰 정의 ---
+        class ResetControlView(discord.ui.View):
+            def __init__(self, db_manager, original_user):
+                super().__init__(timeout=60)
+                self.db = db_manager
+                self.original_user = original_user
+
+            @discord.ui.button(label="전체 초기화", style=discord.ButtonStyle.danger, emoji="⚠️")
+            async def reset_button(self, btn_interaction: discord.Interaction, button: discord.ui.Button):
+                # 명령어를 친 사람만 버튼 작동
+                if btn_interaction.user.id != self.original_user.id:
+                    return await btn_interaction.response.send_message("❌ 관리자 본인만 초기화할 수 있습니다.", ephemeral=True)
+                
+                try:
+                    # 해당 서버의 모든 설정 삭제
+                    self.db.execute_query("DELETE FROM channel_configs")
+                    await btn_interaction.response.edit_message(
+                        content="✅ **서버 설정 초기화 완료**\n이제 모든 채널에서 기능을 사용할 수 있습니다.", 
+                        embed=None, 
+                        view=None
+                    )
+                except Exception as e:
+                    logger.error(f"Reset Error: {e}")
+                    await btn_interaction.response.edit_message(content="❌ 초기화 중 데이터베이스 오류가 발생했습니다.", view=None)
+
+        # 뷰 생성 시 DB 매니저와 유저 정보 전달
+        view = ResetControlView(db, interaction.user)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     async def check_permission(self, channel_id: int, feature_type: str, guild_id: int) -> bool:
         db = self.get_db(guild_id)
