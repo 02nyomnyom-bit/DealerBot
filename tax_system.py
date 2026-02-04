@@ -104,7 +104,7 @@ class TaxSystemCog(commands.Cog):
         success_count = 0
         
         # [수정] DB 필드명 및 단위 설정
-        db_field = "cash" if tax_type == "cash" else "exp" # xp -> exp로 변경
+        db_field = "cash" if tax_type == "cash" else "exp"
         unit = "원" if tax_type == "cash" else "XP"
         type_name = "현금" if tax_type == "cash" else "경험치"
 
@@ -116,8 +116,9 @@ class TaxSystemCog(commands.Cog):
             
             # [수정] "exp" 키를 사용하도록 변경
             current_val = user_data.get(db_field, 0)
+            print(f"디버그: {member.display_name}의 {db_field} 값 = {current_val}")
             
-            # 최소 수거 기준 (테스트를 위해 필요하다면 이 수치를 낮추세요)
+            # 최소 수거 기준
             if current_val < 10000:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
