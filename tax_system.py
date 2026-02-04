@@ -103,7 +103,6 @@ class TaxSystemCog(commands.Cog):
         total_collected = 0
         success_count = 0
         
-        # [수정] DB 필드명 및 단위 설정
         db_field = "cash" if tax_type == "cash" else "xp" 
         unit = "원" if tax_type == "cash" else "XP"
         type_name = "현금" if tax_type == "cash" else "경험치"
@@ -112,9 +111,19 @@ class TaxSystemCog(commands.Cog):
             if member.bot: continue
             
             user_data = db.get_user(str(member.id))
-            if not user_data: continue
+            # 데이터가 없거나 딕셔너리가 아닌 경우 처리
+            if not user_data or not isinstance(user_data, dict):
+                continue
 
+            # 실제 DB 키값인 'xp' 또는 'cash'를 명확히 추출
             current_val = user_data.get(db_field, 0)
+            
+            # 누적 XP가 있는 경우에도 0으로 뜨는 것을 방지하기 위해 정수 변환 보장
+            try:
+                current_val = int(current_val)
+            except (ValueError, TypeError):
+                current_val = 0
+
             print(f"디버그: {member.display_name}의 {db_field} 값 = {current_val}")
 
             # 최소 수거 기준 (10000 미만은 제외하여 소수점 및 무의미한 수거 방지)
@@ -127,11 +136,13 @@ class TaxSystemCog(commands.Cog):
             
             if tax_amount > 0:
                 if tax_type == "cash":
-                    db.update_user_cash(str(member.id), after_val)
+                    db.update_user_cash(str(member.id), after_val) #
                 else:
+                    # set_exp(user_id, level, xp) 형식을 정확히 준수
                     current_level = user_data.get("level", 1)
                     db.set_exp(str(member.id), current_level, after_val)
                 
+                # 기록 추가
                 db.add_transaction(str(member.id), f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
                 success_count += 1
                 total_collected += tax_amount
