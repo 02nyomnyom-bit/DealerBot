@@ -107,29 +107,33 @@ class TaxSystemCog(commands.Cog):
         unit = "원" if tax_type == "cash" else "XP"
         type_name = "현금" if tax_type == "cash" else "경험치"
 
+        # ... 상단 로직 생략 ...
         for member in members:
             if member.bot: continue
             
-            # DB에서 유저 정보를 가져옴
-            user_data = db.get_user(str(member.id))
-
-            # 데이터가 없거나 딕셔너리가 아닌 경우 처리
-            if not user_data:
-                print(f"디버그: {member.display_name}의 데이터를 찾을 수 없음")
-                continue
-
+            user_id = str(member.id)
+            guild_id = str(interaction.guild.id)
             current_val = 0
+
             if tax_type == "cash":
-                current_val = getattr(user_data, 'cash', 0) if not isinstance(user_data, dict) else user_data.get('cash', 0)
+                # 현금은 database_manager(SQLite) 사용
+                user_data = db.get_user(user_id)
+                if user_data:
+                    current_val = user_data.get('cash', 0) if isinstance(user_data, dict) else getattr(user_data, 'cash', 0)
             else:
-                # xp와 exp 두 가지 가능성을 모두 체크
-                current_val = getattr(user_data, 'xp', 0) if not isinstance(user_data, dict) else user_data.get('xp', 0)
-                if current_val == 0: # 여전히 0이라면 exp로 재시도
-                    current_val = getattr(user_data, 'exp', 0) if not isinstance(user_data, dict) else user_data.get('exp', 0)
+                # [핵심] XP는 xp_leaderboard가 쓰는 JSON 파일에서 직접 로드
+                try:
+                    with open("data/xp_settings.json", "r", encoding="utf-8") as f:
+                        xp_data = json.load(f)
+                        # JSON 구조: {"guild_id": {"user_id": {"xp": 100}}}
+                        current_val = xp_data.get(guild_id, {}).get(user_id, {}).get("xp", 0)
+                except Exception as e:
+                    print(f"디버그: JSON 로드 실패 - {e}")
+                    current_val = 0
 
             print(f"디버그: {member.display_name}의 실제 추출된 {tax_type} 값 = {current_val}")
 
-            # 최소 수거 기준 (10000 미만은 제외하여 소수점 및 무의미한 수거 방지)
+            # 수거 기준 체크 (10000 미만 제외)
             if current_val < 10000:
                 failed_members.append(f"{member.display_name}: 🛑 {current_val:,}{unit}")
                 continue
@@ -139,18 +143,21 @@ class TaxSystemCog(commands.Cog):
             
             if tax_amount > 0:
                 if tax_type == "cash":
-                    db.update_user_cash(str(member.id), after_val) #
+                    db.update_user_cash(user_id, after_val)
                 else:
-                    # set_exp(user_id, level, xp) 형식을 정확히 준수
-                    current_level = user_data.get("level", 1)
-                    db.set_exp(str(member.id), current_level, after_val)
+                    # [중요] XP 수정 시에도 JSON 파일을 업데이트해야 함
+                    try:
+                        with open("data/xp_settings.json", "r+", encoding="utf-8") as f:
+                            xp_data = json.load(f)
+                            if guild_id in xp_data and user_id in xp_data[guild_id]:
+                                xp_data[guild_id][user_id]["xp"] = after_val
+                                f.seek(0)
+                                json.dump(xp_data, f, indent=4, ensure_ascii=False)
+                                f.truncate()
+                    except Exception as e:
+                        print(f"디버그: XP 저장 실패 - {e}")
                 
-                # 기록 추가
-                db.add_transaction(str(member.id), f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
-                success_count += 1
-                total_collected += tax_amount
-
-            tax_results.append(f"{member.display_name} {current_val:,}{unit} -> {after_val:,}{unit} (-{tax_amount:,})")
+                db.add_transaction(user_id, f"세금징수({type_name})", -tax_amount, f"{역할.name} 세금 {퍼센트}%")
 
         # 결과 임베드 생성
         embed = discord.Embed(
