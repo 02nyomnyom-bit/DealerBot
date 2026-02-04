@@ -110,21 +110,24 @@ class TaxSystemCog(commands.Cog):
         for member in members:
             if member.bot: continue
             
+            # DB에서 유저 정보를 가져옴
             user_data = db.get_user(str(member.id))
+
             # 데이터가 없거나 딕셔너리가 아닌 경우 처리
-            if not user_data or not isinstance(user_data, dict):
+            if not user_data:
+                print(f"디버그: {member.display_name}의 데이터를 찾을 수 없음")
                 continue
 
-            # 실제 DB 키값인 'xp' 또는 'cash'를 명확히 추출
-            current_val = user_data.get(db_field, 0)
-            
-            # 누적 XP가 있는 경우에도 0으로 뜨는 것을 방지하기 위해 정수 변환 보장
-            try:
-                current_val = int(current_val)
-            except (ValueError, TypeError):
-                current_val = 0
+            current_val = 0
+            if tax_type == "cash":
+                current_val = getattr(user_data, 'cash', 0) if not isinstance(user_data, dict) else user_data.get('cash', 0)
+            else:
+                # xp와 exp 두 가지 가능성을 모두 체크
+                current_val = getattr(user_data, 'xp', 0) if not isinstance(user_data, dict) else user_data.get('xp', 0)
+                if current_val == 0: # 여전히 0이라면 exp로 재시도
+                    current_val = getattr(user_data, 'exp', 0) if not isinstance(user_data, dict) else user_data.get('exp', 0)
 
-            print(f"디버그: {member.display_name}의 {db_field} 값 = {current_val}")
+            print(f"디버그: {member.display_name}의 실제 추출된 {tax_type} 값 = {current_val}")
 
             # 최소 수거 기준 (10000 미만은 제외하여 소수점 및 무의미한 수거 방지)
             if current_val < 10000:
