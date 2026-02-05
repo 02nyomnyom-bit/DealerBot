@@ -28,7 +28,7 @@ RPS_EMOJIS = {"가위": "✌️", "바위": "✊", "보": "✋"}
 def record_rps_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
     if STATS_AVAILABLE:
         try:
-            stats_manager.record_game(user_id, username, "가위바위보", bet, payout, is_win)
+            stats_manager.record_game(user_id, username, "rock_paper_scissors", bet, payout, is_win)
         except: pass
 
 # --- [상호작용 1단계] 초기 모드 선택창 ---

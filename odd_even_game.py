@@ -26,6 +26,12 @@ WINNER_RETENTION = 1.0
 
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
+def record_odd_even_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
+    if STATS_AVAILABLE:
+        try:
+            stats_manager.record_game(user_id, username, "odd_even", bet, payout, is_win)
+        except: pass
+        
 # --- 애니메이션 유틸리티 ---
 async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
     dice_faces = list(DICE_EMOJIS.values())

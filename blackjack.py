@@ -46,7 +46,7 @@ CARD_BACK = ('🂠', '???')
 def record_blackjack_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
     if STATS_AVAILABLE:
         try:
-            stats_manager.record_game(user_id, username, "블랙잭", bet, payout, is_win)
+            stats_manager.record_game(user_id, username, "blackjack", bet, payout, is_win)
         except: pass
 
 class BlackjackGame:

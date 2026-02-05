@@ -39,7 +39,7 @@ async def play_dice_animation(message: discord.InteractionMessage, base_embed: d
 def record_dice_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
     if STATS_AVAILABLE:
         try:
-            stats_manager.record_game(user_id, username, "주사위", bet, payout, is_win)
+            stats_manager.record_game(user_id, username, "dice_game", bet, payout, is_win)
         except Exception as e:
             print(f"통계 기록 오류: {e}")
 

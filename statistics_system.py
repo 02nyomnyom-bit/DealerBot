@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 import json
 import datetime
+from calendar import monthrange
 import logging
 from collections import defaultdict
 from typing import Dict, List, Any, Optional
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -14,6 +14,10 @@ from discord.ext import commands
 # ✅ 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ✅ 게임 분류 정의 (클래스 내부나 상단에 추가)
+SINGLE_GAMES = ["slot_machine", "yabawi_game", "blackjack", "dice_game", "rock_paper_scissors", "odd_even_game"]
+MULTI_GAMES = ["blackjack", "dice_game", "rock_paper_scissors", "odd_even_game"]
 
 # ✅ 데이터 파일 경로 및 설정
 STATS_CONFIG = {
@@ -236,7 +240,7 @@ class StatisticsManager:
         print(f"[기록] {user_name}: {game_name} 결과 - 배팅: {bet}, 획득: {reward}, 승리: {is_win}")
     
 
-    def record_game_play(self, user_id: str, username: str, game_name: str, is_win: bool, bet_amount: int = 0, payout: int = 0):
+    def record_game_play(self, user_id: str, username: str, game_name: str, is_win: bool, bet_amount: int = 0, payout: int = 0, is_multi: bool = False):
         """게임 플레이 기록 (안전성 강화 + 디버깅)"""
         try:
             # ✅ 디버깅 카운터 업데이트
@@ -252,14 +256,39 @@ class StatisticsManager:
             # 게임 통계 업데이트
             if isinstance(self.game_stats, dict) and "games" in self.game_stats:
                 if game_name not in self.game_stats["games"]:
-                    # 새 게임 초기화
-                    if game_name == "enhancement":
-                        self.game_stats["games"][game_name] = {"attempts": 0, "success": 0, "total_spent": 0}
-                    else:
-                        self.game_stats["games"][game_name] = {"played": 0, "won": 0, "total_bet": 0, "total_payout": 0}
-                    print(f"🆕 새 게임 '{game_name}' 초기화됨")
+                    # 신규 게임 초기화 (기존 필드 유지)
+                    self.game_stats["games"][game_name] = {"played": 0, "won": 0, "total_bet": 0, "total_payout": 0, "single_played": 0, "multi_played": 0}
                 
+                # 게임 통계 업데이트 로직 내부에 추가
                 game_stats = self.game_stats["games"][game_name]
+
+                # 모드별 횟수 기록 추가
+                mode_key = "multi_played" if is_multi else "single_played"
+                game_stats[mode_key] = game_stats.get(mode_key, 0) + 1
+
+                # 전체 플레이 횟수 (기존 코드 유지)
+                game_stats["played"] = game_stats.get("played", 0) + 1
+
+                # ✅ 싱글/멀티 횟수 분리 기록
+                if is_multi:
+                    game_stats["multi_played"] = game_stats.get("multi_played", 0) + 1
+                else:
+                    game_stats["single_played"] = game_stats.get("single_played", 0) + 1
+
+                # 플레이 모드 결정
+                mode = "multi" if is_multi else "single"
+        
+                # 데이터 구조에 모드별 카운트 추가 (기존 구조 유지하며 확장)
+                mode_key = f"{mode}_played"
+                game_stats[mode_key] = game_stats.get(mode_key, 0) + 1
+
+                # 전체 합계 기록 (기존 호환성 유지)
+                game_stats["played"] = game_stats.get("played", 0) + 1
+                if is_win:
+                    game_stats["won"] = game_stats.get("won", 0) + 1
+            
+                game_stats["total_bet"] = game_stats.get("total_bet", 0) + bet_amount
+                game_stats["total_payout"] = game_stats.get("total_payout", 0) + payout
                 
                 # 강화 시스템 특별 처리
                 if game_name == "enhancement":
@@ -611,86 +640,71 @@ class StatisticsCog(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def server_statistics(self, interaction: discord.Interaction):
+        games = self.game_stats.get("games", {})
+
         if not self.stats:
-            return await interaction.response.send_message("❌ 통계 시스템이 초기화되지 않았습니다. 관리자에게 문의하세요.", ephemeral=True)
+            return await interaction.response.send_message("❌ 시스템 오류", ephemeral=True)
             
         await interaction.response.defer()
         
         try:
-            # 서버 통계 가져오기 (개선된 계산 방식)
-            server_stats = self.stats.get_server_stats(interaction.guild_id) # guild_id 전달
+            server_stats = self.stats.get_server_stats(interaction.guild_id)
+            now = datetime.datetime.now()
             
-            # 에러가 있는 경우 처리
-            if "error" in server_stats:
-                embed = discord.Embed(
-                    title="⚠️ 통계 시스템 오류",
-                    description=f"통계 조회 중 오류가 발생했습니다: {server_stats['error']}",
-                    color=discord.Color.orange()
-                )
-            else:
-                embed = discord.Embed(
-                    title="📊 서버 게임 통계",
-                    description="모든 게임의 종합 통계 정보입니다.",
-                    color=discord.Color.blue(),
-                    timestamp=datetime.datetime.now()
-                )
-                
-                # 기본 통계 (정확한 계산된 값 사용)
-                embed.add_field(
-                    name="🎮 기본 정보",
-                    value=f"총 게임 수: **{server_stats['total_games']:,}회**\n" +
-                          f"총 사용자 수: **{server_stats['total_users']:,}명**\n" +
-                          f"서버 가동 시간: **{server_stats['real_time']['session_uptime']}**",
-                    inline=False
-                )
-                
-                # 경제 통계
-                economy = server_stats.get('economy', {})
-                embed.add_field(
-                    name="💰 경제 통계",
-                    value=f"총 배팅액: **{economy.get('total_points_consumed', 0):,}원**\n" +
-                          f"총 지급액: **{economy.get('total_points_distributed', 0):,}원**\n" +
-                          f"전체 승률: **{economy.get('win_rate', 0):.1f}%**\n" +
-                          f"하우스 엣지: **{economy.get('house_edge', 0):.2f}%**",
-                    inline=False
-                )
-                
-                # 게임별 통계 (상위 5개)
-                games = server_stats.get('games', {})
-                if games:
-                    game_list = []
-                    for game_name, game_data in list(games.items())[:5]:
-                        korean_name = self.stats.get_game_korean_name(game_name)
-                        if game_name == "enhancement":
-                            played = game_data.get('attempts', 0)
-                        else:
-                            played = game_data.get('played', 0)
-                        game_list.append(f"**{korean_name}**: {played:,}회")
-                    
-                    embed.add_field(
-                        name="🏆 인기 게임 TOP 5",
-                        value="\n".join(game_list) if game_list else "데이터 없음",
-                        inline=False
-                    )
-                
-                # ✅ 디버깅 정보 추가 (개발자용)
-                debug_info = server_stats.get('debug_info', {})
-                if debug_info:
-                    embed.add_field(
-                        name="🔍 디버그 정보",
-                        value=f"기록 호출: {debug_info.get('record_calls', 0)}회\n" +
-                              f"성공 기록: {debug_info.get('successful_records', 0)}회\n" +
-                              f"실패 기록: {debug_info.get('failed_records', 0)}회\n" +
-                              f"마지막 게임: {debug_info.get('last_game_recorded', 'None')}",
-                        inline=True
-                    )
+            # ✅ 통계 기간 계산 (현재 달 1일 ~ 현재)
+            start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            last_day = monthrange(now.year, now.month)[1]
+            period_str = f"한국기준 {now.month}월 1일 ~ {now.month}월 {last_day}일"
+
+            embed = discord.Embed(
+                title="📊 서버 게임 종합 통계",
+                description=f"📅 **통계 기간**: {period_str}",
+                color=discord.Color.blue()
+            )
+
+            # 1️⃣ 기본 정보
+            embed.add_field(
+                name="📌 기본 정보",
+                value=f"총 게임 수: **{server_stats['total_games']:,}회**\n"
+                      f"총 사용자 수: **{server_stats['total_users']:,}명**",
+                inline=False
+            )
+
+            # 2️⃣ 경제 통계
+            eco = server_stats.get('economy', {})
+            embed.add_field(
+                name="💰 경제 통계",
+                value=f"총 배팅액: **{eco.get('total_points_consumed', 0):, Richardson}원**\n"
+                      f"총 지급액: **{eco.get('total_points_distributed', 0):, Richardson}원**\n"
+                      f"전체 승률: **{eco.get('win_rate', 0):.1f}%**",
+                inline=False
+            )
+
+            # 3️⃣ 싱글 게임 TOP 5
+            single_list = []
+            for g_name in SINGLE_GAMES:
+                if g_name in games:
+                    data = games[g_name]
+                    # single_played가 있으면 사용, 없으면 기존 played 사용 (하이브리드 지원)
+                    count = data.get('single_played', data.get('played', 0))
+                    single_list.append((self.stats.get_game_korean_name(g_name), count))
+
+            # 4️⃣ 멀티 게임 TOP 5
+            multi_list = []
+            for g_name in MULTI_GAMES:
+                if g_name in games:
+                    data = games[g_name]
+                    count = data.get('multi_played', 0) # 멀티 데이터만 추출
+                    multi_list.append((self.stats.get_game_korean_name(g_name), count))
+
+            # 5️⃣ 하단 정보
+            embed.set_footer(text=f"기준: 한국 표준시 | 마지막 업데이트: {now.strftime('%Y-%m-%d %H:%M')}")
             
-            embed.set_footer(text=f"서버 버전: {server_stats.get('server_info', {}).get('bot_version', 'Unknown')}")
             await interaction.followup.send(embed=embed)
-            
+
         except Exception as e:
-            logger.error(f"통계 명령어 오류: {e}")
-            await interaction.followup.send("❌ 통계 조회 중 오류가 발생했습니다.", ephemeral=True)
+            logger.error(f"통계 출력 오류: {e}")
+            await interaction.followup.send(f"❌ 통계 생성 중 오류가 발생했습니다.")
 
     # ✅ 디버깅 명령어 추가
     @app_commands.command(name="통계디버그", description="[관리자 전용] 통계 시스템 디버깅 정보를 확인합니다.")

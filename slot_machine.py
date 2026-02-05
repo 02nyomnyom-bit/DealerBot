@@ -17,11 +17,13 @@ SLOT_WEIGHTS = {"🍀": 6, "🍋": 5, "🍒": 10, "🔔": 15, "❌": 24}
 TWO_MATCH_MULTIPLIER = 0.1
 
 # --- 외부 시스템 연동 ---
+STATS_AVAILABLE = True 
+
 try:
-    from statistics_system import stats_manager
-    STATS_AVAILABLE = True
+    import point_manager
+    POINT_MANAGER_AVAILABLE = True
 except ImportError:
-    STATS_AVAILABLE = False
+    POINT_MANAGER_AVAILABLE = False
 try:
     import point_manager
     POINT_MANAGER_AVAILABLE = True
@@ -128,8 +130,22 @@ class SlotMachineView(discord.ui.View):
 
             # 6. 정산 및 기록
             is_win = reward > self.bet
-            if STATS_AVAILABLE:
-                stats_manager.record_game(uid, self.user.display_name, "슬롯머신", self.bet, reward, is_win)
+            # StatisticsCog를 찾아 직접 기록 호출 (권장 방식)
+            stats_cog = self.bot.get_cog("StatisticsCog")
+            if stats_cog and stats_cog.stats:
+                try:
+                    # statistics_system.py의 record_game_play 메서드에 맞춰 호출
+                    stats_cog.stats.record_game_play(
+                        user_id=uid,
+                        username=self.user.display_name,
+                        game_name="slot_machine",
+                        is_win=is_win,
+                        bet_amount=self.bet,
+                        payout=reward,
+                        is_multi=False  # 슬롯머신은 싱글 게임
+                    )
+                except Exception as stats_err:
+                    print(f"통계 기록 중 오류: {stats_err}")
 
             # 당첨금(보상) 지급
             if reward > 0 and POINT_MANAGER_AVAILABLE:
