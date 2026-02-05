@@ -214,6 +214,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'role_reward_system',           # 역할 보상 시스템
         'welcome_system',               # 환영 시스템
         'anonymous',                    # 익명 시스템
+        'room_manager',                 # 대화방 생성
     ]
     
     # 유틸리티
