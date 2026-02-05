@@ -146,6 +146,15 @@ class RoleRewardManager:
                 await self.send_notification(member, roles_to_add, new_level)
         except Exception as e: print(f"역할 부여 오류: {e}")
 
+    def get_guild_rewards(self, guild_id: str) -> Dict[int, str]:
+        """특정 서버의 보상 목록 반환"""
+        return self.role_rewards.get(guild_id, {})
+
+    def set_notification_channel(self, guild_id: str, channel_id: str) -> bool:
+        """알림 채널 설정 저장"""
+        self.role_notification_channels[guild_id] = channel_id
+        return save_json_file(ROLE_NOTIFICATION_CHANNELS_FILE, self.role_notification_channels)
+
     async def send_notification(self, member, roles_to_add, new_level):
         guild_id = str(member.guild.id)
         embed = discord.Embed(title="🎉 새로운 역할 획득!", color=discord.Color.gold())
@@ -206,14 +215,31 @@ class RoleRewardCog(commands.Cog):
     ):
         guild_id = str(interaction.guild.id)
 
-        # 1. 레벨 역할 설정 (set_reward)
-        if 작업 == "set_reward":
+        # 전체 목록 확인 (오류 수정됨)
+        if 작업 == "list_all":
+            rewards = self.role_manager.get_guild_rewards(guild_id) # 이제 정의된 메서드 호출
+            excludes = self.role_manager.exclude_roles.get(guild_id, [])
+            
+            embed = discord.Embed(title=f"📊 {interaction.guild.name} 설정 현황", color=discord.Color.blue())
+            
+            # 보상 목록 구성
+            reward_text = "\n".join([f"Lv.{lv}: <@&{r_id}>" for lv, r_id in sorted(rewards.items())]) if rewards else "설정된 보상 없음"
+            embed.add_field(name="🏆 레벨별 보상", value=reward_text, inline=False)
+            
+            # 제외 목록 구성
+            exclude_text = ", ".join([f"<@&{r_id}>" for r_id in excludes]) if excludes else "없음"
+            embed.add_field(name="🚫 보상 제외 역할", value=exclude_text, inline=False)
+            
+            return await interaction.response.send_message(embed=embed)
+        
+        # 레벨 역할 설정 (add_role_reward -> set_role_reward로 수정)
+        elif 작업 == "set_reward":
             if 레벨 is None or 역할 is None:
-                return await interaction.response.send_message("❌ 레벨과 역할을 모두 입력해야 합니다.", ephemeral=True)
-            self.role_manager.add_role_reward(guild_id, 레벨, str(역할.id))
-            await interaction.response.send_message(f"✅ 레벨 **{레벨}** 보상으로 {역할.mention} 역할을 설정했습니다.")
+                return await interaction.response.send_message("❌ 레벨과 역할을 입력하세요.", ephemeral=True)
+            self.role_manager.set_role_reward(guild_id, 레벨, str(역할.id))
+            await interaction.response.send_message(f"✅ Lv.{레벨} 보상: {역할.mention}")
 
-        # 2. 레벨 역할 삭제 (delete_reward)
+        # 레벨 역할 삭제 (delete_reward)
         elif 작업 == "delete_reward":
             if 레벨 is None:
                 return await interaction.response.send_message("❌ 삭제할 레벨을 입력해주세요.", ephemeral=True)
@@ -222,7 +248,7 @@ class RoleRewardCog(commands.Cog):
             else:
                 await interaction.response.send_message(f"❌ 레벨 **{레벨}**에 설정된 보상이 없습니다.", ephemeral=True)
 
-        # 3. 전체 목록 확인 (list_all)
+        # 전체 목록 확인 (list_all)
         elif 작업 == "list_all":
             rewards = self.role_manager.get_guild_rewards(guild_id)
             excludes = self.role_manager.exclude_roles.get(guild_id, [])
@@ -239,7 +265,7 @@ class RoleRewardCog(commands.Cog):
             
             await interaction.response.send_message(embed=embed)
 
-        # 4. 제외 역할 등록 (exclude_add)
+        # 제외 역할 등록 (exclude_add)
         elif 작업 == "exclude_add":
             if 역할 is None: return await interaction.response.send_message("❌ 역할을 선택해주세요.", ephemeral=True)
             if self.role_manager.add_exclude_role(guild_id, str(역할.id)):
@@ -247,15 +273,15 @@ class RoleRewardCog(commands.Cog):
             else:
                 await interaction.response.send_message("❌ 이미 등록된 역할입니다.", ephemeral=True)
 
-        # 5. 제외 역할 해제 (exclude_remove)
+        # 제외 역할 해제 (Brilliance)
         elif 작업 == "exclude_remove":
-            if 역할 is None: return await interaction.response.send_message("❌ 역할을 선택해주세요.", ephemeral=True)
+            if 역할 is None: return await interaction.response.send_message("❌ 역할 선택 필수.", ephemeral=True)
             if self.role_manager.remove_exclude_role(guild_id, str(역할.id)):
-                await interaction. Brilliance(f"✅ {역할.mention} 제외 설정을 해제했습니다.")
+                await interaction.response.send_message(f"✅ {역할.mention} 제외 해제 완료.")
             else:
                 await interaction.response.send_message("❌ 목록에 없는 역할입니다.", ephemeral=True)
 
-        # 6. 알림 채널 설정 (set_notify)
+        # 7. 알림 채널 설정 (set_notify)
         elif 작업 == "set_notify":
             if 채널 is None:
                 return await interaction.response.send_message("❌ 채널을 선택해주세요.", ephemeral=True)
