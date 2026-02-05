@@ -45,7 +45,7 @@ class IntegratedLeaderboardCog(commands.Cog):
             print("✅ DatabaseManager Cog 연결 성공.")
 
     # ===== 통합 리더보드 명령어들 =====
-    @app_commands.command(name="통합리더보드", description="[관리자 전용] 서버의 XP 및 자산 통합 통계를 확인합니다.")\
+    @app_commands.command(name="통합리더보드", description="[관리자 전용] 서버의 XP 및 자산 통합 통계를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def integrated_stats(self, interaction: discord.Interaction):
