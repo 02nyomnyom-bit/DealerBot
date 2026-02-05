@@ -59,15 +59,16 @@ class RoomManager(commands.Cog):
     @room_group.command(name="작업", description="방 관련 작업을 수행합니다.")
     @app_commands.describe(
         작업="수행할 작업 선택",
-        제목="방 이름",
+        제목="방 이름 (대화방/음성방 생성 시)",
         인원수="최대 인원 (음성방 전용)",
         멤버1="초대할 멤버 1",
-        멤버2="초대할 멤버 2 (선택)",
-        멤버3="초대할 멤버 3 (선택)",
-        지정역할="권한을 줄 역할 (역할지정 전용)"
+        멤버2="초대할 멤버 2 (선택사항)",
+        멤버3="초대할 멤버 3 (선택사항)",
+        지정역할="권한을 부여할 역할 (역할지정 전용)"
     )
     @app_commands.choices(작업=[
         app_commands.Choice(name="역할지정", value="role_setup"),
+        app_commands.Choice(name="역할해제", value="role_remove"),
         app_commands.Choice(name="대화방생성", value="text_setup"),
         app_commands.Choice(name="음성방생성", value="voice_setup"),
         app_commands.Choice(name="대화방삭제", value="text_delete")
@@ -85,8 +86,8 @@ class RoomManager(commands.Cog):
     ):
         db = self.get_db(interaction.guild_id)
         guild = interaction.guild
-
-        # [역할지정 및 권한 체크 로직]
+        
+        # 1. 역할지정 작업
         if 작업 == "role_setup":
             if not interaction.user.guild_permissions.administrator:
                 return await interaction.response.send_message("❌ 관리자 전용입니다.", ephemeral=True)
@@ -94,29 +95,35 @@ class RoomManager(commands.Cog):
                 return await interaction.response.send_message("❌ 역할을 선택해주세요.", ephemeral=True)
             db.execute_query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("room_manager_role", str(지정역할.id)))
             return await interaction.response.send_message(f"✅ {지정역할.mention} 역할에게 권한을 부여했습니다.")
-
+        
+        # 2. 역할해제 작업
+        if 작업 == "role_remove":
+            if not interaction.user.guild_permissions.administrator:
+                return await interaction.response.send_message("❌ 관리자만 권한을 해제할 수 있습니다.", ephemeral=True)
+            db.execute_query("DELETE FROM settings WHERE key = 'room_manager_role'")
+            return await interaction.response.send_message("🗑️ 방 관리 권한 설정이 해제되었습니다. 이제 관리자만 사용 가능합니다.")
+        
+        # [권한 체크 공통 로직]
         role_data = db.execute_query("SELECT value FROM settings WHERE key = 'room_manager_role'", (), 'one')
         allowed = interaction.user.guild_permissions.administrator
         if role_data and not allowed:
             allowed = discord.utils.get(interaction.user.roles, id=int(role_data['value'])) is not None
+        
         if not allowed:
-            return await interaction.response.send_message("❌ 권한이 없습니다.", ephemeral=True)
+            return await interaction.response.send_message("❌ 이 기능을 사용할 권한이 없습니다.", ephemeral=True)
 
-        # [대화방 생성 - 여러 멤버 처리]
+        # 3. 대화방 생성
         if 작업 == "text_setup":
             if not 제목: return await interaction.response.send_message("❌ 제목을 입력해주세요.", ephemeral=True)
             await interaction.response.defer(ephemeral=True)
             
             category = await self.get_or_create_category(guild, "─── 임시 대화방 ───")
-            
-            # 기본 권한 설정 (모두 차단, 봇과 생성자 허용)
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=False),
                 guild.me: discord.PermissionOverwrite(view_channel=True),
                 interaction.user: discord.PermissionOverwrite(view_channel=True)
             }
             
-            # 입력된 멤버들을 권한 목록에 추가
             invited_members = []
             for m in [멤버1, 멤버2, 멤버3]:
                 if m:
@@ -124,14 +131,12 @@ class RoomManager(commands.Cog):
                     invited_members.append(m.mention)
 
             channel = await guild.create_text_channel(name=f"🔒-{제목}", category=category, overwrites=overwrites)
-            
             welcome_msg = f"✅ `{channel.name}` 생성 완료!"
             if invited_members:
                 welcome_msg += f"\n초대된 멤버: {', '.join(invited_members)}"
-            
             await interaction.followup.send(welcome_msg)
 
-        # [음성방 생성 및 대화방 삭제 로직은 동일]
+        # 4. 음성방 생성
         elif 작업 == "voice_setup":
             if not 제목: return await interaction.response.send_message("❌ 제목을 입력해주세요.", ephemeral=True)
             await interaction.response.defer(ephemeral=True)
@@ -139,6 +144,7 @@ class RoomManager(commands.Cog):
             channel = await guild.create_voice_channel(name=f"🎙️ {제목}", category=category, user_limit=인원수)
             await interaction.followup.send(f"✅ 음성방 생성: {channel.mention}")
 
+        # 5. 대화방 삭제
         elif 작업 == "text_delete":
             if not isinstance(interaction.channel, discord.TextChannel) or "🔒-" not in interaction.channel.name:
                 return await interaction.response.send_message("❌ 삭제 가능한 방이 아닙니다.", ephemeral=True)
