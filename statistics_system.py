@@ -281,14 +281,6 @@ class StatisticsManager:
                 # 데이터 구조에 모드별 카운트 추가 (기존 구조 유지하며 확장)
                 mode_key = f"{mode}_played"
                 game_stats[mode_key] = game_stats.get(mode_key, 0) + 1
-
-                # 전체 합계 기록 (기존 호환성 유지)
-                game_stats["played"] = game_stats.get("played", 0) + 1
-                if is_win:
-                    game_stats["won"] = game_stats.get("won", 0) + 1
-            
-                game_stats["total_bet"] = game_stats.get("total_bet", 0) + bet_amount
-                game_stats["total_payout"] = game_stats.get("total_payout", 0) + payout
                 
                 # 강화 시스템 특별 처리
                 if game_name == "enhancement":
@@ -298,8 +290,6 @@ class StatisticsManager:
                     game_stats["total_spent"] = game_stats.get("total_spent", 0) + bet_amount
                     print(f"🔧 강화 통계 업데이트: 시도 {game_stats['attempts']}, 성공 {game_stats['success']}")
                 else:
-                    # 일반 게임
-                    game_stats["played"] = game_stats.get("played", 0) + 1
                     if is_win:
                         game_stats["won"] = game_stats.get("won", 0) + 1
                     game_stats["total_bet"] = game_stats.get("total_bet", 0) + bet_amount
