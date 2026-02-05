@@ -325,46 +325,36 @@ class LotterySystem(commands.Cog):
         jackpot = data.get('jackpot', 0)
         total_prize = PRIZE_TABLE[1]['prize'] + jackpot
 
-        # 전체 판매 현황 계산 (추가된 부분)
+        # 전체 판매 현황 계산
         all_tickets = store.get('tickets', [])
         current_round_tickets = [t for t in all_tickets if t['round'] == round_num]
         total_ticket_count = len(current_round_tickets)
         total_user_count = len(set(t['user_id'] for t in current_round_tickets))
 
-        # 상금 정보를 딕셔너리로 묶음
+        # 상금 정보 묶음
         jackpot_info = {'total': total_prize, 'jackpot': jackpot}
         
         # 유저의 현재 회차 티켓 필터링
         user_id_str = str(interaction.user.id)
-        my_tickets = [t for t in store.get('tickets', []) if t['round'] == round_num and t['user_id'] == user_id_str]
-        
-        # 결과 출력 (티켓 유무에 따른 분기)
+        my_tickets = [t for t in current_round_tickets if t['user_id'] == user_id_str]
+
+        # --- 결과 출력 로직 정리 ---
         if not my_tickets:
+            # 티켓이 없을 때: 단일 임베드 생성 및 전송
             embed = discord.Embed(title=f"🎰 제 {round_num}회 파워볼 정보", color=discord.Color.blue())
             embed.add_field(name="현재 1등 예상 상금", value=f"**{db.format_money(total_prize)}**", inline=True)
             embed.add_field(name="이월된 상금", value=db.format_money(jackpot), inline=True)
+            embed.add_field(name="📊 현재 판매 현황", value=f"참여자: `{total_user_count}명` / 판매량: `{total_ticket_count}장`", inline=False)
             embed.add_field(name="🎫 내 티켓", value="구매한 티켓이 없습니다.", inline=False)
             await interaction.response.send_message(embed=embed)
         else:
-            # 티켓이 있을 때: 페이징 뷰 생성
+            # 티켓이 있을 때: PaginatorView 사용
             view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, jackpot_info, per_page=10)
-            await interaction.response.send_message(embed=view.create_embed(), view=view)
-
-        # 판매 현황 필드 추가
-        embed.add_field(
-            name="📊 현재 판매 현황", 
-            value=f"참여자: `{total_user_count}명` / 판매량: `{total_ticket_count}장`", 
-            inline=False
-        )
-        
-        if not my_tickets:
-            embed.add_field(name="🎫 내 티켓", value="구매한 티켓이 없습니다.", inline=False)
-            await interaction.response.send_message(embed=embed)
-        else:
-            view = TicketPaginatorView(my_tickets, interaction.user.display_name, round_num, db, jackpot_info, per_page=10)
+            main_embed = view.create_embed()
+            # Paginator 임베드에도 판매 현황 필드 추가
+            main_embed.add_field(name="📊 현재 판매 현황", value=f"참여자: `{total_user_count}명` / 판매량: `{total_ticket_count}장`", inline=False)
             
-            # PaginatorView의 임베드에도 판매 현황을 넣고 싶다면 create_embed 메서드 수정이 필요합니다.
-            await interaction.response.send_message(embed=view.create_embed(), view=view)
+            await interaction.response.send_message(embed=main_embed, view=view)
 
 
     @app_commands.command(name="로또추첨", description="[관리자 전용] 로또 추첨을 진행합니다.")

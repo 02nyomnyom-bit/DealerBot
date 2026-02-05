@@ -640,18 +640,18 @@ class StatisticsCog(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def server_statistics(self, interaction: discord.Interaction):
-        games = self.game_stats.get("games", {})
-
         if not self.stats:
-            return await interaction.response.send_message("❌ 시스템 오류", ephemeral=True)
+            return await interaction.response.send_message("❌ 시스템 오류: 통계 시스템이 로드되지 않았습니다.", ephemeral=True)
             
         await interaction.response.defer()
         
         try:
+            # StatisticsManager에서 데이터를 가져옴
+            games = self.stats.game_stats.get("games", {})
             server_stats = self.stats.get_server_stats(interaction.guild_id)
             now = datetime.datetime.now()
             
-            # ✅ 통계 기간 계산 (현재 달 1일 ~ 현재)
+            # ✅ 통계 기간 계산
             start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             last_day = monthrange(now.year, now.month)[1]
             period_str = f"한국기준 {now.month}월 1일 ~ {now.month}월 {last_day}일"
@@ -672,10 +672,11 @@ class StatisticsCog(commands.Cog):
 
             # 2️⃣ 경제 통계
             eco = server_stats.get('economy', {})
+            # ❌ Richardson 문자열 제거 (올바른 숫자 포맷팅 적용)
             embed.add_field(
                 name="💰 경제 통계",
-                value=f"총 배팅액: **{eco.get('total_points_consumed', 0):, Richardson}원**\n"
-                      f"총 지급액: **{eco.get('total_points_distributed', 0):, Richardson}원**\n"
+                value=f"총 배팅액: **{eco.get('total_points_consumed', 0):,}원**\n"
+                      f"총 지급액: **{eco.get('total_points_distributed', 0):,}원**\n"
                       f"전체 승률: **{eco.get('win_rate', 0):.1f}%**",
                 inline=False
             )
@@ -704,8 +705,11 @@ class StatisticsCog(commands.Cog):
 
         except Exception as e:
             logger.error(f"통계 출력 오류: {e}")
-            await interaction.followup.send(f"❌ 통계 생성 중 오류가 발생했습니다.")
-
+            # traceback을 출력하여 상세 에러 확인 (디버깅용)
+            import traceback
+            traceback.print_exc()
+            await interaction.followup.send(f"❌ 통계 생성 중 오류가 발생했습니다: {e}")
+            
     # ✅ 디버깅 명령어 추가
     @app_commands.command(name="통계디버그", description="[관리자 전용] 통계 시스템 디버깅 정보를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
