@@ -681,22 +681,35 @@ class StatisticsCog(commands.Cog):
                 inline=False
             )
 
-            # 3️⃣ 싱글 게임 TOP 5
+            # 3️⃣ 싱글 게임 TOP 5 (데이터 가공 및 필드 추가)
             single_list = []
             for g_name in SINGLE_GAMES:
                 if g_name in games:
                     data = games[g_name]
-                    # single_played가 있으면 사용, 없으면 기존 played 사용 (하이브리드 지원)
                     count = data.get('single_played', data.get('played', 0))
-                    single_list.append((self.stats.get_game_korean_name(g_name), count))
+                    if count > 0:
+                        single_list.append((self.stats.get_game_korean_name(g_name), count))
 
-            # 4️⃣ 멀티 게임 TOP 5
+            if single_list:
+                single_list.sort(key=lambda x: x[1], reverse=True) # 횟수 순 정렬
+                single_text = "\n".join([f"• {name}: **{count:,}회**" for name, count in single_list[:5]])
+                embed.add_field(name="🎮 인기 싱글 게임 (TOP 5)", value=single_text, inline=True)
+
+            # 4️⃣ 멀티 게임 TOP 5 (데이터 가공 및 필드 추가)
             multi_list = []
             for g_name in MULTI_GAMES:
                 if g_name in games:
                     data = games[g_name]
-                    count = data.get('multi_played', 0) # 멀티 데이터만 추출
-                    multi_list.append((self.stats.get_game_korean_name(g_name), count))
+                    count = data.get('multi_played', 0)
+                    if count > 0:
+                        multi_list.append((self.stats.get_game_korean_name(g_name), count))
+
+            if multi_list:
+                multi_list.sort(key=lambda x: x[1], reverse=True) # 횟수 순 정렬
+                multi_text = "\n".join([f"• {name}: **{count:,}회**" for name, count in multi_list[:5]])
+                embed.add_field(name="👥 인기 멀티 게임 (TOP 5)", value=multi_text, inline=True)
+            elif not single_list:
+                embed.add_field(name="ℹ️ 안내", value="아직 기록된 게임 데이터가 없습니다.", inline=False)
 
             # 5️⃣ 하단 정보
             embed.set_footer(text=f"기준: 한국 표준시 | 마지막 업데이트: {now.strftime('%Y-%m-%d %H:%M')}")
@@ -709,7 +722,7 @@ class StatisticsCog(commands.Cog):
             import traceback
             traceback.print_exc()
             await interaction.followup.send(f"❌ 통계 생성 중 오류가 발생했습니다: {e}")
-            
+
     # ✅ 디버깅 명령어 추가
     @app_commands.command(name="통계디버그", description="[관리자 전용] 통계 시스템 디버깅 정보를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
