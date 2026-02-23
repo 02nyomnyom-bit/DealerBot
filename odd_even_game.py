@@ -20,9 +20,9 @@ except ImportError:
     POINT_MANAGER_AVAILABLE = False
 
 # 상수 설정
-MAX_BET = 3000  # 최대 배팅금: 5천 원
-PUSH_RETENTION = 1.0
-WINNER_RETENTION = 1.0
+MAX_BET = 3000              # 최대 배팅금: 5천 원
+PUSH_RETENTION = 0.9        # 무승부 시 수수료 (10%)
+WINNER_RETENTION = 0.9      # 승리 시 수수료 (10%)
 
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
@@ -118,7 +118,7 @@ class SingleOddEvenView(View):
             f"선택: **{user_choice}**\n"
             f"결과: {DICE_EMOJIS[dice_val]} ({dice_val}) -> **{actual}**\n\n"
             f"**{result_text}**\n"
-            f"정산: {payout:,}원"
+            f"정산: {payout:,}원\n*10%의 딜러비가 차감된 후 지급됩니다."
         )
     
         await message.edit(embed=result_embed)
@@ -244,13 +244,13 @@ class MultiOddEvenView(View):
             total_pot = self.bet * 2
             reward = int(total_pot * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE: await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
-            res_msg = f"🏆 {winner.mention} 승리! **{reward:,}원** 획득!"
+            res_msg = f"🏆 {winner.mention} 승리! **{reward:,}원** 획득!\n*10%의 딜러비가 차감된 후 지급됩니다."
         else:
             refund = int(self.bet * PUSH_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            res_msg = f"🤝 무승부! (**{refund:,}원** 환불)"
+            res_msg = f"🤝 무승부! (**{refund:,}원** 환불)\n*10%의 딜러비가 차감된 후 지급됩니다."
 
         result_embed = discord.Embed(title="🎲 홀짝 대결 결과", color=discord.Color.purple())
         result_embed.description = (

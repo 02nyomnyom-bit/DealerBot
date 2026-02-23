@@ -10,7 +10,7 @@ import asyncio
 # 설정 상수
 SUCCESS_RATES = [0.6, 0.55, 0.5, 0.45, 0.4] # 각 라운드 별 성공률
 MAX_CHALLENGES = 5                          # 최대 도전 가능 횟수 (5연승 시 자동 종료)
-WINNER_RETENTION = 1.0
+WINNER_RETENTION = 0.9                      # 승리 시 수수료 (10%)
 active_games_by_user = set()                # 중복 게임 방지를 위한 현재 진행 중인 유저 목록
 
 # 통계 시스템 연동 (모듈이 없을 경우를 대비한 예외 처리)
@@ -82,7 +82,7 @@ class YabawiGameView(View):
                     payout = int(self.current_pot * WINNER_RETENTION)
                     await point_manager.add_point(self.bot, self.guild_id, self.user_id, payout)
                     record_yabawi_game(self.user_id, self.user.display_name, self.base_bet, payout, True)
-                    timeout_msg = f"⏰ 시간 초과! 현재까지의 보상 {payout:,}원이 지급되었습니다."
+                    timeout_msg = f"⏰ 시간 초과! 현재까지의 보상 {payout:,}원이 지급되었습니다.\n*10%의 딜러비가 차감된 후 지급됩니다."
                 else:
                     # 첫 판에서 잠수 시 원금 환불
                     await point_manager.add_point(self.bot, self.guild_id, self.user_id, self.base_bet)
@@ -155,7 +155,7 @@ class YabawiGameView(View):
                 active_games_by_user.discard(self.user_id)
                 
                 embed = discord.Embed(title="🏆 전설의 야바위꾼!", description=f"5연승 달성! 보상이 지급됩니다.\n{cups_display}", color=discord.Color.gold())
-                embed.add_field(name="💰 최종 수령액", value=f"{final_payout:,}원")
+                embed.add_field(name="💰 최종 수령액", value=f"{final_payout:,}원\n*10%의 딜러비가 차감된 후 지급됩니다.")
                 await interaction.response.edit_message(embed=embed, view=None)
             else:
                 embed = discord.Embed(title="🎉 성공!", description=f"정답입니다! 현재 {self.wins}연승 중!\n{cups_display}", color=discord.Color.green())
@@ -200,7 +200,7 @@ class StopButton(discord.ui.Button):
         active_games_by_user.discard(view.user_id)
         
         embed = discord.Embed(title="💰 게임 종료", description=f"보상을 수령했습니다.", color=discord.Color.blue())
-        embed.add_field(name="💵 최종 수령액", value=f"{final_payout:,}원")
+        embed.add_field(name="💵 최종 수령액", value=f"{final_payout:,}원\n*10%의 딜러비가 차감된 후 지급됩니다.")
         await interaction.response.edit_message(embed=embed, view=None)
 
 class ContinueButton(discord.ui.Button):

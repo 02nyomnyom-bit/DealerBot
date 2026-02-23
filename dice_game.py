@@ -22,9 +22,9 @@ except ImportError:
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
 # 상수 설정
-MAX_BET = 3000          # 최대 배팅금: 5천 원
-PUSH_RETENTION = 1.0      # 무승부 시 수수료 
-WINNER_RETENTION = 1.0    # 승리 시 수수료
+MAX_BET = 3000              # 최대 배팅금: 5천 원
+PUSH_RETENTION = 0.9        # 무승부 시 수수료 (10%)
+WINNER_RETENTION = 0.9      # 승리 시 수수료 (10%)
 
 # 애니메이션
 async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):
@@ -97,7 +97,7 @@ class DiceModeSelectView(View):
 
         # 6. 최종 결과 표시
         result_embed = discord.Embed(title="🎲 주사위 결과", color=discord.Color.gold() if is_win else discord.Color.red())
-        result_embed.description = f"**{res_msg}**\n정산: {payout:,}원"
+        result_embed.description = f"**{res_msg}**\n정산: {payout:,}원\n*10%의 딜러비가 차감된 후 지급됩니다."
         result_embed.add_field(name=f"👤 {self.user.display_name}", value=f"{DICE_EMOJIS[user_roll]} ({user_roll})", inline=True)
         result_embed.add_field(name="🤖 봇", value=f"{DICE_EMOJIS[bot_roll]} ({bot_roll})", inline=True)
 
@@ -250,7 +250,7 @@ class MultiDiceView(View):
             reward = int(self.bet * 2 * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
-            reward_text = f"\n**{reward:,}원** 획득!"
+            reward_text = f"\n**{reward:,}원** 획득!\n*10%의 딜러비가 차감된 후 지급됩니다."
             if winner == self.p1: p1_payout = reward
             else: p2_payout = reward
         else: # 무승부
@@ -258,7 +258,7 @@ class MultiDiceView(View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            reward_text = f"\n**{refund:,}원** 환불"
+            reward_text = f"\n**{refund:,}원** 환불\n*10%의 딜러비가 차감된 후 지급됩니다."
             p1_payout = p2_payout = refund
 
         # 통계 기록 (무승부 포함)

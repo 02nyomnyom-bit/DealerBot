@@ -27,9 +27,9 @@ class ChannelConfig(commands.Cog):
         app_commands.Choice(name="강화,내강화,강화순위,공격,강화정보", value="enhancement"),
         app_commands.Choice(name="로또", value="lottery"),
         app_commands.Choice(name="홀짝", value="odd_even"),
-        app_commands.Choice(name="가위바위보", value="r_p_s"),
+        app_commands.Choice(name="가위바위보(정지)", value="r_p_s"),
         app_commands.Choice(name="슬롯머신", value="slot"),
-        app_commands.Choice(name="야바위", value="yabawi"),
+        app_commands.Choice(name="야바위(정지)", value="yabawi"),
         app_commands.Choice(name="익명", value="anonymous"),
         app_commands.Choice(name="보이스", value="voice"),
     ]

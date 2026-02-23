@@ -11,19 +11,19 @@ from typing import List, Dict, Optional
 
 # 상금 테이블 및 설정
 PRIZE_TABLE = {
-    1: {"name": "1등", "prize": 500000, "desc": "일반볼 5개 + 파워볼 일치"},
-    2: {"name": "2등", "prize": 100000, "desc": "일반볼 5개 일치"},
-    3: {"name": "3등", "prize": 50000, "desc": "일반볼 4개 + 파워볼 일치"},
-    4: {"name": "4등", "prize": 20000, "desc": "일반볼 4개 일치"},
-    5: {"name": "5등", "prize": 10000, "desc": "일반볼 3개 + 파워볼 일치"},
-    6: {"name": "6등", "prize": 5000, "desc": "일반볼 3개 일치"},
-    7: {"name": "7등", "prize": 3000, "desc": "일반볼 2개 + 파워볼 일치"},
-    8: {"name": "8등", "prize": 2000, "desc": "일반볼 1개 + 파워볼 일치"},
+    1: {"name": "1등", "prize": 100000, "desc": "일반볼 5개 + 파워볼 일치"},
+    2: {"name": "2등", "prize": 80000, "desc": "일반볼 5개 일치"},
+    3: {"name": "3등", "prize": 60000, "desc": "일반볼 4개 + 파워볼 일치"},
+    4: {"name": "4등", "prize": 40000, "desc": "일반볼 4개 일치"},
+    5: {"name": "5등", "prize": 20000, "desc": "일반볼 3개 + 파워볼 일치"},
+    6: {"name": "6등", "prize": 10000, "desc": "일반볼 3개 일치"},
+    7: {"name": "7등", "prize": 5000, "desc": "일반볼 2개 + 파워볼 일치"},
+    8: {"name": "8등", "prize": 3000, "desc": "일반볼 1개 + 파워볼 일치"},
     9: {"name": "보너스", "prize": 1000, "desc": "파워볼 일치"}
 }
 
 TICKET_PRICE = 5000
-JACKPOT_ACCUMULATION_RATE = 0.5  # 판매 금액의 50%를 잭팟에 적립
+JACKPOT_ACCUMULATION_RATE = 0.9  # 판매 금액의 10%를 잭팟에 적립
 
 class LotteryManager:
     """서버별 로또 데이터 및 티켓 통합 관리 객체"""
