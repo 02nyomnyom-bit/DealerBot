@@ -428,6 +428,32 @@ class LotterySystem(commands.Cog):
             
             if current_message:
                 await interaction.channel.send(current_message)
+    
+    @app_commands.command(name="로또초기화", description="[관리자 전용] 해당 서버의 로또 데이터를 1회차로 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    async def reset_lottery(self, interaction: discord.Interaction):
+        guild_id = str(interaction.guild.id)
+        
+        # 해당 서버의 데이터를 초기 상태로 덮어쓰기
+        self.manager.guilds[guild_id] = {
+            "data": {
+                "round": 1, 
+                "total_sales": 0, 
+                "jackpot": 0, 
+                "last_draw_numbers": [], 
+                "last_draw_bonus": None
+            },
+            "tickets": []
+        }
+        
+        # 파일 저장
+        self.manager.save_all_data()
+        
+        await interaction.response.send_message(
+            f"✅ **{interaction.guild.name}** 서버의 로또 시스템이 1회차로 초기화되었습니다.", 
+            ephemeral=False
+        )
 
 async def setup(bot):
     await bot.add_cog(LotterySystem(bot))
