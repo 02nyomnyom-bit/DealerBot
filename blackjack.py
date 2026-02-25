@@ -383,7 +383,7 @@ class MultiBlackjackView(View):
             reward = int((self.bet * 2) * WINNER_RETENTION)
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(winner.id), reward)
-            reward_msg = f"💰 {winner.mention} 승리! **{reward:,}원** 획득!\n*10%의 딜러비가 차감된 후 지급됩니다."
+            reward_msg = f"💰 {winner.mention} 승리! **{reward:,}원** 획득!\n*20%의 딜러비가 차감된 후 지급됩니다."
             if winner.id == self.p1.id: p1_payout = reward
             else: p2_payout = reward
         else:
@@ -391,7 +391,7 @@ class MultiBlackjackView(View):
             if POINT_MANAGER_AVAILABLE:
                 await point_manager.add_point(self.bot, guild_id, str(self.p1.id), refund)
                 await point_manager.add_point(self.bot, guild_id, str(self.p2.id), refund)
-            reward_msg = f"🤝 무승부! **{refund:,}원**이 환불되었습니다.\n*10%의 딜러비가 차감된 후 지급됩니다."
+            reward_msg = f"🤝 무승부! **{refund:,}원**이 환불되었습니다.\n*20%의 딜러비가 차감된 후 지급됩니다."
             p1_payout = p2_payout = refund
 
         record_blackjack_game(str(self.p1.id), self.p1.display_name, self.bet, p1_payout, winner == self.p1)
@@ -475,7 +475,7 @@ class BlackjackView(View):
         record_blackjack_game(str(self.user.id), self.user.display_name, self.bet, payout, is_win)
 
         final_embed = self.create_game_embed(final=True)
-        result_text = f"{self.game.result.upper()} (정산: {payout:,}원)\n*10%의 딜러비가 차감된 후 지급됩니다."
+        result_text = f"{self.game.result.upper()} (정산: {payout:,}원)\n*20%의 딜러비가 차감된 후 지급됩니다."
         if is_blackjack_win:
             result_text = f"♣️ BLACKJACK! {result_text}"
         final_embed.add_field(name="결과", value=result_text, inline=False)
