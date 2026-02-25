@@ -20,9 +20,9 @@ except ImportError:
     STATS_AVAILABLE = False
 
 # 상수 및 데이터
-MAX_BET = 5000              # 최대 배팅금
-PUSH_RETENTION = 0.9        # 무승부 시 수수료 (10%)
-WINNER_RETENTION = 0.9      # 승리 시 수수료 (10%)
+MAX_BET = 5000              # 최대 배팅금: 5천 원
+PUSH_RETENTION = 0.8        # 무승부 시 수수료 (20%)
+WINNER_RETENTION = 0.8      # 승리 시 수수료 (20%)
 RPS_EMOJIS = {"가위": "✌️", "바위": "✊", "보": "✋"}
 
 def record_rps_game(user_id: str, username: str, bet: int, payout: int, is_win: bool):
@@ -198,7 +198,7 @@ class MultiRPSView(View):
         if user.id in self.choices:
             return await interaction.response.send_message("❌ 이미 선택하셨습니다.", ephemeral=True)
 
-        # 2. 플레이어 자격 및 공개 대전 난입 처리
+        # 2. 주민 자격 및 공개 대전 난입 처리
         if user.id == self.p1.id:
             pass # 방장은 이미 포인트가 차감된 상태임
         elif self.p2 is not None:

@@ -215,7 +215,7 @@ class SlotMachineCog(commands.Cog):
 
             # 등록 여부 확인
             if not await point_manager.is_registered(self.bot, guild_id, uid):
-                return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
+                return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요.", ephemeral=True)
             # 배팅 금액 제한 체크
             if 배팅 < 100 or 배팅 > 10000:
                 return await interaction.response.send_message("⚠️ 배팅 금액은 100~10,000원 사이여야 합니다.", ephemeral=True)

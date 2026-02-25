@@ -23,8 +23,8 @@ except ImportError:
 
 # 상수 설정
 MAX_BET = 6000              # 최대 배팅금: 6천 원
-PUSH_RETENTION = 0.9        # 무승부 시 수수료 (10%)
-WINNER_RETENTION = 0.9      # 승리 시 수수료 (10%)
+PUSH_RETENTION = 0.8        # 무승부 시 수수료 (20%)
+WINNER_RETENTION = 0.8      # 승리 시 수수료 (20%)
 
 # 카드 및 이모지 정의
 CARD_DECK = {
@@ -437,7 +437,7 @@ class BlackjackView(View):
         p_val = self.game.calculate_hand_value(self.game.player_cards)
         d_val = self.game.calculate_hand_value(self.game.dealer_cards)
         embed = discord.Embed(title="🃏 블랙잭", color=discord.Color.blue())
-        embed.add_field(name="플레이어", value=f"{self.game.get_card_display(self.game.player_cards)}\n({p_val}점)")
+        embed.add_field(name="주민", value=f"{self.game.get_card_display(self.game.player_cards)}\n({p_val}점)")
         d_display = self.game.get_card_display(self.game.dealer_cards, hide_first=not final)
         embed.add_field(name="딜러", value=f"{d_display}\n({'??' if not final else d_val}점)")
         return embed

@@ -106,7 +106,7 @@ class AttendanceMasterCog(commands.Cog):
         if not db.get_user(user_id):
             embed = discord.Embed(
                 title="❌ 미등록 사용자",
-                description="먼저 `/등록` 명령어로 플레이어 등록을 해주세요!",
+                description="먼저 `/등록` 명령어로 명단에 등록을 해주세요!",
                 color=discord.Color.red()
             )
             return await interaction.followup.send(embed=embed)
@@ -276,7 +276,7 @@ class AttendanceMasterCog(commands.Cog):
         if not db.get_user(user_id):
             embed = discord.Embed(
                 title="❌ 미등록 사용자",
-                description="먼저 `/등록` 명령어로 플레이어 등록을 해주세요!",
+                description="먼저 `/등록` 명령어로 명단에 등록을 해주세요!",
                 color=discord.Color.red()
             )
             return await interaction.followup.send(embed=embed)

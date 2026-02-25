@@ -343,11 +343,11 @@ class RealtimeUpdateSystem(commands.Cog):
                 )
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="안녕", description="딜러양과 인사하고 최신 뉴스를 확인합니다.")
+    @app_commands.command(name="안녕", description="보석상과 인사하고 최신 뉴스를 확인합니다.")
     async def hello_with_updates(self, interaction: discord.Interaction):
         # 기본 인사말
         embed = discord.Embed(
-            title="👋 안녕하세요! 딜러양입니다",
+            title="👋 안녕하세요! 보석상입니다",
             description=f"{interaction.user.display_name}님, 어서오세요! 🎉",
             color=discord.Color.gold()
         )
@@ -383,7 +383,7 @@ class RealtimeUpdateSystem(commands.Cog):
             inline=True
         )
         
-        embed.set_footer(text="딜러양 v1.8.4 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="보석상 v1.9.0 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 

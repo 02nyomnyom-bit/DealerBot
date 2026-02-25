@@ -37,7 +37,7 @@ class UserNotRegisteredError(Exception):
     """사용자가 등록되지 않았을 때 발생하는 에러"""
     def __init__(self, user_id: str = None):
         self.user_id = user_id
-        super().__init__("사용자가 플레이어로 등록되지 않았습니다.")
+        super().__init__("사용자가 명단에 등록되지 않았습니다.")
 
 class InsufficientFundsError(Exception):
     """잔액이 부족할 때 발생하는 에러"""
@@ -219,7 +219,7 @@ class ErrorHandler(commands.Cog):
             await self.send_error_message(
                 interaction,
                 "❗ 미등록 사용자",
-                "먼저 `/등록` 명령어로 플레이어 등록해주세요!"
+                "먼저 `/등록` 명령어로 명단에 등록해주세요!"
             )
         
         elif isinstance(error, InsufficientFundsError):
@@ -414,7 +414,7 @@ def handle_common_errors(func):
             if interaction:
                 await safe_send(
                     interaction,
-                    "❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요!",
+                    "❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!",
                     ephemeral=True
                 )
         except InsufficientFundsError as e:

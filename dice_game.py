@@ -22,9 +22,9 @@ except ImportError:
 DICE_EMOJIS = {1: "⚀", 2: "⚁", 3: "⚂", 4: "⚃", 5: "⚄", 6: "⚅"}
 
 # 상수 설정
-MAX_BET = 3000              # 최대 배팅금: 5천 원
-PUSH_RETENTION = 0.9        # 무승부 시 수수료 (10%)
-WINNER_RETENTION = 0.9      # 승리 시 수수료 (10%)
+MAX_BET = 3000              # 최대 배팅금: 3천 원
+PUSH_RETENTION = 0.8        # 무승부 시 수수료 (20%)
+WINNER_RETENTION = 0.8      # 승리 시 수수료 (20%)
 
 # 애니메이션
 async def play_dice_animation(message: discord.InteractionMessage, base_embed: discord.Embed):

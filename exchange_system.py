@@ -199,7 +199,7 @@ class ExchangeCog(commands.Cog):
         user_id = str(interaction.user.id)
         
         if not await is_registered(self.bot, interaction.guild_id, user_id):
-            return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 플레이어 등록을 해주세요!")
+            return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 명단에 등록을 해주세요!")
             
         if not self.db_cog or not POINT_MANAGER_AVAILABLE:
             return await interaction.followup.send("❌ 시스템 오류: 데이터베이스 또는 포인트 관리 시스템을 불러올 수 없습니다. 관리자에게 문의해주세요.")
@@ -250,7 +250,7 @@ class ExchangeCog(commands.Cog):
 
     # 현금을 XP로 교환
     @app_commands.command(name="경험치교환", description="현금을 XP로 교환합니다. 수수료가 부과됩니다.")
-    @app_commands.describe(cash_amount="교환할 현금")
+    @app_commands.describe(cash_amount="교환할 현금 (최대 100,000)")
     async def exchange_cash_to_xp(self, interaction: discord.Interaction, cash_amount: int):
         config_cog = self.bot.get_cog("ChannelConfig")
         if config_cog:
@@ -262,7 +262,7 @@ class ExchangeCog(commands.Cog):
         user_id = str(interaction.user.id)
         
         if not await is_registered(self.bot, interaction.guild_id, user_id):
-            return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 플레이어 등록을 해주세요!")
+            return await interaction.followup.send("❌ 먼저 `/등록` 명령어로 명단에 등록을 해주세요!")
         
         if not self.db_cog or not POINT_MANAGER_AVAILABLE:
             return await interaction.followup.send("❌ 시스템 오류가 발생했습니다.")
@@ -272,6 +272,9 @@ class ExchangeCog(commands.Cog):
         
         if cash_amount <= 0:
             return await interaction.followup.send("❌ 교환할 현금은 0보다 커야 합니다.")
+        
+        if cash_amount > 100000:
+            return await interaction.followup.send("❌ 한 번에 최대 10만 원까지만 교환할 수 있습니다.")
             
         current_cash = await get_point(self.bot, interaction.guild_id, user_id)
         db = self.db_cog.get_manager(str(interaction.guild.id))

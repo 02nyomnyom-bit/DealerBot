@@ -506,7 +506,7 @@ class PointManager(commands.Cog):
         db = self._get_db(interaction.guild_id)
         # 보내는 사람 등록 확인
         if not db.get_user(sender_id):
-            await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요.", ephemeral=True)
+            await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요.", ephemeral=True)
             return
         
         # 받는 사람 등록 확인 (자동 등록)

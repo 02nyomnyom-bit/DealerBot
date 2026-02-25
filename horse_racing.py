@@ -145,7 +145,7 @@ class ManualSignupView(discord.ui.View):
         # 등록된 사용자인지 확인 (통일된 확인 방식)
         if not await point_manager.is_registered(self.bot, guild_id, user_id):
             return await interaction.response.send_message(
-                "❗ 먼저 `/등록` 명령어로 플레이어 등록해주세요!", 
+                "❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", 
                 ephemeral=True
             )
         
@@ -209,7 +209,7 @@ class ManualSignupView(discord.ui.View):
         try:
             embed = discord.Embed(
                 title="🐎 경마 참가자 모집 중",
-                description="⚠️ **플레이어 등록자만 참가 가능합니다!**\n아래 버튼을 눌러 경마에 참가하세요!",
+                description="⚠️ **명단에 등록된 자만 참가 가능합니다!**\n아래 버튼을 눌러 경마에 참가하세요!",
                 color=discord.Color.blue()
             )
             
@@ -596,7 +596,7 @@ class HorseRacingCog(commands.Cog):
                 
                 embed = discord.Embed(
                     title="🐎 경마 참가자 모집",
-                    description="⚠️ **플레이어 등록자만 참가 가능합니다!**\n아래 버튼을 눌러 경마에 참가하세요!",
+                    description="⚠️ **명단에 등록된 자만 참가 가능합니다!**\n아래 버튼을 눌러 경마에 참가하세요!",
                     color=discord.Color.blue()
                 )
                 
@@ -604,7 +604,7 @@ class HorseRacingCog(commands.Cog):
                 embed.add_field(name="✅ 현재 참가자", value="0명", inline=True)
                 embed.add_field(name="⏰ 모집 시간", value="3분", inline=True)
                 embed.add_field(name="🏇 참가자 목록", value="아직 참가자가 없습니다.", inline=False)
-                embed.add_field(name="📝 참가 조건", value="플레이어 등록된 사용자만 참가 가능", inline=False)
+                embed.add_field(name="📝 참가 조건", value="명단에 등록된 자만 참가 가능", inline=False)
                 
                 embed.set_footer(text=f"주최자: {interaction.user.display_name} | 3분 후 자동 시작 또는 인원 충족 시 즉시 시작")
                 

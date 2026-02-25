@@ -10,7 +10,7 @@ import asyncio
 # 설정 상수
 SUCCESS_RATES = [0.6, 0.55, 0.5, 0.45, 0.4] # 각 라운드 별 성공률
 MAX_CHALLENGES = 5                          # 최대 도전 가능 횟수 (5연승 시 자동 종료)
-WINNER_RETENTION = 0.9                      # 승리 시 수수료 (10%)
+WINNER_RETENTION = 0.8                      # 승리 시 수수료 (20%)
 active_games_by_user = set()                # 중복 게임 방지를 위한 현재 진행 중인 유저 목록
 
 # 통계 시스템 연동 (모듈이 없을 경우를 대비한 예외 처리)
@@ -48,7 +48,7 @@ class YabawiGameView(View):
     # 게임 실행자만 버튼을 누를 수 있도록 체크하는 보안 함수
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
-            await interaction.response.send_message("❌ 이 게임의 플레이어만 조작할 수 있습니다.", ephemeral=True)
+            await interaction.response.send_message("❌ 이 게임의 명단있는 자만 조작할 수 있습니다.", ephemeral=True)
             return False
         return True
     
