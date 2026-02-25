@@ -319,17 +319,17 @@ class EnhancedBot(commands.Bot):
         if 5 <= hour < 9:
             greeting = "“행운으로 시작하는 하루”"
         elif 9 <= hour < 12:
-            greeting = "“오전 테이블 오픈”"
+            greeting = "“오전 오픈”"
         elif 12 <= hour < 13:
             greeting = "“여유로운 점심 시간”"
         elif 13 <= hour < 18:
-            greeting = "“오후 테이블이 준비”"
+            greeting = "“오후 시장 준비”"
         elif 18 <= hour < 20:
-            greeting = "“저녁 메인 테이블이 가동”"
+            greeting = "“저녁 암시장 오픈”"
         elif 20 <= hour < 23:
-            greeting = "“나이트 테이블이 시작”"
+            greeting = "“암거래 시작”"
         else: # 24시 ~ 5시
-            greeting = "“새벽의 깊은 승부 중”"
+            greeting = "“새벽 밀수하는 중”"
 
         status_text = f"📅{date_str} | {greeting} | (v1.9.0)"
         
