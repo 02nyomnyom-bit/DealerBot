@@ -78,8 +78,6 @@ class DiceModeSelectView(View):
             is_win = True
             res_msg = "🏆 승리!"
             payout = int(self.bet * 2 * WINNER_RETENTION)
-            if POINT_MANAGER_AVAILABLE:
-                await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
         elif user_roll < bot_roll:
             is_win = False
             res_msg = "💀 패배..."

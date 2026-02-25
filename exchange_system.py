@@ -134,8 +134,11 @@ class ExchangeSystem:
             logger.error(f"❌ 교환 기록 저장 오류: {e}")
 
     def get_user_daily_exchanges(self, user_id: str) -> int:
-        """오늘 교환 횟수 계산"""
-        today_str = datetime.datetime.now().date().isoformat()
+        """오늘 교환 횟수 계산 (KST 기준)"""
+        # 한국 시간(UTC+9) 설정
+        timezone_kst = datetime.timezone(datetime.timedelta(hours=9))
+        today_str = datetime.datetime.now(timezone_kst).date().isoformat()
+    
         return sum(1 for entry in self.exchange_history if entry.get('user_id') == user_id and entry['date'].startswith(today_str))
 
     def check_cooldown(self, user_id: str) -> bool:
@@ -152,9 +155,11 @@ class ExchangeSystem:
         self.cooldowns[user_id] = datetime.datetime.now()
 
     def record_exchange(self, interaction: discord.Interaction, exchange_type: str, amount: int, result: int):
-        """교환 기록 저장"""
+        """교환 기록 저장 (KST 기준)"""
+        timezone_kst = datetime.timezone(datetime.timedelta(hours=9))
+    
         self.exchange_history.append({
-            "date": datetime.datetime.now().isoformat(),
+            "date": datetime.datetime.now(timezone_kst).isoformat(), # KST 기준으로 저장
             "user_id": str(interaction.user.id),
             "guild_id": str(interaction.guild.id),
             "type": exchange_type,
