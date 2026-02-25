@@ -443,34 +443,31 @@ class BlackjackView(View):
         return embed
 
     async def end_game(self, interaction: discord.Interaction = None):
-        if self.message is None and interaction:
-            try:
-                self.message = await interaction.original_response()
-            except: pass
-
+        # 1. 게임 종료 상태 확정 (중복 실행 방지)
+        if getattr(self, "_already_ended", False):
+            return
+        self._already_ended = True
+        
         self.game.game_over = True
         self.game.determine_winner()
-    
-        # [보강] interaction과 self.message 둘 다 없을 경우를 대비
-        guild_id = None
-        if self.message: guild_id = self.message.guild.id
-        elif interaction: guild_id = interaction.guild_id
-        
-        if guild_id is None: return # 에러 방지
         
         payout = 0
         is_win = self.game.result in ["win", "dealer_bust"]
         is_blackjack_win = self.game.is_blackjack(self.game.player_cards) and is_win
 
         if is_blackjack_win:
-            payout = int(self.bet * 2.5 * WINNER_RETENTION)
+            # 블랙잭 승리 (배팅금의 2.5배에서 20% 수수료 제외)
+            payout = int(self.bet * 2.5 * WINNER_RETENTION) 
         elif is_win:
+            # 일반 승리 (배팅금의 2배에서 20% 수수료 제외)
             payout = int(self.bet * 2 * WINNER_RETENTION)
         elif self.game.result == "push":
+            # 무승부 (배팅금 그대로 환불받고 싶다면 PUSH_RETENTION을 1.0으로 수정 필요)
             payout = int(self.bet * PUSH_RETENTION)
 
+        # 3. 포인트 지급 (실제 지급은 여기서 딱 한 번만!)
         if POINT_MANAGER_AVAILABLE and payout > 0:
-            await point_manager.add_point(self.bot, guild_id, str(self.user.id), payout)
+            await point_manager.add_point(self.bot, interaction.guild_id, str(self.user.id), payout)
 
         record_blackjack_game(str(self.user.id), self.user.display_name, self.bet, payout, is_win)
 
