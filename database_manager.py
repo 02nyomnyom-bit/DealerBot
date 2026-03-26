@@ -301,6 +301,50 @@ class DatabaseManager:
                 PRIMARY KEY (channel_id, feature_type)
             )
         ''')
+
+        # 🎣 낚시터 정보 테이블 추가
+        self.create_table(
+            "fishing_ground",
+            """
+            channel_id TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            channel_name TEXT DEFAULT '',
+            owner_id TEXT,                    -- 땅주인 ID
+            ground_price INTEGER DEFAULT 500000, -- 땅값
+            usage_fee INTEGER DEFAULT 1000,     -- 이용 가격
+            pollution INTEGER DEFAULT 0,       -- 오염도 (버리기 시 상승)
+            ground_reputation INTEGER DEFAULT 0, -- 낚시터 명성
+            tier INTEGER DEFAULT 1,            -- 낚시터 등급
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (channel_id, guild_id)
+            """
+        )
+
+        # 🎣 낚시 장비(인벤토리) 보관 테이블 추가
+        self.create_table(
+            "fishing_inventory",
+            """
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            fish_name TEXT NOT NULL,
+            length REAL NOT NULL,
+            caught_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            """
+        )
+        
+        def add_fishing_reputation(self, user_id: str, amount: int):
+            """개인 낚시 명성 추가"""
+            if not self.guild_id: return None
+            return self.execute_query('UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?', (amount, user_id, self.guild_id))
+
+        def update_max_fish_length(self, user_id: str, new_length: float):
+            """최대 잡은 물고기 길이 경신"""
+            if not self.guild_id: return None
+            current = self.get_user(user_id)
+            current_max = current.get('max_fish_length', 0.0) if current else 0.0
+            if new_length > current_max:
+                return self.execute_query('UPDATE users SET max_fish_length = ? WHERE user_id = ? AND guild_id = ?', (new_length, user_id, self.guild_id))
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -338,7 +382,16 @@ class DatabaseManager:
                         logger.info("✅ user_xp 테이블에 UNIQUE(user_id, guild_id) 제약 조건 추가 완료.")
                     except sqlite3.IntegrityError:
                         logger.warning("⚠️ user_xp 테이블에 기존 중복 데이터가 있어 UNIQUE 제약 조건 추가 실패. 수동 확인 필요.")
-                
+                # users 테이블에 낚시 개인 명성 컬럼이 없으면 추가
+                if 'fishing_reputation' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
+                    logger.info("✅ users 테이블에 'fishing_reputation' 컬럼 추가 완료.")
+
+                # users 테이블에 최대 크기 물고기 컬럼이 없으면 추가
+                if 'max_fish_length' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
+                    logger.info("✅ users 테이블에 'max_fish_length' 컬럼 추가 완료.")
+                    
                 conn.commit()
                 logger.info("✅ 모든 테이블 생성 및 스키마 검증 완료.")
             except sqlite3.Error as e:
@@ -383,7 +436,7 @@ class DatabaseManager:
                 # INSERT, UPDATE, DELETE 쿼리는 변경사항을 커밋
                 if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
                     conn.commit()
-            
+                
                 if fetch_type == 'one':
                     return cursor.fetchone()
                 elif fetch_type == 'all':
