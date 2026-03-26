@@ -333,15 +333,19 @@ class FishingGameView(discord.ui.View):
         await asyncio.sleep(3.0)
         if not self.responded and self.stage == "bite":
             self.stage = "ended"
-            self.remove_from_session()
+            
+            # 🔥 여기에 5초 쿨타임 태스크 예약
+            asyncio.create_task(self.remove_from_session())
+
             embed.title = "💨 물고기를 놓쳤다..."
-            embed.description = "타이밍이 늦었습니다. 물고기가 미끼만 먹고 도망갔습니다."
+            embed.description = "타이밍이 늦었습니다. 물고기가 미끼만 먹고 도망갔습니다. (5초 쿨타임이 적용됩니다.)"
             embed.color = discord.Color.dark_gray()
             await interaction.edit_original_response(embed=embed, view=None)
-
-    def remove_from_session(self):
-        if active_sessions.get(self.user.id) == self:
-            active_sessions.pop(self.user.id, None)
+            
+async def remove_from_session(self):
+    if active_sessions.get(self.user.id) == self:
+        await asyncio.sleep(5.0) # 🛑 게임 종료 후 5초 동안 세션 유지 (명령어 사용 불가)
+        active_sessions.pop(self.user.id, None)
 
 
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
@@ -349,45 +353,51 @@ class FishingGameView(discord.ui.View):
         if interaction.user != self.user:
             return await interaction.response.send_message("본인의 낚싯대만 당길 수 있습니다!", ephemeral=True)
 
-        if self.responded: return
+        if self.responded: 
+            return await interaction.response.send_message("이미 낚싯줄을 당기는 중입니다!", ephemeral=True)
+            
         self.responded = True
+        await interaction.response.defer() 
         self.stop()
+
+        asyncio.create_task(self.remove_from_session())
+        
         self.remove_from_session()
 
         if self.stage == "waiting":
             embed = discord.Embed(title="❌ 너무 성급했습니다!", description="아무것도 건지지 못했습니다.", color=discord.Color.light_gray())
-            return await interaction.response.edit_message(embed=embed, view=None)
+            return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
 
         if not self.is_real:
             embed = discord.Embed(title="❌ 아차! 가짜 입질!", description="물고기가 아니라 헛것이었네요.", color=discord.Color.light_gray())
-            return await interaction.response.edit_message(embed=embed, view=None)
+            return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
 
         # 낚시 성공 시 내구도 1 소모
         self.db.execute_query("UPDATE fishing_gear SET rod_durability = rod_durability - 1 WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)))
         self.db.add_user_xp(str(self.user.id), 10)
 
+        # 쓰레기 획득 확률 (30%)
         if random.random() < 0.30:
             trash = random.choice(TRASH_LIST)
             if trash["type"] == "loss":
                 embed = discord.Embed(title="🚮 아이고! 쓰레기입니다!", description=f"**[{trash['name']}]**을(를) 낚았습니다.\n처리 방식을 선택하세요.", color=discord.Color.orange())
                 view = TrashActionView(self.user, trash["value"], self.db)
-                return await interaction.response.edit_message(embed=embed, view=view)
+                return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=view)
             elif trash["type"] == "profit":
                 self.db.add_user_cash(str(self.user.id), trash["value"])
                 self.db.add_transaction(str(self.user.id), "낚시 보물 발견", trash["value"], f"{trash['name']} 획득")
                 embed = discord.Embed(title="💎 보물 발견!", description=f"**[{trash['name']}]**을(를) 건졌습니다!\n주워다 팔아 **{trash['value']:,}원**을 벌었습니다.", color=discord.Color.gold())
-                return await interaction.response.edit_message(embed=embed, view=None)
+                return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
             else:
                 embed = discord.Embed(title="🗑️ 쓰레기 획득", description=f"**[{trash['name']}]**을(를) 건졌습니다. 가치는 없습니다.", color=discord.Color.light_gray())
-                return await interaction.response.edit_message(embed=embed, view=None)
+                return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
 
         # ✨ [지형 판별 시스템] 채널에 설정된 지형(호수/바다/늪) 조회 ✨
         ground = self.db.execute_query("SELECT ground_type FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), str(interaction.guild_id)), 'one')
-        location = ground['ground_type'] if ground and ground.get('ground_type') else "호수" # DB에 없거나 기본값일 시 호수로 고정
+        location = ground['ground_type'] if ground and ground.get('ground_type') else "호수" 
 
         fish_pool = FISHING_ECOLOGY.get(location, [])
         if not fish_pool:
-            # 안전장치: 혹시라도 리스트가 비어있으면 호수 리스트를 기본값으로 가져옵니다.
             fish_pool = FISHING_ECOLOGY.get("호수", [])
 
         # 가중치(확률) 기반 랜덤 추출
@@ -398,7 +408,7 @@ class FishingGameView(discord.ui.View):
 
         self.db.execute_query(
             "INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", 
-            (user_id, guild_id, fish["name"], length, fish.get("price_per_cm", 100)) # 👈 고유 단가도 함께 저장
+            (user_id, guild_id, fish["name"], length, fish.get("price_per_cm", 100))
         )
 
         current_user = self.db.get_user(user_id)
@@ -409,7 +419,6 @@ class FishingGameView(discord.ui.View):
         else:
             max_record_text = ""
 
-        # 등급별 임베드 색상 입히기
         rarity_colors = {"흔함": discord.Color.light_gray(), "희귀": discord.Color.blue(), "신종": discord.Color.purple(), "전설": discord.Color.gold(), "환상": discord.Color.red()}
         embed_color = rarity_colors.get(fish.get("rarity", "흔함"), discord.Color.blue())
 
@@ -418,7 +427,7 @@ class FishingGameView(discord.ui.View):
             description=f"**[{fish['name']} ({length}cm)]**을(를) 낚아 가방에 넣었습니다!\n*{fish.get('effect_desc', '')}*{max_record_text}\n\n✨ XP +10\n🛒 물고기는 `/낚시가게 관리 액션:sell`로 일괄 정산 가능합니다.", 
             color=embed_color
         )
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
 
 
 # 💳 낚시터 이용 구매 뷰
@@ -524,11 +533,10 @@ class FishingSystemCog(commands.Cog):
         if not user_data:
             return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요.", ephemeral=True)
 
-        # 🔄 [여기 수정!] 채널 중복 체크 -> 유저 중복 체크로 변경
+        # ✅ 유저가 active_sessions에 남아있다면 실행 거부
         if interaction.user.id in active_sessions:
-            return await interaction.response.send_message("⚠️ 이미 낚시를 진행 중입니다! 기존 낚시를 마무리해 주세요.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ 이미 낚시 진행 중이거나 종료된 지 얼마 되지 않았습니다! 잠시 후(5초 쿨타임)에 다시 시도해 주세요.", ephemeral=True)
 
-        # 세션에 유저 ID를 키로 등록
         view = FishingGameView(interaction.user, db, interaction.channel_id)
         active_sessions[interaction.user.id] = view
         await view.start_game(interaction)
