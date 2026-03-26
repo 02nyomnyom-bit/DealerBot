@@ -6,7 +6,7 @@ import logging
 import threading
 from typing import Dict, List, Optional, Literal, Union
 import math
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from discord.ext import commands
 
@@ -329,22 +329,48 @@ class DatabaseManager:
             guild_id TEXT NOT NULL,
             fish_name TEXT NOT NULL,
             length REAL NOT NULL,
+            price_per_cm INTEGER DEFAULT 100,
             caught_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
         
-        def add_fishing_reputation(self, user_id: str, amount: int):
-            """개인 낚시 명성 추가"""
-            if not self.guild_id: return None
-            return self.execute_query('UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?', (amount, user_id, self.guild_id))
+        # 🎣 낚시 장비(레벨, 내구도, 미끼) 테이블 생성
+        self.create_table(
+            "fishing_gear",
+            """
+            user_id TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            rod_level INTEGER DEFAULT 0,
+            rod_durability INTEGER DEFAULT 100,
+            bait_level INTEGER DEFAULT 0,
+            bait_count INTEGER DEFAULT 0,
+            PRIMARY KEY (user_id, guild_id)
+            """
+        )
 
-        def update_max_fish_length(self, user_id: str, new_length: float):
-            """최대 잡은 물고기 길이 경신"""
-            if not self.guild_id: return None
-            current = self.get_user(user_id)
-            current_max = current.get('max_fish_length', 0.0) if current else 0.0
-            if new_length > current_max:
-                return self.execute_query('UPDATE users SET max_fish_length = ? WHERE user_id = ? AND guild_id = ?', (new_length, user_id, self.guild_id))
+        # 🏗️ 건설된 낚시터 시설물 테이블 생성
+        self.create_table(
+            "fishing_facilities",
+            """
+            channel_id TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            facility_name TEXT NOT NULL,
+            PRIMARY KEY (channel_id, guild_id, facility_name)
+            """
+        )
+        
+    def add_fishing_reputation(self, user_id: str, amount: int):
+        """개인 낚시 명성 추가"""
+        if not self.guild_id: return None
+        return self.execute_query('UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?', (amount, user_id, self.guild_id))
+
+    def update_max_fish_length(self, user_id: str, new_length: float):
+        """최대 잡은 물고기 길이 경신"""
+        if not self.guild_id: return None
+        current = self.get_user(user_id)
+        current_max = current.get('max_fish_length', 0.0) if current else 0.0
+        if new_length > current_max:
+            return self.execute_query('UPDATE users SET max_fish_length = ? WHERE user_id = ? AND guild_id = ?', (new_length, user_id, self.guild_id))
         
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -858,6 +884,7 @@ class DatabaseManager:
         if not self.guild_id:
             logger.error("❌ add_transaction: guild_id가 설정되지 않았습니다.")
             return None
+            
         balance_after = self.get_user_cash(user_id)
         if balance_after is None:
             balance_after = 0
@@ -1091,6 +1118,10 @@ class DatabaseCog(commands.Cog, name="DatabaseManager"):
         if gid_str not in self._managers:
             self._managers[gid_str] = DatabaseManager(gid_str)
         return self._managers[gid_str]
+    
+    today_date = date.today()
+    attendance_result = db.record_attendance("user1", today_date)
+    logger.info(f"User1 attendance: {attendance_result}")
 
 async def setup(bot):
     # Cog 등록

@@ -118,7 +118,7 @@ class RoomManager(commands.Cog):
             temp_name = 임시방제목 if 임시방제목 else 제목
             topic_memo = f"생성기|기본명:{temp_name}|인원:{인원수}"
             
-            channel = await guild.create_voice_channel(name=f"➕ {제목}", category=category)
+            channel = await guild.create_voice_channel(name=f"🎙️ {제목}", category=category)
             db.execute_query("INSERT INTO settings (key, value) VALUES (?, ?)", (f"v_gen_{channel.id}", topic_memo))
             
             await interaction.followup.send(f"✅ 음성방 생성기가 만들어졌습니다: {channel.mention}")
@@ -226,7 +226,7 @@ class RoomManager(commands.Cog):
         # 퇴장 시 자동 방 청소
         if before.channel is not None:
             v_channel = before.channel
-            # 생성기(➕) 채널은 지우지 않기 위해 이름 규칙(🎙️ 또는 🔒-)을 따르는 경우에만 작동하게 합니다.
+            # 생성기(🎙️) 채널은 지우지 않기 위해 이름 규칙(🎙️ 또는 🔒-)을 따르는 경우에만 작동하게 합니다.
             if "🎙️" in v_channel.name or "🔒-" in v_channel.name:
                 if len([m for m in v_channel.members if not m.bot]) == 0:
                     await v_channel.delete()
