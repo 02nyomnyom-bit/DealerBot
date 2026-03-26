@@ -244,6 +244,7 @@ class TrashActionView(discord.ui.View):
 
 # 🎣 낚시 게임 인게임 뷰
 class FishingGameView(discord.ui.View):
+    # __init__ 에서 channel_id 대신 user.id를 추적하도록 변경
     def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
         super().__init__(timeout=60.0)
         self.user = user
@@ -305,8 +306,9 @@ class FishingGameView(discord.ui.View):
             await interaction.edit_original_response(embed=embed, view=None)
 
     def remove_from_session(self):
-        if active_sessions.get(self.channel_id) == self:
-            active_sessions.pop(self.channel_id, None)
+        if active_sessions.get(self.user.id) == self:
+            active_sessions.pop(self.user.id, None)
+
 
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
     async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -488,11 +490,13 @@ class FishingSystemCog(commands.Cog):
         if not user_data:
             return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요.", ephemeral=True)
 
-        if interaction.channel_id in active_sessions:
-            return await interaction.response.send_message("⚠️ 이 채널에서 누군가 이미 낚시를 하고 있습니다!", ephemeral=True)
+        # 🔄 [여기 수정!] 채널 중복 체크 -> 유저 중복 체크로 변경
+        if interaction.user.id in active_sessions:
+            return await interaction.response.send_message("⚠️ 이미 낚시를 진행 중입니다! 기존 낚시를 마무리해 주세요.", ephemeral=True)
 
+        # 세션에 유저 ID를 키로 등록
         view = FishingGameView(interaction.user, db, interaction.channel_id)
-        active_sessions[interaction.channel_id] = view
+        active_sessions[interaction.user.id] = view
         await view.start_game(interaction)
 
     @app_commands.command(name="낚시", description="채널에서 낚시 게임을 시작합니다 (ㄴㅅ)")
@@ -503,22 +507,26 @@ class FishingSystemCog(commands.Cog):
     async def fish_start_short(self, interaction: discord.Interaction):
         await self._do_fish_start(interaction)
 
-    @app_commands.command(name="낚시중지", description="[관리자 전용] 현재 멈춘 낚시 세션을 강제 중단합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    async def fish_stop(self, interaction: discord.Interaction):
+    @app_commands.command(name="낚시중지", description="[관리자 전용] 특정 유저의 멈춘 낚시 세션을 강제 중단합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(대상유저="멈추게 할 유저를 멘션하거나 ID를 입력하세요.")
+    async def fish_stop(self, interaction: discord.Interaction, 대상유저: discord.Member):
         if not interaction.user.guild_permissions.administrator:
             return await interaction.response.send_message("🚫 관리자만 사용할 수 있습니다.", ephemeral=True)
 
-        if interaction.channel_id not in active_sessions:
-            return await interaction.response.send_message("ℹ️ 진행 중인 낚시가 없습니다.", ephemeral=True)
+        if 대상유저.id not in active_sessions:
+            return await interaction.response.send_message(f"ℹ️ {대상유저.display_name} 유저는 진행 중인 낚시가 없습니다.", ephemeral=True)
 
-        view = active_sessions[interaction.channel_id]
+        view = active_sessions[대상유저.id]
         view.responded = True
         view.stop()
-        if view.message: await view.message.edit(view=None)
-        active_sessions.pop(interaction.channel_id, None)
-        await interaction.response.send_message("✅ 낚시 세션 강제 초기화 완료.", ephemeral=True)
+        if view.message: 
+            try:
+                await view.message.edit(view=None)
+            except: pass
+        active_sessions.pop(대상유저.id, None)
+        await interaction.response.send_message(f"✅ {대상유저.display_name} 유저의 낚시 세션 강제 초기화 완료.", ephemeral=True)
 
 
     # ==========================================
@@ -1018,7 +1026,7 @@ class FishingSystemCog(commands.Cog):
     @fishing_admin_group.command(name="설정", description="[관리자 전용] 낚시 시스템의 핵심 정책들을 관리합니다.")
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(작업="실행할 관리자 작업", 값="설정할 수치 또는 대상 (예: 10, 유저ID, 채널ID)")
+    @app_commands.describe(작업="실행할 관리자 작업", 값="설정할 수치 또는 상태 (예: 세금% / True 또는 False)")
     @app_commands.choices(작업=[
         app_commands.Choice(name="세금 - 물고기 판매/부동산 매입 수수료 비율 설정", value="tax"),
         app_commands.Choice(name="명성기능 - 유저 명성 및 유지비 수동 수정", value="reputation_ctrl"),
@@ -1046,20 +1054,12 @@ class FishingSystemCog(commands.Cog):
             if not 0 <= rate_percent <= 100:
                 return await interaction.followup.send("❌ 수수료는 0%에서 100% 사이여야 합니다.")
 
-            # 세금 종류 분기를 묻기 위해 하위 초이스 대신 통합 처리 (기본 물고기 수수료 설정)
             rate = rate_percent / 100.0
-            
-            existing = db.execute_query("SELECT * FROM fishing_admin_settings WHERE guild_id = ?", (guild_id,), 'one')
-            if not existing:
-                db.execute_query("INSERT INTO fishing_admin_settings (guild_id, fish_tax_rate) VALUES (?, ?)", (guild_id, rate))
-            else:
-                db.execute_query("UPDATE fishing_admin_settings SET fish_tax_rate = ? WHERE guild_id = ?", (rate, guild_id))
-                
+            db.execute_query("INSERT INTO fishing_admin_settings (guild_id, fish_tax_rate) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET fish_tax_rate = excluded.fish_tax_rate", (guild_id, rate))
             return await interaction.followup.send(f"✅ 물고기 판매 수수료가 **{rate_percent:.1f}%**로 설정되었습니다.")
 
-        # ⭐ 2. 명성기능 (유저 명성 수동 수정)
+        # ⭐ 2. 명성기능
         elif 작업 == "reputation_ctrl":
-            # 값 예시: "유저ID,명성치" (예: 1234567890,5000)
             if not 값 or ',' not in 값:
                 return await interaction.followup.send("❌ 포맷을 맞춰주세요. (예: `유저ID,수정할명성수치`)")
             
@@ -1072,28 +1072,51 @@ class FishingSystemCog(commands.Cog):
             db.execute_query("UPDATE users SET fishing_reputation = ? WHERE user_id = ? AND guild_id = ?", (rep_value, target_user_id, guild_id))
             return await interaction.followup.send(f"✅ <@{target_user_id}> 유저의 개인 명성이 **{rep_value:,}** 점으로 수정되었습니다.")
 
-        # 🚫 3. 공용지정 (구매 불가 처리)
+        # 🚫 3. 공용지정 (참/거짓 확인)
         elif 작업 == "set_public":
-            # DB 테이블에 purchasable 및 is_public 필드가 없으면 마이그레이션
+            # 입력값 Boolean 판별
+            is_true = 값.lower() in ['true', '1', '예', 'on', 't'] if 값 else True
+
             db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0", ignore_errors=True)
             db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0", ignore_errors=True)
 
-            db.execute_query(
-                "UPDATE fishing_ground SET purchasable = 0, is_public = 1, owner_id = NULL WHERE channel_id = ? AND guild_id = ?", 
-                (channel_id, guild_id)
-            )
-            return await interaction.followup.send(f"✅ <#{channel_id}> 채널이 **[공용 낚시터]**로 지정되었습니다. 이제 유저가 이 땅을 구매할 수 없습니다.")
+            if is_true:
+                # 공용 낚시터 지정 (구매불가 ON, 공용 ON, 주인 초기화)
+                db.execute_query(
+                    "UPDATE fishing_ground SET purchasable = 0, is_public = 1, owner_id = NULL WHERE channel_id = ? AND guild_id = ?", 
+                    (channel_id, guild_id)
+                )
+                return await interaction.followup.send(f"✅ <#{channel_id}> 채널이 **[공용 낚시터]**로 지정되었습니다! 유저 구매가 차단됩니다.")
+            else:
+                # 공용 낚시터 해제 (공용 OFF)
+                db.execute_query(
+                    "UPDATE fishing_ground SET is_public = 0 WHERE channel_id = ? AND guild_id = ?", 
+                    (channel_id, guild_id)
+                )
+                return await interaction.followup.send(f"✅ <#{channel_id}> 채널이 공용 낚시터에서 **해제**되었습니다.")
 
-        # 🛒 4. 구매용 (구매 가능 활성화 및 소유 시 채널명 자동 변경 연동 스펙 마련)
+        # 🛒 4. 구매용 (참/거짓 확인)
         elif 작업 == "set_purchasable":
+            # 입력값 Boolean 판별
+            is_true = 값.lower() in ['true', '1', '예', 'on', 't'] if 값 else True
+
             db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0", ignore_errors=True)
             db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0", ignore_errors=True)
 
-            db.execute_query(
-                "UPDATE fishing_ground SET purchasable = 1, is_public = 0 WHERE channel_id = ? AND guild_id = ?", 
-                (channel_id, guild_id)
-            )
-            return await interaction.followup.send(f"✅ <#{channel_id}> 채널이 **[개인 구매 가능 낚시터]**로 활성화되었습니다.")
+            if is_true:
+                # 구매 가능 지정 (구매가능 ON, 공용 OFF)
+                db.execute_query(
+                    "UPDATE fishing_ground SET purchasable = 1, is_public = 0 WHERE channel_id = ? AND guild_id = ?", 
+                    (channel_id, guild_id)
+                )
+                return await interaction.followup.send(f"✅ <#{channel_id}> 채널이 **[개인 구매 가능 낚시터]**로 활성화되었습니다!")
+            else:
+                # 구매 가능 해제 (구매가능 OFF)
+                db.execute_query(
+                    "UPDATE fishing_ground SET purchasable = 0 WHERE channel_id = ? AND guild_id = ?", 
+                    (channel_id, guild_id)
+                )
+                return await interaction.followup.send(f"✅ <#{channel_id}> 채널이 구매 가능 낚시터에서 **해제**되었습니다.")
 
 async def setup(bot):
     await bot.add_cog(FishingSystemCog(bot))

@@ -1106,19 +1106,26 @@ if __name__ == "__main__":
 class DatabaseCog(commands.Cog, name="DatabaseManager"):
     def __init__(self, bot):
         self.bot = bot
-        # 길드별 매니저 인스턴스를 저장하여 중복 생성을 방지합니다.
         self._managers: Dict[str, DatabaseManager] = {}
 
     def get_manager(self, guild_id: Union[str, int]) -> DatabaseManager:
-        """
-        특정 길드의 데이터베이스 매니저 인스턴스를 반환합니다.
-        인스턴스가 없으면 새로 생성하여 반환합니다.
-        """
         gid_str = str(guild_id)
         if gid_str not in self._managers:
             self._managers[gid_str] = DatabaseManager(gid_str)
         return self._managers[gid_str]
+
+async def setup(bot):
+    await bot.add_cog(DatabaseCog(bot))
+    logger.info("✅ DatabaseManager Cog가 로드되었습니다.")
+
+# 💡 모든 로컬 테스트 코드는 반드시 이 if문 안으로 들어가야 합니다!
+if __name__ == "__main__":
+    test_guild_id = "test_guild_123"
+    db = DatabaseManager(guild_id=test_guild_id)
+    logger.info("데이터베이스 매니저 초기화 완료")
     
+    # 아까 밖으로 나와있던 테스트용 코드도 이 안으로 넣어줍니다.
+    from datetime import date
     today_date = date.today()
     attendance_result = db.record_attendance("user1", today_date)
     logger.info(f"User1 attendance: {attendance_result}")
