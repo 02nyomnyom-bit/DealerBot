@@ -353,81 +353,81 @@ class FishingGameView(discord.ui.View):
                 pass
 
 
-    @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
-    async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user:
-            return await interaction.response.send_message("본인의 낚싯대만 당길 수 있습니다!", ephemeral=True)
+        @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
+        async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if interaction.user != self.user:
+                return await interaction.response.send_message("본인의 낚싯대만 당길 수 있습니다!", ephemeral=True)
 
-        if self.responded: 
-            return await interaction.response.send_message("이미 낚싯줄을 당기는 중입니다!", ephemeral=True)
+            if self.responded: 
+                return await interaction.response.send_message("이미 낚싯줄을 당기는 중입니다!", ephemeral=True)
             
-        self.responded = True
-        await interaction.response.defer() 
-        self.stop()
+            self.responded = True
+            await interaction.response.defer() 
+            self.stop()
 
-        # ✅ 쿨타임 스케줄링을 등록하고 중복 호출은 지웁니다.
-        asyncio.create_task(self.remove_from_session())
+            # ✅ 쿨타임 스케줄링을 등록하고 중복 호출은 지웁니다.
+            asyncio.create_task(self.remove_from_session())
 
-        if self.stage == "waiting":
-            embed = discord.Embed(title="❌ 너무 성급했습니다!", description="아무것도 건지지 못했습니다.", color=discord.Color.light_gray())
-            return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
-
-        if not self.is_real:
-            embed = discord.Embed(title="❌ 아차! 가짜 입질!", description="물고기가 아니라 헛것이었네요.", color=discord.Color.light_gray())
-            return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
-
-        self.db.execute_query("UPDATE fishing_gear SET rod_durability = rod_durability - 1 WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)))
-        self.db.add_user_xp(str(self.user.id), 10)
-
-        if random.random() < 0.30:
-            trash = random.choice(TRASH_LIST)
-            if trash["type"] == "loss":
-                embed = discord.Embed(title="🚮 아이고! 쓰레기입니다!", description=f"**[{trash['name']}]**을(를) 낚았습니다.\n처리 방식을 선택하세요.", color=discord.Color.orange())
-                view = TrashActionView(self.user, trash["value"], self.db)
-                return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=view)
-            elif trash["type"] == "profit":
-                self.db.add_user_cash(str(self.user.id), trash["value"])
-                self.db.add_transaction(str(self.user.id), "낚시 보물 발견", trash["value"], f"{trash['name']} 획득")
-                embed = discord.Embed(title="💎 보물 발견!", description=f"**[{trash['name']}]**을(를) 건졌습니다!\n주워다 팔아 **{trash['value']:,}원**을 벌었습니다.", color=discord.Color.gold())
+            if self.stage == "waiting":
+                embed = discord.Embed(title="❌ 너무 성급했습니다!", description="아무것도 건지지 못했습니다.", color=discord.Color.light_gray())
                 return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
+
+            if not self.is_real:
+                embed = discord.Embed(title="❌ 아차! 가짜 입질!", description="물고기가 아니라 헛것이었네요.", color=discord.Color.light_gray())
+                return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
+
+            self.db.execute_query("UPDATE fishing_gear SET rod_durability = rod_durability - 1 WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)))
+            self.db.add_user_xp(str(self.user.id), 10)
+
+            if random.random() < 0.30:
+                trash = random.choice(TRASH_LIST)
+                if trash["type"] == "loss":
+                    embed = discord.Embed(title="🚮 아이고! 쓰레기입니다!", description=f"**[{trash['name']}]**을(를) 낚았습니다.\n처리 방식을 선택하세요.", color=discord.Color.orange())
+                    view = TrashActionView(self.user, trash["value"], self.db)
+                    return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=view)
+                elif trash["type"] == "profit":
+                    self.db.add_user_cash(str(self.user.id), trash["value"])
+                    self.db.add_transaction(str(self.user.id), "낚시 보물 발견", trash["value"], f"{trash['name']} 획득")
+                    embed = discord.Embed(title="💎 보물 발견!", description=f"**[{trash['name']}]**을(를) 건졌습니다!\n주워다 팔아 **{trash['value']:,}원**을 벌었습니다.", color=discord.Color.gold())
+                    return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
+                else:
+                    embed = discord.Embed(title="🗑️ 쓰레기 획득", description=f"**[{trash['name']}]**을(를) 건졌습니다. 가치는 없습니다.", color=discord.Color.light_gray())
+                    return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
+
+            ground = self.db.execute_query("SELECT ground_type FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), str(interaction.guild_id)), 'one')
+            location = ground['ground_type'] if ground and ground.get('ground_type') else "호수" 
+
+            fish_pool = FISHING_ECOLOGY.get(location, [])
+            if not fish_pool:
+                fish_pool = FISHING_ECOLOGY.get("호수", [])
+
+            fish = random.choices(fish_pool, weights=[f["chance"] for f in fish_pool], k=1)[0]
+            length = round(random.uniform(fish["min"], fish["max"]), 1)
+            user_id = str(self.user.id)
+            guild_id = str(interaction.guild_id)
+
+            self.db.execute_query(
+                "INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", 
+                (user_id, guild_id, fish["name"], length, fish.get("price_per_cm", 100))
+            )
+
+            current_user = self.db.get_user(user_id)
+            current_max = current_user.get('max_fish_length', 0.0) if current_user else 0.0
+            if length > current_max:
+                self.db.execute_query("UPDATE users SET max_fish_length = ? WHERE user_id = ? AND guild_id = ?", (length, user_id, guild_id))
+                max_record_text = f"\n\n🏆 **개인 최고 기록 경신!** ({length}cm)"
             else:
-                embed = discord.Embed(title="🗑️ 쓰레기 획득", description=f"**[{trash['name']}]**을(를) 건졌습니다. 가치는 없습니다.", color=discord.Color.light_gray())
-                return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
+                max_record_text = ""
 
-        ground = self.db.execute_query("SELECT ground_type FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), str(interaction.guild_id)), 'one')
-        location = ground['ground_type'] if ground and ground.get('ground_type') else "호수" 
+            rarity_colors = {"흔함": discord.Color.light_gray(), "희귀": discord.Color.blue(), "신종": discord.Color.purple(), "전설": discord.Color.gold(), "환상": discord.Color.red()}
+            embed_color = rarity_colors.get(fish.get("rarity", "흔함"), discord.Color.blue())
 
-        fish_pool = FISHING_ECOLOGY.get(location, [])
-        if not fish_pool:
-            fish_pool = FISHING_ECOLOGY.get("호수", [])
-
-        fish = random.choices(fish_pool, weights=[f["chance"] for f in fish_pool], k=1)[0]
-        length = round(random.uniform(fish["min"], fish["max"]), 1)
-        user_id = str(self.user.id)
-        guild_id = str(interaction.guild_id)
-
-        self.db.execute_query(
-            "INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", 
-            (user_id, guild_id, fish["name"], length, fish.get("price_per_cm", 100))
-        )
-
-        current_user = self.db.get_user(user_id)
-        current_max = current_user.get('max_fish_length', 0.0) if current_user else 0.0
-        if length > current_max:
-            self.db.execute_query("UPDATE users SET max_fish_length = ? WHERE user_id = ? AND guild_id = ?", (length, user_id, guild_id))
-            max_record_text = f"\n\n🏆 **개인 최고 기록 경신!** ({length}cm)"
-        else:
-            max_record_text = ""
-
-        rarity_colors = {"흔함": discord.Color.light_gray(), "희귀": discord.Color.blue(), "신종": discord.Color.purple(), "전설": discord.Color.gold(), "환상": discord.Color.red()}
-        embed_color = rarity_colors.get(fish.get("rarity", "흔함"), discord.Color.blue())
-
-        embed = discord.Embed(
-            title=f"🎉 월척입니다! [{fish.get('rarity', '흔함')}] 어종!", 
-            description=f"**[{fish['name']} ({length}cm)]**을(를) 낚아 가방에 넣었습니다!\n*{fish.get('effect_desc', '')}*{max_record_text}\n\n✨ XP +10\n🛒 물고기는 `/낚시가게 관리 액션:sell`로 일괄 정산 가능합니다.", 
-            color=embed_color
-        )
-        await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None) # view를 None으로 두어 게임 종료 시 당기기 버튼 증발
+            embed = discord.Embed(
+                title=f"🎉 월척입니다! [{fish.get('rarity', '흔함')}] 어종!", 
+                description=f"**[{fish['name']} ({length}cm)]**을(를) 낚아 가방에 넣었습니다!\n*{fish.get('effect_desc', '')}*{max_record_text}\n\n✨ XP +10\n🛒 물고기는 `/낚시가게 관리 액션:sell`로 일괄 정산 가능합니다.", 
+                color=embed_color
+            )
+            await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None) # view를 None으로 두어 게임 종료 시 당기기 버튼 증발
 
 
 # 💳 낚시터 이용 구매 뷰
