@@ -310,7 +310,7 @@ class DatabaseManager:
             guild_id TEXT NOT NULL,
             channel_name TEXT DEFAULT '',
             owner_id TEXT,                    -- 땅주인 ID
-            ground_price INTEGER DEFAULT 500000, -- 땅값
+            ground_price INTEGER DEFAULT 100000, -- 땅값
             usage_fee INTEGER DEFAULT 1000,     -- 이용 가격
             pollution INTEGER DEFAULT 0,       -- 오염도 (버리기 시 상승)
             ground_reputation INTEGER DEFAULT 0, -- 낚시터 명성
