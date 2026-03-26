@@ -623,12 +623,12 @@ class FishingSystemCog(commands.Cog):
     # ==========================================
 
     def _get_ground(self, db, guild_id, channel_id, channel_name):
-        # 📌 try-except 문을 사용하여 안전하게 컬럼을 추가하도록 수정합니다.
-        try:
+        check_col = db.execute_query("PRAGMA table_info(fishing_ground)", None, 'all')
+        columns = [col['name'] for col in check_col] if check_col else []
+
+        if 'ground_type' not in columns:
             db.execute_query("ALTER TABLE fishing_ground ADD COLUMN ground_type TEXT DEFAULT '호수'")
-        except Exception:
-            pass # 이미 컬럼이 존재하면 무시하고 넘어갑니다.
-        
+
         ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (channel_id, guild_id), 'one')
         if not ground:
             db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name, ground_type) VALUES (?, ?, ?, '호수')", (channel_id, guild_id, channel_name))
@@ -726,12 +726,25 @@ class FishingSystemCog(commands.Cog):
             db.add_transaction(user_id, "낚시터 매각", price, f"{interaction.channel.name} 매각 환불")
             db.execute_query("UPDATE fishing_ground SET owner_id = NULL WHERE channel_id = ? AND guild_id = ?", (channel_id, guild_id))
             return await interaction.followup.send(f"🏢 낚시터를 매각하여 **{price:,}원**을 돌려받았습니다.")
-
+        
         # 4. 이용권 구매 (시간, 이용 요금 띄워주는 초기화면)
         elif 액션 == "use":
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN entry_fee INTEGER DEFAULT 0", ignore_errors=True)
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN open_time INTEGER DEFAULT 0", ignore_errors=True)
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN close_time INTEGER DEFAULT 24", ignore_errors=True)
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN entry_fee INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN open_time INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN close_time INTEGER DEFAULT 24")
+            except Exception:
+                pass
+
+            ground_updated = self._get_ground(db, guild_id, channel_id, interaction.channel.name)
 
             ground_updated = self._get_ground(db, guild_id, channel_id, interaction.channel.name)
             open_t = ground_updated.get('open_time', 0)
@@ -807,7 +820,13 @@ class FishingSystemCog(commands.Cog):
         elif 액션 == "fee":
             if not 값 or not 값.isdigit() or int(값) < 0:
                 return await interaction.followup.send("❌ 올바른 이용료를 0 이상 숫자로 입력하세요.")
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN entry_fee INTEGER DEFAULT 0", ignore_errors=True)
+            
+            # 📌 try-except 로 감싸서 안전하게 컬럼을 추가합니다.
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN entry_fee INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
             db.execute_query("UPDATE fishing_ground SET entry_fee = ? WHERE channel_id = ? AND guild_id = ?", (int(값), channel_id, guild_id))
             return await interaction.followup.send(f"✅ 낚시터 입장 요금이 **{int(값):,}원**으로 변경되었습니다.")
 
@@ -821,8 +840,17 @@ class FishingSystemCog(commands.Cog):
             except:
                 return await interaction.followup.send("❌ 시간은 0시~23시 사이여야 합니다.")
 
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN open_time INTEGER DEFAULT 0", ignore_errors=True)
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN close_time INTEGER DEFAULT 24", ignore_errors=True)
+            # 📌 안전하게 컬럼 생성 시도
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN open_time INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN close_time INTEGER DEFAULT 24")
+            except Exception:
+                pass
+
             db.execute_query("UPDATE fishing_ground SET open_time = ?, close_time = ? WHERE channel_id = ? AND guild_id = ?", (start_t, end_t, channel_id, guild_id))
             return await interaction.followup.send(f"✅ 운영 시간이 **{start_t}시 ~ {end_t}시**로 설정되었습니다.")
 
