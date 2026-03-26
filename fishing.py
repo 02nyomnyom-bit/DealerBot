@@ -741,7 +741,7 @@ class FishingSystemCog(commands.Cog):
 
             # 🏷️ 디스코드 채널명 '유저닉네임-낚시터'로 자동 변경 봇 기능
             try:
-                new_channel_name = f"{interaction.user.display_name}-낚시터"
+                new_channel_name = f"🎣ㅣ{interaction.user.display_name}-낚시터"
                 await interaction.channel.edit(name=new_channel_name)
                 db.execute_query("UPDATE fishing_ground SET channel_name = ? WHERE channel_id = ? AND guild_id = ?", (new_channel_name, channel_id, guild_id))
                 rename_msg = f"\n🏷️ 채널명이 **'{new_channel_name}'**(으)로 변경되었습니다!"
@@ -893,23 +893,28 @@ class FishingSystemCog(commands.Cog):
             if not 값 or 값 not in ["업", "다운"]:
                 return await interaction.followup.send("❌ '값' 파라미터에 '업' 또는 '다운'을 입력하세요.")
 
+            # 📌 명성과 티어 데이터를 확실하게 숫자형(int)으로 변환하여 계산 오류 방지
+            current_tier = int(ground.get("tier") if ground.get("tier") is not None else 1)
+            current_rep = int(ground.get("ground_reputation") if ground.get("ground_reputation") is not None else 0)
+
             confirm_view = ConfirmActionView(interaction.user)
-            await interaction.followup.send(f"⚠️ 정말로 낚시터 티어를 **{값}** 하시겠습니까?", view=confirm_view)
+            await interaction.followup.send(f"⚠️ 정말로 낚시터 티어를 **{값}** 하시겠습니까?\n(현재 티어: {current_tier}티어 / 보유 낚시터 명성: {current_rep:,})", view=confirm_view)
             await confirm_view.wait()
 
             if confirm_view.value:
                 if 값 == "업":
-                    req_rep = ground.get("tier", 1) * 1000
-                    if ground.get("ground_reputation", 0) < req_rep: 
-                        return await interaction.followup.send(f"❌ 명성이 부족합니다. (필요: {req_rep:,})")
+                    req_rep = current_tier * 1000 # 1티어->2티어는 1000점 필요
+                    if current_rep < req_rep: 
+                        return await interaction.followup.send(f"❌ 낚시터 명성이 부족합니다. (필요 명성: {req_rep:,} / 보유 명성: {current_rep:,})")
+                    
                     db.execute_query("UPDATE fishing_ground SET tier = tier + 1, ground_reputation = ground_reputation - ? WHERE channel_id = ? AND guild_id = ?", (req_rep, channel_id, guild_id))
-                    await interaction.followup.send(f"🆙 낚시터 등급이 **{ground.get('tier', 1) + 1}티어**가 되었습니다!")
+                    await interaction.followup.send(f"🆙 낚시터 등급이 **{current_tier + 1}티어**가 되었습니다!")
                 else:
-                    if ground.get("tier", 1) <= 1: 
+                    if current_tier <= 1: 
                         return await interaction.followup.send("❌ 이미 최저 1티어입니다.")
                     # 다운 시 명성 일부(500) 환급
                     db.execute_query("UPDATE fishing_ground SET tier = tier - 1, ground_reputation = ground_reputation + 500 WHERE channel_id = ? AND guild_id = ?", (channel_id, guild_id))
-                    await interaction.followup.send(f"⬇️ 낚시터 등급이 **{ground.get('tier', 1) - 1}티어**로 내려갔고 명성 500점을 환산받았습니다.")
+                    await interaction.followup.send(f"⬇️ 낚시터 등급이 **{current_tier - 1}티어**로 내려갔고 명성 500점을 환산받았습니다.")
             else:
                 await interaction.followup.send("❌ 작업이 취소되었습니다.")
 
@@ -946,7 +951,6 @@ class FishingSystemCog(commands.Cog):
             return
 
         # 6. 건설 가능 목록
-        # 6. 건설 가능 목록 (티어/명성만 만족하면 일단 목록에 표시)
         elif 액션 == "fac_list":
             tier = ground.get('tier', 1)
             reputation = ground.get('ground_reputation', 0)
@@ -1001,14 +1005,22 @@ class FishingSystemCog(commands.Cog):
             fac = FACILITIES[값]
             user_cash = db.get_user_cash(user_id) or 0
 
+            # 📌 명성과 티어 데이터를 확실하게 숫자형(int)으로 변환
+            current_tier = int(ground.get("tier") if ground.get("tier") is not None else 1)
+            current_rep = int(ground.get("ground_reputation") if ground.get("ground_reputation") is not None else 0)
+
             # 명성 및 건설 비용(돈) 검증
-            if ground.get("tier", 1) < fac["tier"] or ground.get("ground_reputation", 0) < fac["req_rep"]: 
-                return await interaction.followup.send("❌ 명성이나 낚시터 티어가 부족합니다.")
+            if current_tier < fac["tier"]:
+                return await interaction.followup.send(f"❌ 낚시터 티어가 부족합니다. (건설 필요: {fac['tier']}티어 / 현재: {current_tier}티어)")
+            
+            if current_rep < fac["req_rep"]:
+                return await interaction.followup.send(f"❌ 낚시터 명성이 부족합니다. (건설 필요: {fac['req_rep']:,} / 보유: {current_rep:,})")
+
             if user_cash < fac.get("req_cash", 0):
-                return await interaction.followup.send(f"❌ 건설 비용(돈)이 부족합니다! (필요 금액: {fac.get('req_cash', 0):,}원)")
+                return await interaction.followup.send(f"❌ 건설 비용(돈)이 부족합니다! (필요 금액: {fac.get('req_cash', 0):,}원 / 보유 현금: {user_cash:,}원)")
 
             confirm_view = ConfirmActionView(interaction.user)
-            await interaction.followup.send(f"🏗️ 정말로 **[{값}]** 시설을 건설하시겠습니까?\n(명성 {fac['req_rep']:,} 소모 및 건설 비용 {fac.get('req_cash', 0):,}원 차감)", view=confirm_view)
+            await interaction.followup.send(f"🏗️ 정말로 **[{값}]** 시설을 건설하시겠습니까?\n(낚시터 명성 {fac['req_rep']:,} 소모 및 건설 비용 {fac.get('req_cash', 0):,}원 차감)", view=confirm_view)
             await confirm_view.wait()
 
             if confirm_view.value:
