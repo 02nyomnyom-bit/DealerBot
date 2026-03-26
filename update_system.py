@@ -383,7 +383,7 @@ class RealtimeUpdateSystem(commands.Cog):
             inline=True
         )
         
-        embed.set_footer(text="보석상 v1.9.0 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="보석상 v1.10.0 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
