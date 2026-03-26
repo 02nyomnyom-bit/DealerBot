@@ -112,14 +112,13 @@ class RoomManager(commands.Cog):
             
             await interaction.response.defer(ephemeral=True)
             
-            # 생성기를 만드는 현재 채널의 카테고리를 그대로 사용합니다.
             category = interaction.channel.category if interaction.channel.category else None
             
             temp_name = 임시방제목 if 임시방제목 else 제목
             topic_memo = f"생성기|기본명:{temp_name}|인원:{인원수}"
             
             channel = await guild.create_voice_channel(name=f"🎙️ {제목}", category=category)
-            db.execute_query("INSERT INTO settings (key, value) VALUES (?, ?)", (f"v_gen_{channel.id}", topic_memo))
+            db.execute_query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (f"v_gen_{channel.id}", topic_memo))
             
             await interaction.followup.send(f"✅ 음성방 생성기가 만들어졌습니다: {channel.mention}")
 
@@ -162,6 +161,15 @@ class RoomManager(commands.Cog):
 
             current_channel = interaction.user.voice.channel
 
+            # 💡 원본 생성기 채널은 유저가 이름을 함부로 바꿀 수 없도록 잠금
+            is_generator = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_gen_{current_channel.id}",), 'one')
+            if is_generator:
+                return await interaction.response.send_message("❌ 음성방 생성기의 이름은 명령어로 변경할 수 없습니다.", ephemeral=True)
+
+            is_temp = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_temp_{current_channel.id}",), 'one')
+            if not is_temp:
+                return await interaction.response.send_message("❌ 이 방은 자동 생성된 임시 음성방이 아닙니다.", ephemeral=True)
+
             now = datetime.now()
             user_id = interaction.user.id
             if user_id in self.rename_cooldown:
@@ -170,7 +178,7 @@ class RoomManager(commands.Cog):
                     remain = 60 - elapsed.seconds
                     return await interaction.response.send_message(f"⏳ 쿨타임 중입니다. {remain}초 뒤에 시도하세요.", ephemeral=True)
 
-            await current_channel.edit(name=f"🎙️ {제목}")
+            await current_channel.edit(name=제목)
             self.rename_cooldown[user_id] = now
             await interaction.response.send_message(f"✅ 방 제목이 `{제목}`으로 변경되었습니다.")
 
@@ -184,9 +192,8 @@ class RoomManager(commands.Cog):
 
             current_channel = interaction.user.voice.channel
 
-            clean_name = current_channel.name.replace("🎙️ ", "").replace("🔒-", "")
-            await current_channel.edit(name=f"🔒-{clean_name}", user_limit=인원수)
-            await interaction.response.send_message(f"✅ 인원수가 {인원수}명으로 설정되고 잠금 상태가 되었습니다.")
+            await current_channel.edit(user_limit=인원수)
+            await interaction.response.send_message(f"✅ 인원수가 {인원수}명으로 설정되었습니다.")
 
 
         # [6] 대화방 삭제
@@ -212,24 +219,36 @@ class RoomManager(commands.Cog):
                 temp_name = memo[1].split(':')[1]
                 limit = int(memo[2].split(':')[1])
 
-                # 💡 음성방 생성기가 있는 카테고리를 그대로 가져와서 그 아래에 임시 음성방을 만듭니다.
                 generator_category = after.channel.category
                 
                 new_channel = await member.guild.create_voice_channel(
-                    name=f"🎙️ {temp_name}", 
+                    name=temp_name, 
                     category=generator_category, 
                     user_limit=limit,
-                    position=after.channel.position + 1  # 💡 생성기 바로 아래에 생성
+                    position=after.channel.position + 1
                 )
+                
+                # 임시방 ID를 DB에 기록
+                db.execute_query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (f"v_temp_{new_channel.id}", "true"))
+                
                 await member.move_to(new_channel)
 
         # 퇴장 시 자동 방 청소
         if before.channel is not None:
             v_channel = before.channel
-            # 생성기(🎙️) 채널은 지우지 않기 위해 이름 규칙(🎙️ 또는 🔒-)을 따르는 경우에만 작동하게 합니다.
-            if "🎙️" in v_channel.name or "🔒-" in v_channel.name:
+            
+            # 💡 이모지에 의존하지 않고, DB에 기록된 임시 채널인지 조회
+            temp_data = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_temp_{v_channel.id}",), 'one')
+            
+            if temp_data:
                 if len([m for m in v_channel.members if not m.bot]) == 0:
-                    await v_channel.delete()
+                    try:
+                        await v_channel.delete()
+                        db.execute_query("DELETE FROM settings WHERE key = ?", (f"v_temp_{v_channel.id}",))
+                    except discord.NotFound:
+                        db.execute_query("DELETE FROM settings WHERE key = ?", (f"v_temp_{v_channel.id}",))
+                    except Exception as e:
+                        logger.error(f"채널 삭제 중 에러 발생: {e}")
 
 
 async def setup(bot):
