@@ -241,7 +241,41 @@ class TrashActionView(discord.ui.View):
         embed = discord.Embed(title="⚠️ 무단 투기 완료", description="쓰레기를 그냥 바닥에 버렸습니다. 낚시터 오염도가 상승합니다!", color=discord.Color.red())
         await interaction.response.edit_message(embed=embed, view=None)
 
+# 🏗️ 시설 정보 페이징 뷰
+class FacilityPaginationView(discord.ui.View):
+    def __init__(self, user: discord.Member, pages: list):
+        super().__init__(timeout=60.0)
+        self.user = user
+        self.pages = pages
+        self.current_page = 0
 
+    async def send_initial_message(self, interaction: discord.Interaction):
+        if not self.pages:
+            return await interaction.followup.send("조회할 시설 정보가 없습니다.")
+        await interaction.followup.send(embed=self.pages[0], view=self)
+
+    @discord.ui.button(label="◀️ 이전", style=discord.ButtonStyle.primary)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("본인만 페이지를 넘길 수 있습니다!", ephemeral=True)
+
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
+        else:
+            await interaction.response.send_message("첫 번째 페이지입니다.", ephemeral=True)
+
+    @discord.ui.button(label="다음 ▶️", style=discord.ButtonStyle.primary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("본인만 페이지를 넘길 수 있습니다!", ephemeral=True)
+
+        if self.current_page < len(self.pages) - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
+        else:
+            await interaction.response.send_message("마지막 페이지입니다.", ephemeral=True)
+            
 # 🎣 낚시 게임 인게임 뷰
 class FishingGameView(discord.ui.View):
     # __init__ 에서 channel_id 대신 user.id를 추적하도록 변경
@@ -881,23 +915,79 @@ class FishingSystemCog(commands.Cog):
 
         # 5. 시설 정보
         elif 액션 == "fac_info":
-            embed = discord.Embed(title="🏗️ 낚시터 시설 목록", color=discord.Color.green())
-            for name, data in FACILITIES.items():
-                embed.add_field(name=f"{name} ({data['tier']}티어 필요)", value=f"- 필요 명성: {data['req_rep']:,}\n- 효과: {data['desc']}", inline=False)
-            return await interaction.followup.send(embed=embed)
+            # 카테고리 정의
+            categories = {
+                "🎫 매표소 (수수료 조정)": ["간이매표소", "매표소", "일반매표소", "중형매표소", "대형매표소", "거대한매표소"],
+                "📦 창고 (물고기 확률 증가)": ["창고", "소형창고", "중형창고", "대형창고", "초거대한창고"],
+                "🧹 환경 시설 (쓰레기 감소/처리)": ["환경미화원", "청소용역업체", "시설관리공단", "재활용분리수거장", "쓰레기소각장", "환경부"],
+                "⚡ 발전기 및 상점 (유지비 감소)": ["전기배터리", "소형발전기", "중대형발전기", "화력발전소", "수력발전소", "리안마켓", "묵이 편의점", "할인마트", "정E-마트   ", "해외수출사업"],
+                "✨ 기념품 및 어시장 (명성/물고기 가격 증가)": ["길거리상인", "기념품상점", "기념품백화점", "해외입점준비", "해외유명기업", "노상", "물사랑고기사랑 가게", "5일장시장", "회전문공장", "세계1위기업"],
+                "🏫 교육 시설 (방해요소: 낚시 실패확률 증가)": ["어린이집", "유치원", "초등학교", "중학교", "고등학교"]
+            }
+
+            # 첫 번째 안내 메시지
+            await interaction.followup.send("🏗️ **낚시터 시설 목록 조회를 시작합니다.** (내용이 길어 카테고리별로 나누어 전송됩니다.)")
+
+            for cat_name, fac_list in categories.items():
+                embed = discord.Embed(title=cat_name, color=discord.Color.green())
+                
+                for name in fac_list:
+                    if name in FACILITIES:
+                        data = FACILITIES[name]
+                        embed.add_field(
+                            name=f"{name} ({data['tier']}티어 필요)", 
+                            value=f"- 필요 명성: {data['req_rep']:,}\n- 건설 비용: {data.get('req_cash', 0):,}원\n- 효과: {data['desc']}", 
+                            inline=False
+                        )
+                
+                # 카테고리별로 Embed 전송
+                await interaction.followup.send(embed=embed)
+            
+            return
 
         # 6. 건설 가능 목록
+        # 6. 건설 가능 목록 (티어/명성만 만족하면 일단 목록에 표시)
         elif 액션 == "fac_list":
-            embed = discord.Embed(title="🛠️ 현재 건설 가능한 시설", color=discord.Color.orange())
-            count = 0
             tier = ground.get('tier', 1)
             reputation = ground.get('ground_reputation', 0)
+            user_cash = db.get_user_cash(user_id) or 0
+
+            valid_facilities = []
+            
             for name, data in FACILITIES.items():
+                # 📌 조건 완화: 티어와 명성만 맞으면 돈이 부족해도 일단 목록에 표시합니다.
                 if tier >= data["tier"] and reputation >= data["req_rep"]:
-                    embed.add_field(name=name, value=f"- 소모 명성: {data['req_rep']:,}", inline=False)
-                    count += 1
-            if count == 0: embed.description = "현재 건설할 수 있는 시설이 없습니다."
-            return await interaction.followup.send(embed=embed)
+                    valid_facilities.append((name, data))
+
+            if not valid_facilities:
+                return await interaction.followup.send("📋 **현재 낚시터 티어와 명성 조건에 맞는 건설 가능한 시설이 없습니다.** (티어를 올리거나 명성을 더 쌓아보세요!)")
+
+            await interaction.followup.send(f"🛠️ **현재 티어/명성으로 건설 가능한 시설 목록입니다.** (총 {len(valid_facilities)}개)")
+
+            embed = discord.Embed(title="🏗️ 건설 가능한 시설 목록", color=discord.Color.orange())
+            field_count = 0
+
+            for name, data in valid_facilities:
+                if field_count >= 20:
+                    await interaction.followup.send(embed=embed)
+                    embed = discord.Embed(title="🏗️ 건설 가능한 시설 목록 (이어서)", color=discord.Color.orange())
+                    field_count = 0
+
+                # 돈이 부족한 시설은 ❌ 표시를 해줍니다.
+                cash_req = data.get('req_cash', 0)
+                cash_status = "✅ 건설 가능" if user_cash >= cash_req else "❌ 돈 부족"
+
+                embed.add_field(
+                    name=f"{name} ({data['tier']}티어)",
+                    value=f"- 소모 명성: {data['req_rep']:,}\n- 필요 비용: {cash_req:,}원\n- 보유 현금: {user_cash:,}원 ({cash_status})\n- 효과: {data['desc']}",
+                    inline=False
+                )
+                field_count += 1
+
+            if field_count > 0:
+                await interaction.followup.send(embed=embed)
+
+            return
 
         # 7. 시설 건설 (확인 절차 1차)
         elif 액션 == "fac_build":
@@ -1114,16 +1204,23 @@ class FishingSystemCog(commands.Cog):
         # ⭐ 2. 명성기능
         elif 작업 == "reputation_ctrl":
             if not 값 or ',' not in 값:
-                return await interaction.followup.send("❌ 포맷을 맞춰주세요. (예: `유저ID,수정할명성수치`)")
+                return await interaction.followup.send("❌ 포맷을 맞춰주세요.\n- 유저 명성 수정 시: `유저ID,수치` (예: `12345678,5000`)\n- 현재 채널 낚시터 명성 수정 시: `channel,수치` (예: `channel,5000`)")
             
             try:
-                target_user_id, rep_value = 값.split(',')
+                target, rep_value = 값.split(',')
                 rep_value = int(rep_value)
             except ValueError:
                 return await interaction.followup.send("❌ 올바른 숫자 형태의 명성을 입력하세요.")
 
-            db.execute_query("UPDATE users SET fishing_reputation = ? WHERE user_id = ? AND guild_id = ?", (rep_value, target_user_id, guild_id))
-            return await interaction.followup.send(f"✅ <@{target_user_id}> 유저의 개인 명성이 **{rep_value:,}** 점으로 수정되었습니다.")
+            # [A] 현재 채널의 낚시터 명성을 수정하는 경우
+            if target.lower() == "channel":
+                db.execute_query("UPDATE fishing_ground SET ground_reputation = ? WHERE channel_id = ? AND guild_id = ?", (rep_value, channel_id, guild_id))
+                return await interaction.followup.send(f"✅ 현재 채널(<#{channel_id}>)의 **낚시터 명성**이 **{rep_value:,}** 점으로 수정되었습니다.")
+            
+            # [B] 유저 개인의 명성을 수정하는 경우
+            else:
+                db.execute_query("UPDATE users SET fishing_reputation = ? WHERE user_id = ? AND guild_id = ?", (rep_value, target, guild_id))
+                return await interaction.followup.send(f"✅ <@{target}> 유저의 **개인 명성**이 **{rep_value:,}** 점으로 수정되었습니다.")
 
         # 🚫 3. 공용지정 (참/거짓 확인)
         elif 작업 == "set_public":
