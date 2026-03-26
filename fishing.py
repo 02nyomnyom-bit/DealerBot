@@ -280,7 +280,7 @@ class FacilityPaginationView(discord.ui.View):
 class FishingGameView(discord.ui.View):
     # __init__ 에서 channel_id 대신 user.id를 추적하도록 변경
     def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
-        super().__init__(timeout=60.0)
+        super().__init__(timeout=None)
         self.user = user
         self.db = db_manager
         self.channel_id = channel_id
@@ -288,14 +288,15 @@ class FishingGameView(discord.ui.View):
         self.is_real = False
         self.responded = False
         self.message = None
+        
 
     async def start_game(self, interaction: discord.Interaction):
-        # 유저 미끼 소모
+        # 1. 유저 미끼 소모 체크
         db_gear = self.db.execute_query("SELECT bait_count FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)), 'one')
         if not db_gear or db_gear['bait_count'] <= 0:
             return await interaction.response.send_message("❌ 미끼가 없습니다! `/낚시가게 미끼구입`으로 미끼를 구매하세요.", ephemeral=True)
 
-        # 낚싯대 내구도 체크
+        # 2. 낚싯대 내구도 체크
         gear = self.db.execute_query("SELECT rod_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)), 'one')
         if gear and gear['rod_durability'] <= 0:
             return await interaction.response.send_message("❌ 낚싯대가 부러졌습니다! `/낚시가게 낚시대수리`로 수리하세요.", ephemeral=True)
@@ -303,15 +304,18 @@ class FishingGameView(discord.ui.View):
         self.db.execute_query("UPDATE fishing_gear SET bait_count = bait_count - 1 WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)))
 
         embed = discord.Embed(title="🎣 낚시 시작!", description="낚싯줄을 던졌습니다...\n물고기가 걸릴 때까지 잠시 기다리세요.\n(미끼 1개가 소모되었습니다.)", color=discord.Color.green())
+        
+        # 🟢 첫 응답 전송
         await interaction.response.send_message(embed=embed, view=self)
         self.message = await interaction.original_response()
         
+        # 🟢 대기 시간 부여
         await asyncio.sleep(random.uniform(2.0, 5.0))
         if self.responded: return
 
         self.stage = "bite"
         
-        # 장비&미끼 레벨에 따른 가짜 입질 필터링 (확률 증가)
+        # 장비&미끼 레벨에 따른 가짜 입질 필터링
         gear_data = self.db.execute_query("SELECT rod_level, bait_level FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)), 'one')
         bonus_rate = 0.0
         if gear_data:
@@ -326,21 +330,28 @@ class FishingGameView(discord.ui.View):
         embed.description = f"**{text}**"
         embed.color = discord.Color.red()
         
+        # 🛠️ 수정한 부분: 타임아웃 에러를 방지하기 위해 followup과 명시적 message_id를 사용하여 수정합니다.
         try:
-            await interaction.edit_original_response(embed=embed, view=self)
-        except: return
+            await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=self)
+        except Exception as e: 
+            print(f"입질 메시지 전송 실패 로그: {e}")
+            return
 
         await asyncio.sleep(3.0)
         if not self.responded and self.stage == "bite":
             self.stage = "ended"
             
-            # 🔥 여기에 5초 쿨타임 태스크 예약
+            # 5초 뒤 세션 해제 (비동기 스케줄링)
             asyncio.create_task(self.remove_from_session())
 
             embed.title = "💨 물고기를 놓쳤다..."
-            embed.description = "타이밍이 늦었습니다. 물고기가 미끼만 먹고 도망갔습니다. (5초 쿨타임이 적용됩니다.)"
+            embed.description = "타이밍이 늦었습니다. 물고기가 미끼만 먹고 도망갔습니다. (5초간 다른 행동이 불가능합니다.)"
             embed.color = discord.Color.dark_gray()
-            await interaction.edit_original_response(embed=embed, view=None)
+            
+            try:
+                await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
+            except:
+                pass
             
 async def remove_from_session(self):
     if active_sessions.get(self.user.id) == self:
@@ -427,7 +438,7 @@ async def remove_from_session(self):
             description=f"**[{fish['name']} ({length}cm)]**을(를) 낚아 가방에 넣었습니다!\n*{fish.get('effect_desc', '')}*{max_record_text}\n\n✨ XP +10\n🛒 물고기는 `/낚시가게 관리 액션:sell`로 일괄 정산 가능합니다.", 
             color=embed_color
         )
-        await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
+        await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=self)
 
 
 # 💳 낚시터 이용 구매 뷰
