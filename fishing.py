@@ -278,9 +278,8 @@ class FacilityPaginationView(discord.ui.View):
             
 # 🎣 낚시 게임 인게임 뷰
 class FishingGameView(discord.ui.View):
-    # __init__ 에서 channel_id 대신 user.id를 추적하도록 변경
     def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
-        super().__init__(timeout=None)
+        super().__init__(timeout=60.0)
         self.user = user
         self.db = db_manager
         self.channel_id = channel_id
@@ -288,7 +287,12 @@ class FishingGameView(discord.ui.View):
         self.is_real = False
         self.responded = False
         self.message = None
-        
+
+    # ✅ 1. 클래스 내부에 정상적으로 종속된 세션 해제 함수
+    async def remove_from_session(self):
+        if active_sessions.get(self.user.id) == self:
+            await asyncio.sleep(5.0)  # 5초 쿨타임 대기
+            active_sessions.pop(self.user.id, None)
 
     async def start_game(self, interaction: discord.Interaction):
         # 1. 유저 미끼 소모 체크
@@ -305,17 +309,14 @@ class FishingGameView(discord.ui.View):
 
         embed = discord.Embed(title="🎣 낚시 시작!", description="낚싯줄을 던졌습니다...\n물고기가 걸릴 때까지 잠시 기다리세요.\n(미끼 1개가 소모되었습니다.)", color=discord.Color.green())
         
-        # 🟢 첫 응답 전송
         await interaction.response.send_message(embed=embed, view=self)
         self.message = await interaction.original_response()
         
-        # 🟢 대기 시간 부여
         await asyncio.sleep(random.uniform(2.0, 5.0))
         if self.responded: return
 
         self.stage = "bite"
         
-        # 장비&미끼 레벨에 따른 가짜 입질 필터링
         gear_data = self.db.execute_query("SELECT rod_level, bait_level FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)), 'one')
         bonus_rate = 0.0
         if gear_data:
@@ -330,7 +331,6 @@ class FishingGameView(discord.ui.View):
         embed.description = f"**{text}**"
         embed.color = discord.Color.red()
         
-        # 🛠️ 수정한 부분: 타임아웃 에러를 방지하기 위해 followup과 명시적 message_id를 사용하여 수정합니다.
         try:
             await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=self)
         except Exception as e: 
@@ -341,7 +341,6 @@ class FishingGameView(discord.ui.View):
         if not self.responded and self.stage == "bite":
             self.stage = "ended"
             
-            # 5초 뒤 세션 해제 (비동기 스케줄링)
             asyncio.create_task(self.remove_from_session())
 
             embed.title = "💨 물고기를 놓쳤다..."
@@ -352,11 +351,6 @@ class FishingGameView(discord.ui.View):
                 await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
             except:
                 pass
-            
-async def remove_from_session(self):
-    if active_sessions.get(self.user.id) == self:
-        await asyncio.sleep(5.0) # 🛑 게임 종료 후 5초 동안 세션 유지 (명령어 사용 불가)
-        active_sessions.pop(self.user.id, None)
 
 
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
@@ -371,9 +365,8 @@ async def remove_from_session(self):
         await interaction.response.defer() 
         self.stop()
 
+        # ✅ 쿨타임 스케줄링을 등록하고 중복 호출은 지웁니다.
         asyncio.create_task(self.remove_from_session())
-        
-        self.remove_from_session()
 
         if self.stage == "waiting":
             embed = discord.Embed(title="❌ 너무 성급했습니다!", description="아무것도 건지지 못했습니다.", color=discord.Color.light_gray())
@@ -383,11 +376,9 @@ async def remove_from_session(self):
             embed = discord.Embed(title="❌ 아차! 가짜 입질!", description="물고기가 아니라 헛것이었네요.", color=discord.Color.light_gray())
             return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
 
-        # 낚시 성공 시 내구도 1 소모
         self.db.execute_query("UPDATE fishing_gear SET rod_durability = rod_durability - 1 WHERE user_id = ? AND guild_id = ?", (str(self.user.id), str(interaction.guild_id)))
         self.db.add_user_xp(str(self.user.id), 10)
 
-        # 쓰레기 획득 확률 (30%)
         if random.random() < 0.30:
             trash = random.choice(TRASH_LIST)
             if trash["type"] == "loss":
@@ -403,7 +394,6 @@ async def remove_from_session(self):
                 embed = discord.Embed(title="🗑️ 쓰레기 획득", description=f"**[{trash['name']}]**을(를) 건졌습니다. 가치는 없습니다.", color=discord.Color.light_gray())
                 return await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None)
 
-        # ✨ [지형 판별 시스템] 채널에 설정된 지형(호수/바다/늪) 조회 ✨
         ground = self.db.execute_query("SELECT ground_type FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), str(interaction.guild_id)), 'one')
         location = ground['ground_type'] if ground and ground.get('ground_type') else "호수" 
 
@@ -411,7 +401,6 @@ async def remove_from_session(self):
         if not fish_pool:
             fish_pool = FISHING_ECOLOGY.get("호수", [])
 
-        # 가중치(확률) 기반 랜덤 추출
         fish = random.choices(fish_pool, weights=[f["chance"] for f in fish_pool], k=1)[0]
         length = round(random.uniform(fish["min"], fish["max"]), 1)
         user_id = str(self.user.id)
@@ -438,7 +427,7 @@ async def remove_from_session(self):
             description=f"**[{fish['name']} ({length}cm)]**을(를) 낚아 가방에 넣었습니다!\n*{fish.get('effect_desc', '')}*{max_record_text}\n\n✨ XP +10\n🛒 물고기는 `/낚시가게 관리 액션:sell`로 일괄 정산 가능합니다.", 
             color=embed_color
         )
-        await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=self)
+        await interaction.followup.edit_message(message_id=self.message.id, embed=embed, view=None) # view를 None으로 두어 게임 종료 시 당기기 버튼 증발
 
 
 # 💳 낚시터 이용 구매 뷰
