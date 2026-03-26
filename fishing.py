@@ -552,6 +552,12 @@ class FishingSystemCog(commands.Cog):
 
         # 1. 내 정보
         if 분류 == "me":
+            # 📌 안전하게 컬럼 생성 시도
+            try:
+                db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
             user_data = db.get_user(user_id)
             if not user_data: return await interaction.followup.send("❗ 아직 등록되지 않은 사용자입니다.")
             xp_data = db.get_user_xp(user_id)
@@ -571,9 +577,19 @@ class FishingSystemCog(commands.Cog):
 
         if "rep" in 분류:
             embed.title = "🏆 개인 명성 TOP 10 (" + ("현재 채널" if is_channel_query else "전체 서버") + ")"
-            # 유저의 소유 정보는 특정 channel_id 가 뚜렷하지 않으므로 명성은 서버 기반 추출
+            
+            # 📌 [1] 안전하게 컬럼 생성 시도
+            try:
+                db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
             results = db.execute_query("SELECT display_name, username, IFNULL(fishing_reputation, 0) as score FROM users WHERE guild_id = ? ORDER BY score DESC LIMIT 10", (guild_id,), 'all')
-            for i, row in enumerate(results, 1): ranking_list.append(f"**{i}위.** {row['display_name'] or row['username']} : `{row['score']:,} 명성`")
+            
+            # 📌 [2] results가 None이 아닐 때만 반복하도록 방어 코드 추가
+            if results:
+                for i, row in enumerate(results, 1): 
+                    ranking_list.append(f"**{i}위.** {row['display_name'] or row['username']} : `{row['score']:,} 명성`")
 
         elif "fish" in 분류:
             embed.title = "🐋 최대 물고기 크기 TOP 10 (" + ("현재 채널" if is_channel_query else "전체 서버") + ")"
@@ -607,8 +623,11 @@ class FishingSystemCog(commands.Cog):
     # ==========================================
 
     def _get_ground(self, db, guild_id, channel_id, channel_name):
-        # ground_type 컬럼이 없으면 자동 생성하는 마이그레이션 쿼리
-        db.execute_query("ALTER TABLE fishing_ground ADD COLUMN ground_type TEXT DEFAULT '호수'", ignore_errors=True)
+        # 📌 try-except 문을 사용하여 안전하게 컬럼을 추가하도록 수정합니다.
+        try:
+            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN ground_type TEXT DEFAULT '호수'")
+        except Exception:
+            pass # 이미 컬럼이 존재하면 무시하고 넘어갑니다.
         
         ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (channel_id, guild_id), 'one')
         if not ground:
@@ -650,9 +669,15 @@ class FishingSystemCog(commands.Cog):
 
         # 2. 매입 (주인 유무 상관 없이 돈을 주면 구매 가능하도록 연동)
         elif 액션 == "buy":
-            # 어드민 설정 컬럼 검증
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0", ignore_errors=True)
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0", ignore_errors=True)
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0")
+            except Exception:
+                pass
             
             updated_ground = self._get_ground(db, guild_id, channel_id, interaction.channel.name)
 
@@ -1077,8 +1102,16 @@ class FishingSystemCog(commands.Cog):
             # 입력값 Boolean 판별
             is_true = 값.lower() in ['true', '1', '예', 'on', 't'] if 값 else True
 
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0", ignore_errors=True)
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0", ignore_errors=True)
+            # 📌 이 부분을 try-except로 감싸서 에러를 무시합니다.
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
             if is_true:
                 # 공용 낚시터 지정 (구매불가 ON, 공용 ON, 주인 초기화)
@@ -1100,8 +1133,15 @@ class FishingSystemCog(commands.Cog):
             # 입력값 Boolean 판별
             is_true = 값.lower() in ['true', '1', '예', 'on', 't'] if 값 else True
 
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0", ignore_errors=True)
-            db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0", ignore_errors=True)
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
+            try:
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
             if is_true:
                 # 구매 가능 지정 (구매가능 ON, 공용 OFF)
