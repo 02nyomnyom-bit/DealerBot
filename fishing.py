@@ -206,14 +206,49 @@ user_locks = {}
 
 class TrashActionView(discord.ui.View):
     def __init__(self, user: discord.Member, penalty: int, db_manager: DatabaseManager):
-        super().__init__(timeout=30.0)
+        super().__init__(timeout=60.0)
         self.user, self.penalty, self.db = user, abs(penalty), db_manager
         self.message, self.responded = None, False
 
     async def on_timeout(self):
+        # 유저가 60초 동안 아무 버튼도 누르지 않았을 때 발동
         if self.message and not self.responded:
-            try: await self.message.edit(view=None)
-            except: pass
+            try:
+                chid, gid = str(self.message.channel.id), str(self.message.guild.id)
+
+                # 🔍 현재 오염도 데이터 조회
+                current_data = self.db.execute_query(
+                    "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+                    (chid, gid), 'one'
+                )
+                current_pollution = current_data['pollution'] if current_data else 0
+
+                # 🚨 [밸런스 조정] 방치 시 일반 투기(0.5)의 2배인 1.0 체증형 오염 적용
+                added_pollution = 1.0 + (current_pollution * 0.2)
+                new_pollution = min(50.0, current_pollution + added_pollution)
+
+                # DB 오염도 업데이트
+                self.db.execute_query(
+                    "UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", 
+                    (new_pollution, chid, gid)
+                )
+
+                # ⏳ 임베드 메시지 업데이트 (사용자에게 알림)
+                embed = discord.Embed(
+                    title="⌛ 선택 시간 초과 (방치 투기)", 
+                    description=(
+                        f"쓰레기를 치우지 않고 방치하여 길가에 버려졌습니다!\n"
+                        f"방치 투기 페널티로 오염도가 **2배**로 상승합니다.\n\n"
+                        f"🚨 오염도 상승: **+{added_pollution:.1f} P**\n"
+                        f"현재 오염도: **{new_pollution:.1f} P**"
+                    ), 
+                    color=discord.Color.dark_red()
+                )
+                await self.message.edit(embed=embed, view=None)
+
+            except Exception as e:
+                print(f"[경고] 타임아웃 오염도 처리 중 오류 발생: {e}")
+
         self._clear_session()
 
     def _clear_session(self):
@@ -251,22 +286,19 @@ class TrashActionView(discord.ui.View):
     @discord.ui.button(label="🚮 그냥 버리기", style=discord.ButtonStyle.danger)
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
-        self._clear_session()
-        
+        if self.responded: return
+        self.responded = True # 사용자가 직접 응답했으므로 on_timeout 이벤트 실행 방지
+
         chid, gid = str(interaction.channel_id), str(interaction.guild_id)
         
-        # 🔍 현재 오염도 가져오기
         current_data = self.db.execute_query(
             "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
             (chid, gid), 'one'
         )
         current_pollution = current_data['pollution'] if current_data else 0
 
-        # 📈 [조정] 계속 버릴수록 오염도 상승폭 체증 (기본 0.5 + 현재 오염도의 10%)
-        # 오염도가 0일 땐 0.5가 오르지만, 오염도가 20일 땐 한 번에 2.5가 오릅니다.
+        # 📈 수동 투기 오염도 상승 (기본 0.5 체증형)
         added_pollution = 0.5 + (current_pollution * 0.1)
-        
-        # 최대 오염도 상한선(예: 50)을 두어 무한 오염 폭주를 방지합니다.
         new_pollution = min(50.0, current_pollution + added_pollution)
 
         self.db.execute_query(
@@ -282,6 +314,7 @@ class TrashActionView(discord.ui.View):
             ), 
             view=None
         )
+        self._clear_session()
 
 # 🏗️ [낚시터 공개/비공개 설정용 버튼 UI 뷰]
 class PublicSettingView(discord.ui.View):
