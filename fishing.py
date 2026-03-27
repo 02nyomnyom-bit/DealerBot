@@ -59,31 +59,31 @@ FISHING_ECOLOGY = {
 
     "바다": [
         # --- 흔함 ---
-        {"name": "전갱이", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 30, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
-        {"name": "고등어", "rarity": "흔함", "chance": 0.15, "min": 20, "max": 40, "price_per_cm": 40, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
-        {"name": "전어", "rarity": "흔함", "chance": 0.10, "min": 15, "max": 30, "price_per_cm": 45, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
-        {"name": "숭어", "rarity": "흔함", "chance": 0.10, "min": 30, "max": 80, "price_per_cm": 35, "req_tier": 1, "water_quality": [2,3,4,5], "effect_desc": "연안에서 펄쩍 뛰어오르는 흔한 바다 물고기입니다."},
-        {"name": "민어", "rarity": "흔함", "chance": 0.08, "min": 40, "max": 100, "price_per_cm": 80, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "여름철 최고의 보양식으로 꼽힙니다."},
-        {"name": "농어", "rarity": "흔함", "chance": 0.05, "min": 40, "max": 100, "price_per_cm": 70, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "연안으로 거슬러 올라오는 힘센 어종입니다."},
+        {"name": "전갱이", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 15, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
+        {"name": "고등어", "rarity": "흔함", "chance": 0.15, "min": 20, "max": 40, "price_per_cm": 20, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
+        {"name": "전어", "rarity": "흔함", "chance": 0.10, "min": 15, "max": 30, "price_per_cm": 25, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
+        {"name": "숭어", "rarity": "흔함", "chance": 0.10, "min": 30, "max": 80, "price_per_cm": 20, "req_tier": 1, "water_quality": [2,3,4,5], "effect_desc": "연안에서 펄쩍 뛰어오르는 흔한 바다 물고기입니다."},
+        {"name": "민어", "rarity": "흔함", "chance": 0.08, "min": 40, "max": 100, "price_per_cm": 35, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "여름철 최고의 보양식으로 꼽힙니다."},
+        {"name": "농어", "rarity": "흔함", "chance": 0.05, "min": 40, "max": 100, "price_per_cm": 30, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "연안으로 거슬러 올라오는 힘센 어종입니다."},
         # --- 희귀 ---
-        {"name": "벵에돔", "rarity": "희귀", "chance": 0.05, "min": 25, "max": 50, "price_per_cm": 350, "req_tier": 2, "water_quality": [1,2], "effect_desc": "낚시꾼들의 로망 중 하나입니다. 잡을 시 개인 명성 +50"},
-        {"name": "감성돔", "rarity": "희귀", "chance": 0.05, "min": 25, "max": 60, "price_per_cm": 400, "req_tier": 2, "water_quality": [1,2], "effect_desc": "바다의 왕자. 경험치 획득 +15%"},
-        {"name": "우럭", "rarity": "희귀", "chance": 0.05, "min": 20, "max": 50, "price_per_cm": 250, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "바위 틈에 서식하는 대중적인 횟감입니다."},
-        {"name": "연어", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 90, "price_per_cm": 300, "req_tier": 2, "water_quality": [1,2], "effect_desc": "강을 거슬러 올라가는 붉은 살 생선입니다."},
-        {"name": "바다빙어", "rarity": "희귀", "chance": 0.03, "min": 10, "max": 25, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "떼를 지어 다니는 작은 겨울철 어종입니다."},
+        {"name": "벵에돔", "rarity": "희귀", "chance": 0.05, "min": 25, "max": 50, "price_per_cm": 150, "req_tier": 2, "water_quality": [1,2], "effect_desc": "낚시꾼들의 로망 중 하나입니다. 잡을 시 개인 명성 +50"},
+        {"name": "감성돔", "rarity": "희귀", "chance": 0.05, "min": 25, "max": 60, "price_per_cm": 180, "req_tier": 2, "water_quality": [1,2], "effect_desc": "바다의 왕자. 경험치 획득 +15%"},
+        {"name": "우럭", "rarity": "희귀", "chance": 0.05, "min": 20, "max": 50, "price_per_cm": 120, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "바위 틈에 서식하는 대중적인 횟감입니다."},
+        {"name": "연어", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 90, "price_per_cm": 140, "req_tier": 2, "water_quality": [1,2], "effect_desc": "강을 거슬러 올라가는 붉은 살 생선입니다."},
+        {"name": "바다빙어", "rarity": "희귀", "chance": 0.03, "min": 10, "max": 25, "price_per_cm": 100, "req_tier": 2, "water_quality": [1,2], "effect_desc": "떼를 지어 다니는 작은 겨울철 어종입니다."},
         # --- 신종 ---
-        {"name": "고래상어", "rarity": "신종", "chance": 0.03, "min": 500, "max": 1200, "price_per_cm": 1500, "req_tier": 3, "water_quality": [1,2], "effect_desc": "지구상에서 가장 큰 어류입니다. 낚을 시 낚시터 명성 +500"},
-        {"name": "타이거 샤크(뱀상어)", "rarity": "신종", "chance": 0.02, "min": 300, "max": 600, "price_per_cm": 1800, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "무엇이든 먹어치우는 바다의 포식자입니다. 낚싯대 내구도 -15"},
-        {"name": "범고래", "rarity": "신종", "chance": 0.02, "min": 500, "max": 900, "price_per_cm": 2500, "req_tier": 3, "water_quality": [1,2], "effect_desc": "바다의 지배자이자 영리한 포식자입니다. 낚싯대 내구도 -20"},
-        {"name": "대왕 오징어", "rarity": "신종", "chance": 0.02, "min": 200, "max": 1000, "price_per_cm": 1200, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "심해의 거대 괴수입니다. 낚싯대 내구도 -10"},
-        {"name": "대왕 문어", "rarity": "신종", "chance": 0.02, "min": 100, "max": 300, "price_per_cm": 1300, "req_tier": 3, "water_quality": [1,2,3,4], "effect_desc": "무거운 빨판의 손맛. 낚싯대 내구도 -10"},
+        {"name": "고래상어", "rarity": "신종", "chance": 0.03, "min": 500, "max": 1200, "price_per_cm": 120, "req_tier": 3, "water_quality": [1,2], "effect_desc": "지구상에서 가장 큰 어류입니다. 낚을 시 낚시터 명성 +500"},
+        {"name": "타이거 샤크(뱀상어)", "rarity": "신종", "chance": 0.02, "min": 300, "max": 600, "price_per_cm": 150, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "무엇이든 먹어치우는 바다의 포식자입니다. 낚싯대 내구도 -15"},
+        {"name": "범고래", "rarity": "신종", "chance": 0.02, "min": 500, "max": 900, "price_per_cm": 180, "req_tier": 3, "water_quality": [1,2], "effect_desc": "바다의 지배자이자 영리한 포식자입니다. 낚싯대 내구도 -20"},
+        {"name": "대왕 오징어", "rarity": "신종", "chance": 0.02, "min": 200, "max": 1000, "price_per_cm": 110, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "심해의 거대 괴수입니다. 낚싯대 내구도 -10"},
+        {"name": "대왕 문어", "rarity": "신종", "chance": 0.02, "min": 100, "max": 300, "price_per_cm": 130, "req_tier": 3, "water_quality": [1,2,3,4], "effect_desc": "무거운 빨판의 손맛. 낚싯대 내구도 -10"},
         # --- 전설 ---
-        {"name": "백상아리", "rarity": "전설", "chance": 0.015, "min": 300, "max": 600, "price_per_cm": 4000, "req_tier": 4, "water_quality": [1,2], "effect_desc": "죠스의 주인공! 낚을 시 낚싯대 내구도 -35"},
-        {"name": "향유고래", "rarity": "전설", "chance": 0.01, "min": 1000, "max": 1800, "price_per_cm": 3500, "req_tier": 4, "water_quality": [1,2], "effect_desc": "거대한 머리를 가진 잠수의 명수입니다. 낚싯대 내구도 -40"},
-        {"name": "혹등고래", "rarity": "전설", "chance": 0.01, "min": 1200, "max": 1600, "price_per_cm": 3800, "req_tier": 4, "water_quality": [1,2], "effect_desc": "화려한 점프를 선보이는 온순한 거인입니다. 낚을 시 명성 +1,000"},
+        {"name": "백상아리", "rarity": "전설", "chance": 0.015, "min": 300, "max": 600, "price_per_cm": 350, "req_tier": 4, "water_quality": [1,2], "effect_desc": "죠스의 주인공! 낚을 시 낚싯대 내구도 -35"},
+        {"name": "향유고래", "rarity": "전설", "chance": 0.01, "min": 1000, "max": 1800, "price_per_cm": 250, "req_tier": 4, "water_quality": [1,2], "effect_desc": "거대한 머리를 가진 잠수의 명수입니다. 낚싯대 내구도 -40"},
+        {"name": "혹등고래", "rarity": "전설", "chance": 0.01, "min": 1200, "max": 1600, "price_per_cm": 280, "req_tier": 4, "water_quality": [1,2], "effect_desc": "화려한 점프를 선보이는 온순한 거인입니다. 낚을 시 명성 +1,000"},
         # --- 환상 ---
-        {"name": "돌고래", "rarity": "환상", "chance": 0.01, "min": 150, "max": 300, "price_per_cm": 7000, "req_tier": 5, "water_quality": [1,2], "effect_desc": "바다의 천사. 잡을 시 다음 낚시 성공 확률 +15%"},
-        {"name": "메갈로돈", "rarity": "환상", "chance": 0.001, "min": 1500, "max": 2000, "price_per_cm": 20000, "req_tier": 5, "water_quality": [1,2], "effect_desc": "고대의 초대형 상어. 낚을 시 낚싯대 내구도 -80"},
+        {"name": "돌고래", "rarity": "환상", "chance": 0.01, "min": 150, "max": 300, "price_per_cm": 600, "req_tier": 5, "water_quality": [1,2], "effect_desc": "바다의 천사. 잡을 시 다음 낚시 성공 확률 +15%"},
+        {"name": "메갈로돈", "rarity": "환상", "chance": 0.001, "min": 1500, "max": 2000, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "고대의 초대형 상어. 낚을 시 낚싯대 내구도 -80"},
         {"name": "바다거북", "rarity": "환상", "chance": 0.004, "min": 60, "max": 150, "price_per_cm": 0, "req_tier": 5, "water_quality": [1,2], "effect_desc": "[청정] 보호종입니다! 자동으로 방생되며 개인 명성이 +500 상승합니다."},
     ],
 
@@ -243,7 +243,7 @@ class TrashActionView(discord.ui.View):
                 # 10회 달성 시 5만원 징수
                 if user_count % 10 == 0:
                     conn.execute("UPDATE users SET cash = cash - 50000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    fine_msg = f"\n\n🚨 **[환경 방치 과태료 부과!]**\n쓰레기 방치가 누적 **{user_count}회** 적발되어 과태료 **50,000원**이 징수되었습니다!"
+                    fine_msg = f"\n\n🚨 **[환경 방치 과태료 부과!]**\n쓰레기 방치가 누적 **{user_count}회** 적발되어 과태료 **50,000원이 징수되었습니다!**"
 
                 conn.commit()
 
@@ -296,6 +296,8 @@ class TrashActionView(discord.ui.View):
 
     # fishing.py 내 TrashActionView 클래스의 dump 메서드 수정
 
+    # fishing.py 내 TrashActionView 클래스의 dump 메서드 수정
+
     @discord.ui.button(label="🚮 그냥 버리기", style=discord.ButtonStyle.danger)
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
@@ -303,6 +305,7 @@ class TrashActionView(discord.ui.View):
         self.responded = True # 사용자가 직접 응답했으므로 on_timeout 이벤트 실행 방지
 
         chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        uid = str(self.user.id) # 👈 유저 ID 추출 추가
         
         current_data = self.db.execute_query(
             "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
@@ -314,20 +317,42 @@ class TrashActionView(discord.ui.View):
         added_pollution = 0.5 + (current_pollution * 0.1)
         new_pollution = min(50.0, current_pollution + added_pollution)
 
-        self.db.execute_query(
-            "UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", 
-            (new_pollution, chid, gid)
-        )
+        conn = self.db.get_connection()
+        fine_msg = "" # 벌금 공지용 변수 초기화
 
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="⚠️ 무단 투기", 
-                description=f"환경이 오염되었습니다! (오염도: +{added_pollution:.1f})\n현재 오염도: **{new_pollution:.1f} P**", 
-                color=discord.Color.red()
-            ), 
-            view=None
-        )
-        self._clear_session()
+        try:
+            conn.execute("BEGIN")
+            conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
+            
+            # 🚨 [추가] 그냥 버려도 무단투기 카운트 +1
+            conn.execute("UPDATE users SET illegal_dump_count = illegal_dump_count + 1 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+            user_count = self.db.execute_query("SELECT illegal_dump_count FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')['illegal_dump_count']
+            
+            # 💰 직접 버리기 누적 10회 달성 시 5만원 과태료 징수
+            if user_count % 10 == 0:
+                conn.execute("UPDATE users SET cash = cash - 50000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                fine_msg = f"\n\n🚨 **[무단투기 과태료 부과!]**\n쓰레기 무단투기가 누적 **{user_count}회** 적발되어 과태료 **50,000원이 징수되었습니다!**"
+
+            conn.commit()
+
+            await interaction.response.edit_message(
+                embed=discord.Embed(
+                    title="⚠️ 무단 투기", 
+                    description=(
+                        f"환경이 오염되었습니다! (오염도: +{added_pollution:.1f})\n"
+                        f"현재 오염도: **{new_pollution:.1f} P**" + fine_msg
+                    ), 
+                    color=discord.Color.red()
+                ), 
+                view=None
+            )
+
+        except Exception as e:
+            conn.rollback()
+            print(f"[경고] 수동 무단투기 벌금 처리 오류: {e}")
+            await interaction.response.send_message("❌ 데이터 처리 중 오류 발생!", ephemeral=True)
+        finally:
+            self._clear_session()
 
 # 🏗️ [낚시터 공개/비공개 설정용 버튼 UI 뷰]
 class PublicSettingView(discord.ui.View):
@@ -807,8 +832,16 @@ class FishingGameView(discord.ui.View):
                 conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
                 conn.commit() # 👈 정상 프로세스 커밋!
 
-                embed = discord.Embed(title="🎣 월척입니다!", description=f"**[{fish['name']}]** (길이: {length}cm)을(를) 낚았습니다!", color=discord.Color.green())
-                await interaction.edit_original_response(embed=embed, view=None)
+                # 🌟 [수정된 간략화 임베드 출력 영역]
+                embed = discord.Embed(
+                    title=f"🎉 {fish['name']}을(를) 잡았습니다!", 
+                    description=(
+                        f"📏 **길이:** `{length}cm` (등급: `{fish['rarity']}`)\n"
+                        f"⭐ **획득 명성:** `+10 P` (배율: 1.0배 적용)\n\n"
+                        f"_{fish['effect_desc']}_"
+                    ), 
+                    color=discord.Color.green()
+                )
 
             except Exception as e:
                 conn.rollback() # 👈 에러 시 반드시 롤백!
@@ -1510,10 +1543,21 @@ class FishingSystemCog(commands.Cog):
         conn = db.get_connection()
         try:
             conn.execute("BEGIN")
+
+            # 💰 1. 소지금 차감
             conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (f_data['req_cash'], uid, gid))
+            
+            # ⭐ 2. [추가] 개인 낚시 명성 차감
+            conn.execute("UPDATE users SET fishing_reputation = fishing_reputation - ? WHERE user_id = ? AND guild_id = ?", (f_data['req_rep'], uid, gid))
+            
+            # 🏗️ 3. 시설 데이터 입력
             conn.execute("INSERT INTO fishing_facilities (channel_id, guild_id, facility_name) VALUES (?, ?, ?)", (chid, gid, 시설명))
+
             conn.commit()
-            await interaction.response.send_message(f"🏗️ <#{chid}> 채널에 **{시설명}** 건설이 완료되었습니다!\n(효과: {f_data['desc']})")
+            await interaction.response.send_message(
+                f"🏗️ <#{chid}> 채널에 **{시설명}** 건설이 완료되었습니다!\n"
+                f"💸 **차감 소지금:** `{f_data['req_cash']:,}원` / 📉 **소모 명성:** `{f_data['req_rep']:,}점`"
+            )
         except Exception as e:
             conn.rollback()
             await interaction.response.send_message(f"❌ 시설 건설 중 DB 오류가 발생했습니다. (에러: {e})", ephemeral=True)
