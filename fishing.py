@@ -1077,7 +1077,7 @@ class FishingSystemCog(commands.Cog):
     @app_commands.command(name="낚시가게", description="잡은 고기를 판매하거나 장비를 관리합니다.")
     @app_commands.choices(액션=[
         app_commands.Choice(name="물고기 전량 판매", value="sell"), 
-        app_commands.Choice(name="낚싯대 수리(1당100)", value="repair"),
+        app_commands.Choice(name="낚싯대 수리(1당 10원)", value="repair"),
         app_commands.Choice(name="초보자 세트 구매 (10,000원)", value="starter"),
         app_commands.Choice(name="미끼 10개 구매 (5,000원)", value="buy_bait")
     ])
