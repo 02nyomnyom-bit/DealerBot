@@ -844,7 +844,6 @@ class FishingSystemCog(commands.Cog):
             facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
             f_list = ", ".join([f['facility_name'] for f in facilities]) if facilities else "없음"
 
-            # 🔥 [핵심 수정] 조회할 때마다 수치를 0.0과 1.0(기본값)으로 엄격하게 초기화합니다.
             adj_fee = 0.0          # 🎫 매표소 수수료 조정
             fish_rate = 0.0        # 📦 물고기 낚일 확률 증가
             base_fee = 0.0         # 📦 창고 기본 수수료
@@ -879,7 +878,10 @@ class FishingSystemCog(commands.Cog):
                         fail_rate += effects.get("fail_rate", 0.0)
 
             # ⚖️ [쓰레기 확률 최종 연동 계산]
-            current_pollution = ground.get('pollution', 0) # 현재 채널 오염도
+            current_pollution = ground['pollution'] if ground['pollution'] is not None else 0
+            
+            base_trash_chance = 0.25 + (current_pollution / 100.0)
+            final_trash_chance = max(0.0, min(1.0, base_trash_chance + trash_rate))
             
             # 기본 25% + (오염도 1점당 1%) + 시설 버프(시설 감소량은 마이너스 값임)
             base_trash_chance = 0.25 + (current_pollution / 100.0)
@@ -1224,24 +1226,32 @@ class FishingSystemCog(commands.Cog):
             conn.rollback()
             await interaction.response.send_message(f"❌ 시설 건설 중 DB 오류가 발생했습니다. (에러: {e})", ephemeral=True)
         
-        # 🔥 [추가되는 자동완성 함수] 유저가 대분류를 고르면 그에 맞는 시설명 리스트만 반환합니다.
     @build_facility.autocomplete('시설명')
     async def build_facility_autocomplete(self, interaction: discord.Interaction, current: str):
         # 유저가 명령어를 칠 때 '대분류'에 무엇을 골랐는지 실시간으로 가져옵니다.
         selected_category = interaction.namespace.대분류 
 
+        # 🚨 대분류가 아직 선택되지 않았거나 로딩 중일 때 빈 목록 반환 방지
         if not selected_category:
             return []
 
-        # 딕셔너리(CATEGORY_FACILITIES)에서 해당 대분류의 리스트를 꺼내옵니다.
+        # 딕셔너리(CATEGORY_FACILITIES)에서 해당 대분류 영문 키에 해당하는 리스트를 꺼내옵니다.
         available_facilities = CATEGORY_FACILITIES.get(selected_category, [])
 
         choices = []
         for f_name in available_facilities:
-            # 유저가 검색창에 글자를 치면 필터링하고, 아무것도 안 치면 전체 목록을 보여줍니다.
-            if current.lower() in f_name.lower():
-                choices.append(app_commands.Choice(name=f_name, value=f_name))
+            # 시설 정보가 유효한지 2차 검증
+            if f_name not in FACILITIES:
+                continue
 
+            # 유저가 검색창에 글자를 치면 필터링하고, 아무것도 안 치면 해당 대분류의 전체 목록을 보여줍니다.
+            if current.lower() in f_name.lower():
+                # 🏷️ 표시 이름에 가격과 명성 조건을 적어주면 유저가 고르기 훨씬 편해집니다!
+                f_data = FACILITIES[f_name]
+                display_name = f"{f_name} (명성 {f_data['req_rep']:,}점 / {f_data['req_cash']:,}원)"
+                choices.append(app_commands.Choice(name=display_name, value=f_name))
+
+        # 디스코드 API 한계상 자동완성 목록은 최대 25개까지만 표출 가능합니다.
         return choices[:25]
 
 
