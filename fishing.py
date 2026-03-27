@@ -536,10 +536,14 @@ class FishingSystemCog(commands.Cog):
         
         # 2. 유저 테이블 컬럼 누락 보정
         cols_u = [c['name'] for c in db.execute_query("PRAGMA table_info(users)", None, 'all')]
-        if 'fishing_reputation' not in cols_u: db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
-        if 'max_fish_length' not in cols_u: db.execute_query("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
+        if 'fishing_reputation' not in cols_u: 
+            try: db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
+            except: pass
+        if 'max_fish_length' not in cols_u: 
+            try: db.execute_query("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
+            except: pass
 
-        # 🚨 [여기 추가!] 낚시터 테이블 컬럼 누락 보정 (is_public 및 기타 신규 컬럼들)
+        # 🚨 [여기 집중!] 낚시터 테이블 컬럼 누락 보정 (is_public 등 누락 시 생성)
         cols_g = [c['name'] for c in db.execute_query("PRAGMA table_info(fishing_ground)", None, 'all')]
         if 'is_public' not in cols_g:
             try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 1")
@@ -550,9 +554,15 @@ class FishingSystemCog(commands.Cog):
         if 'entry_fee' not in cols_g:
             try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN entry_fee INTEGER DEFAULT 0")
             except: pass
+        if 'ground_type' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN ground_type TEXT DEFAULT '호수'")
+            except: pass
 
     def _get_db(self, interaction: discord.Interaction):
-        return self.db_cog.get_manager(interaction.guild_id)
+        db = self.db_cog.get_manager(interaction.guild_id)
+        # ✅ 명령어를 날릴 때마다 스키마를 체크하여 누락된 컬럼(is_public 등)이 있다면 채워 넣습니다.
+        self._init_db_schema(db)
+        return db
 
     async def _execute_fishing(self, interaction: discord.Interaction):
         if interaction.user.id in active_sessions: 
