@@ -948,6 +948,9 @@ class FishingSystemCog(commands.Cog):
             conn.rollback()
             await interaction.response.send_message(f"❌ 티어 변경 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
+    # ==========================================
+    # 🏢 [시설 건설 명령어] - 채널 단위로 저장됩니다.
+    # ==========================================
     @app_commands.command(name="시설", description="낚시터에 수익을 높여줄 시설을 건설합니다.")
     @app_commands.choices(대분류=[
         app_commands.Choice(name="🎫 매표소", value="ticketing"),
@@ -961,72 +964,56 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🏫 학교 (방해요소)", value="school")
     ])
     async def build_facility(self, interaction: discord.Interaction, 대분류: str, 시설명: str):
-        # 유저가 직접 타이핑해서 오타를 냈을 경우 방어 코드
         if 시설명 not in FACILITIES:
-            return await interaction.response.send_message("❌ 존재하지 않는 시설입니다. 목록에서 올바르게 선택해 주세요.", ephemeral=True)
+            return await interaction.response.send_message("❌ 존재하지 않는 시설입니다.", ephemeral=True)
         
-        # 선택한 시설이 내가 고른 대분류에 속하는지 검증
         if 시설명 not in CATEGORY_FACILITIES.get(대분류, []):
-            return await interaction.response.send_message(f"❌ 선택하신 시설은 이 카테고리에 속해있지 않습니다.", ephemeral=True)
+            return await interaction.response.send_message("❌ 선택하신 시설은 이 카테고리에 속해있지 않습니다.", ephemeral=True)
         
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
         ground = db.execute_query("SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
-        if not ground or ground['owner_id'] != uid: 
-            return await interaction.response.send_message("❌ 본인 소유의 낚시터에만 시설을 지을 수 있습니다.", ephemeral=True)
+        
+        # 🚨 [수정] 채널 주인이 아예 없거나(공용), 주인이 내가 아니라면 건설 불가
+        if not ground or not ground['owner_id'] or ground['owner_id'] != uid: 
+            return await interaction.response.send_message("❌ 본인이 매입한 개인 사유지(채널)에만 시설을 지을 수 있습니다.", ephemeral=True)
         
         f_data = FACILITIES[시설명]
         user = db.get_user(uid)
         
         if not user or user.get('fishing_reputation', 0) < f_data['req_rep']: 
-            return await interaction.response.send_message(f"❌ 낚시 명성이 부족합니다! (필요: {f_data['req_rep']:,}점)", ephemeral=True)
+            return await interaction.response.send_message(f"❌ 개인 낚시 명성이 부족합니다! (필요: {f_data['req_rep']:,}점)", ephemeral=True)
         if user.get('cash', 0) < f_data['req_cash']: 
             return await interaction.response.send_message(f"❌ 건설 자금이 부족합니다! (필요: {f_data['req_cash']:,}원)", ephemeral=True)
         
         existing = db.execute_query("SELECT 1 FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name = ?", (chid, gid, 시설명), 'one')
         if existing: 
-            return await interaction.response.send_message("⚠️ 이미 설치된 시설입니다.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ 이 채널에 이미 설치된 동일한 시설이 있습니다.", ephemeral=True)
 
         conn = db.get_connection()
         try:
             conn.execute("BEGIN")
             conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (f_data['req_cash'], uid, gid))
+            # 📌 PRIMARY KEY (channel_id, guild_id, facility_name) 이므로 채널당 시설 1개씩 독립 적용
             conn.execute("INSERT INTO fishing_facilities (channel_id, guild_id, facility_name) VALUES (?, ?, ?)", (chid, gid, 시설명))
             conn.commit()
-            await interaction.response.send_message(f"🏗️ **{시설명}** 건설이 완료되었습니다!\n(효과: {f_data['desc']})")
-        except:
+            await interaction.response.send_message(f"🏗️ <#{chid}> 채널에 **{시설명}** 건설이 완료되었습니다!\n(효과: {f_data['desc']})")
+        except Exception as e:
             conn.rollback()
-            await interaction.response.send_message("❌ 시설 건설 중 오류가 발생했습니다.", ephemeral=True)
-    
-    # 🔍 대분류를 고르면 해당 대분류에 있는 시설명만 필터링해주는 자동완성 시스템
-    @build_facility.autocomplete('시설명')
-    async def build_facility_autocomplete(self, interaction: discord.Interaction, current: str):
-        selected_category = interaction.namespace.대분류 
-        if not selected_category:
-            return []
+            await interaction.response.send_message(f"❌ 시설 건설 중 DB 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
-        # 전역 딕셔너리에서 안전하게 참조
-        facility_names = CATEGORY_FACILITIES.get(selected_category, [])
-    
-        choices = []
-        for name in facility_names:
-            if current.lower() in name.lower():
-                data = FACILITIES[name]
-                # f-string으로 유저 편의성 증가
-                choices.append(app_commands.Choice(
-                    name=f"{name} (💰{data['req_cash']:,}원 | ⭐{data['req_rep']:,}점)",
-                    value=name
-                ))
-        return choices[:25]
-    
+
+    # ==========================================
+    # 🪓 [시설 철거 명령어]
+    # ==========================================
     @app_commands.command(name="시설철거", description="낚시터에 지어진 시설을 파괴하고 명성을 일부 돌려받습니다.")
     async def destroy_facility(self, interaction: discord.Interaction, 시설명: str):
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
 
         ground = db.execute_query("SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
-        if not ground or ground['owner_id'] != uid:
+        if not ground or not ground['owner_id'] or ground['owner_id'] != uid:
             return await interaction.response.send_message("❌ 본인 소유의 낚시터 시설만 철거할 수 있습니다.", ephemeral=True)
 
         if 시설명 not in FACILITIES:
@@ -1034,9 +1021,8 @@ class FishingSystemCog(commands.Cog):
 
         existing = db.execute_query("SELECT 1 FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name = ?", (chid, gid, 시설명), 'one')
         if not existing:
-            return await interaction.response.send_message("⚠️ 이 낚시터에 건설되지 않은 시설입니다.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ 이 채널에 건설되지 않은 시설입니다.", ephemeral=True)
 
-        # 💸 철거 시 명성 50% 환급 정책 적용
         refund_rep = int(FACILITIES[시설명]["req_rep"] * 0.5)
 
         conn = db.get_connection()
@@ -1045,7 +1031,7 @@ class FishingSystemCog(commands.Cog):
             conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name = ?", (chid, gid, 시설명))
             conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?", (refund_rep, uid, gid))
             conn.commit()
-            await interaction.response.send_message(f"🪓 **{시설명}** 철거가 완료되었습니다! 개인 명성 **{refund_rep:,}점**을 돌려받았습니다.")
+            await interaction.response.send_message(f"🪓 <#{chid}> 채널의 **{시설명}** 시설이 철거되었습니다! 개인 명성 **{refund_rep:,}점**을 환급받았습니다.")
         except Exception as e:
             conn.rollback()
             await interaction.response.send_message(f"❌ 철거 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
