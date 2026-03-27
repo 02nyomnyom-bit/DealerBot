@@ -262,7 +262,7 @@ class TrashActionView(discord.ui.View):
         await interaction.response.edit_message(
             embed=discord.Embed(
                 title="⚠️ 무단 투기", 
-                description="환경이 오염되었습니다! 이 낚시터에서 쓰레기가 잡힐 확률이 **5%** 상승합니다.", 
+                description="환경이 오염되었습니다! 이 낚시터에서 쓰레기가 잡힐 확률이 **0.5%** 상승합니다.", 
                 color=discord.Color.red()
             ), 
             view=None
@@ -1137,7 +1137,7 @@ class FishingSystemCog(commands.Cog):
 
                 if is_caught:
                     # 적발 시: 오염도 대폭 상승(개당 10점) 및 개인 명성 삭감(개당 50점)
-                    pollution_increase = trash_count * 10
+                    pollution_increase = trash_count * 1.0
                     reputation_penalty = trash_count * 50
 
                     conn.execute("UPDATE fishing_ground SET pollution = pollution + ? WHERE channel_id = ? AND guild_id = ?", (pollution_increase, chid, gid))
