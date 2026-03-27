@@ -804,7 +804,6 @@ class FishingSystemCog(commands.Cog):
             owner_id = ground['owner_id']
             base_price = ground['ground_price'] or 100000
 
-            # 🛑 관리자가 공용 낚시터로 고정해 뒀으면 구매 불가
             is_purchasable = ground['purchasable'] if 'purchasable' in ground.keys() else 1
             if is_purchasable == 0 and not owner_id:
                 return await interaction.response.send_message("❌ 이 채널은 관리자에 의해 **공용 전용 낚시터**로 지정되어 구매할 수 없습니다.", ephemeral=True)
@@ -814,7 +813,7 @@ class FishingSystemCog(commands.Cog):
                     return await interaction.response.send_message("❌ 이미 본인이 소유하고 있는 낚시터입니다.", ephemeral=True)
                 
                 is_hostile_takeover = True
-                cost = int(base_price * 1.1)  # 10% 상승 가격
+                cost = int(base_price * 1.1)
             else:
                 cost = base_price
 
@@ -837,12 +836,16 @@ class FishingSystemCog(commands.Cog):
 
                 conn.commit()
                 
-                try:
-                    clean_name = interaction.user.display_name.replace(" ", "_")
-                    new_name = f"🎣｜{clean_name}의_낚시터"
-                    await interaction.channel.edit(name=new_name)
-                except Exception as e:
-                    print(f"채널명 변경 실패: {e}")
+                # 📌 [수정] 채널명 변경을 비동기 안전 태스크로 분리하여 메인 로직 속도 제한 영향 최소화
+                async def safe_rename_buy():
+                    try:
+                        clean_name = interaction.user.display_name.replace(" ", "_")
+                        new_name = f"🎣｜{clean_name}의_낚시터"
+                        await interaction.channel.edit(name=new_name)
+                    except discord.HTTPException as e:
+                        print(f"[경고] 채널명 변경 속도 제한에 걸렸습니다: {e}")
+
+                asyncio.create_task(safe_rename_buy())
 
                 if is_hostile_takeover:
                     await interaction.response.send_message(
@@ -851,7 +854,7 @@ class FishingSystemCog(commands.Cog):
                         f"📈 다음 인수를 위한 이 낚시터의 기본 매매가가 **{cost:,}원**으로 상승했습니다."
                     )
                 else:
-                    await interaction.response.send_message(f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!\n채널명이 개인 사유지로 변경되었습니다.")
+                    await interaction.response.send_message(f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!\n(채널 이름은 디스코드 한계상 천천히 바뀔 수 있습니다.)")
                 
             except Exception as e:
                 conn.rollback()
@@ -895,10 +898,14 @@ class FishingSystemCog(commands.Cog):
                 conn.execute("UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 conn.commit()
                 
-                try:
-                    await interaction.channel.edit(name="🌊｜공용_낚시터")
-                except Exception as e:
-                    print(f"채널명 변경 실패: {e}")
+                # 📌 [수정] 채널명 변경을 비동기 안전 태스크로 분리
+                async def safe_rename_sell():
+                    try:
+                        await interaction.channel.edit(name="🌊｜공용_낚시터")
+                    except discord.HTTPException as e:
+                        print(f"[경고] 채널명 변경 속도 제한에 걸렸습니다: {e}")
+
+                asyncio.create_task(safe_rename_sell())
 
                 await interaction.response.send_message(f"🏢 낚시터 매각이 완료되었습니다! 계좌로 **{price:,}원**이 입금되었으며, 채널이 다시 **공용 낚시터**로 초기화되었습니다.")
             except Exception as e:
@@ -1278,8 +1285,9 @@ class FishingSystemCog(commands.Cog):
     @app_commands.choices(대상=[
         app_commands.Choice(name="👤 특정 유저 개인 명성 수정", value="user"),
         app_commands.Choice(name="🏞️ 현재 채널의 낚시터 명성 수정", value="channel"),
-        app_commands.Choice(name="💰 현재 채널의 기본 매입가 수정", value="price"), # 👈 추가!
-        app_commands.Choice(name="⚙️ 현재 채널의 낚시터 유형 설정 (버튼)", value="set_type")
+        app_commands.Choice(name="💰 현재 채널의 기본 매입가 수정", value="price"),
+        app_commands.Choice(name="⚙️ 현재 채널의 낚시터 유형 설정 (버튼)", value="set_type"),
+        app_commands.Choice(name="🧹 현재 채널 낚시 데이터 초기화 (공용화)", value="reset_channel") # 👈 추가된 부분
     ])
     async def admin_control(
         self, 
@@ -1325,6 +1333,42 @@ class FishingSystemCog(commands.Cog):
             self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
             db.execute_query("UPDATE fishing_ground SET ground_price = ? WHERE channel_id = ? AND guild_id = ?", (수치, chid, gid))
             await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)의 초기 매입가가 **{수치:,}원**으로 변경되었습니다.", ephemeral=True)
+
+        elif 대상 == "reset_channel":
+            self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
+            
+            conn = db.get_connection()
+            try:
+                conn.execute("BEGIN")
+                # 1. 낚시터 정보 초기화 (주인 없음, 구매 가능, 공개, 호수 지형, 입장료 0원)
+                conn.execute(
+                    "UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1, "
+                    "ground_type = '호수', entry_fee = 0, ground_reputation = 0, tier = 1 "
+                    "WHERE channel_id = ? AND guild_id = ?", 
+                    (chid, gid)
+                )
+                
+                # 2. 해당 채널에 지어져있던 시설들 전량 삭제
+                conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+                conn.commit()
+
+                # 3. 비동기 채널명 원복 (속도 제한 우회)
+                async def safe_rename_reset():
+                    try:
+                        await interaction.channel.edit(name="🌊｜공용_낚시터")
+                    except discord.HTTPException as e:
+                        # 속도 제한에 걸려 실패하더라도 봇이 뻗지 않고 로그만 남깁니다.
+                        print(f"[경고] 초기화 채널명 변경 속도 제한 무시됨: {e}")
+
+                asyncio.create_task(safe_rename_reset())
+
+                await interaction.response.send_message(
+                    f"🧹 <#{chid}> 채널의 낚시 데이터 및 시설이 완전히 초기화되었습니다.\n"
+                    f"이제 다시 누구나 사용할 수 있는 **기본 공용 낚시터** 상태입니다!"
+                )
+            except Exception as e:
+                conn.rollback()
+                await interaction.response.send_message(f"❌ 채널 초기화 중 DB 오류가 발생했습니다. (에러: {e})", ephemeral=True)
     
     def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
         """낚시터가 DB에 없을 경우 기본값으로 생성해주는 헬퍼 메서드"""
