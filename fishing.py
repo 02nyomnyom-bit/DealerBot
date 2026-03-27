@@ -571,17 +571,6 @@ class FishingSystemCog(commands.Cog):
         db.create_table("fishing_facilities", "channel_id TEXT, guild_id TEXT, facility_name TEXT, PRIMARY KEY(channel_id, guild_id, facility_name)")
         db.create_table("point_history", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, transaction_type TEXT, amount INTEGER, balance_after INTEGER, description TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP")
         
-        # 2. 유저 테이블 컬럼 누락 보정 (None을 ()로 변경)
-        cols_u_res = db.execute_query("PRAGMA table_info(users)", (), 'all')
-        cols_u = [c['name'] for c in cols_u_res] if cols_u_res else []
-        
-        if 'fishing_reputation' not in cols_u: 
-            try: db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
-            except: pass
-        if 'max_fish_length' not in cols_u: 
-            try: db.execute_query("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
-            except: pass
-
         # 3. 낚시터 테이블 컬럼 누락 보정 (None을 ()로 변경)
         cols_g_res = db.execute_query("PRAGMA table_info(fishing_ground)", (), 'all')
         cols_g = [c['name'] for c in cols_g_res] if cols_g_res else []
