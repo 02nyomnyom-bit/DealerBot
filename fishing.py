@@ -648,7 +648,7 @@ class GroundAccessView(discord.ui.View):
     @discord.ui.button(label="💳 이용권 구매", style=discord.ButtonStyle.success)
     async def buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 구매 가능합니다.", ephemeral=True)
-        uid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
+        uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         current_cash = self.db.get_user_cash(uid) or 0
         if current_cash < self.fee: return await interaction.response.send_message("❌ 소지 금액이 부족합니다!", ephemeral=True)
 
@@ -1212,7 +1212,7 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="초보자 세트 구매 (10,000원)", value="starter"),
         app_commands.Choice(name="미끼 개당 (300원)", value="buy_bait")
     ])
-    async def fish_shop(self, interaction: discord.Interaction, 액션: str):
+    async def fish_shop(self, interaction: discord.Interaction, 액션: str, 수량: Optional[int] = None):
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
