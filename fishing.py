@@ -384,7 +384,7 @@ class FishingGameView(discord.ui.View):
         if self.message and not self.responded:
             try:
                 for child in self.children: child.disabled = True
-                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초과", description="낚시가 자동으로 중단되었습니다.", color=discord.Color.gray()), view=self)
+                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초과", description="낚시가 자동으로 중단되었습니다.", color=discord.Color.grey()), view=self)
             except: pass
 
     def _clear_session(self):
@@ -522,7 +522,7 @@ class FishingGameView(discord.ui.View):
                     
                     # 쓰레기 수익 (음수일 경우 0원 처리)
                     conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (max(0, trash["value"]), uid, gid))
-                    await interaction.edit_original_response(embed=discord.Embed(title="🗑️ 잡동사니를 건졌습니다", description=f"**{trash['name']}** (수익: {max(0, trash['value']):,}원)", color=discord.Color.gray()), view=None)
+                    await interaction.edit_original_response(embed=discord.Embed(title="🗑️ 잡동사니를 건졌습니다", description=f"**{trash['name']}** (수익: {max(0, trash['value']):,}원)", color=discord.Color.grey()), view=None)
                     conn.commit()
                     return self._clear_session()
 
