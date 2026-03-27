@@ -45,11 +45,45 @@ class RoomManager(commands.Cog):
 
     room_group = app_commands.Group(name="방설정", description="대화방 및 음성방 관리 시스템")
 
+    # 💡 [개별 분리] /방제변경 명령어
+    @app_commands.command(name="방제변경", description="현재 접속 중인 임시 음성방의 제목을 변경합니다.")
+    @app_commands.describe(제목="변경할 방 제목")
+    async def rename_room_standalone(self, interaction: discord.Interaction, 제목: str):
+        db = self.get_db(interaction.guild_id)
+        
+        if not interaction.user.voice or not interaction.user.voice.channel:
+            return await interaction.response.send_message("❌ 음성 채널에 먼저 접속해 주세요.", ephemeral=True)
 
+        current_channel = interaction.user.voice.channel
+
+        # 원본 생성기 채널은 이름 변경 불가 처리
+        is_generator = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_gen_{current_channel.id}",), 'one')
+        if is_generator:
+            return await interaction.response.send_message("❌ 음성방 생성기의 이름은 명령어로 변경할 수 없습니다.", ephemeral=True)
+
+        # 임시 생성방인지 확인
+        is_temp = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_temp_{current_channel.id}",), 'one')
+        if not is_temp:
+            return await interaction.response.send_message("❌ 이 방은 자동 생성된 임시 음성방이 아닙니다.", ephemeral=True)
+
+        now = datetime.now()
+        user_id = interaction.user.id
+        if user_id in self.rename_cooldown:
+            elapsed = now - self.rename_cooldown[user_id]
+            if elapsed < timedelta(minutes=1):
+                remain = 60 - elapsed.seconds
+                return await interaction.response.send_message(f"⏳ 쿨타임 중입니다. {remain}초 뒤에 시도하세요.", ephemeral=True)
+
+        await current_channel.edit(name=제목)
+        self.rename_cooldown[user_id] = now
+        await interaction.response.send_message(f"✅ 방 제목이 `{제목}`으로 변경되었습니다.")
+
+
+    # 기존 통합 관리 명령어 (선택지에서 방제변경 제외됨)
     @room_group.command(name="작업", description="방 관련 작업을 수행합니다.")
     @app_commands.describe(
         작업="수행할 작업 선택",
-        제목="방 이름 (생성 및 변경 시)",
+        제목="방 이름 (생성 시)",
         임시방제목="음성방 생성기에서 생성될 자동 방의 기본 이름",
         인원수="입장 가능한 최대 인원수 (인원수변경/음성방 생성 시)",
         멤버1="초대할 멤버 1 (대화방 전용)",
@@ -62,7 +96,6 @@ class RoomManager(commands.Cog):
         app_commands.Choice(name="역할해제", value="role_remove"),
         app_commands.Choice(name="음성방생성기", value="voice_gen_setup"),
         app_commands.Choice(name="대화방생성기", value="text_gen_setup"),
-        app_commands.Choice(name="방제변경", value="rename_room"),
         app_commands.Choice(name="인원수변경", value="limit_change"),
         app_commands.Choice(name="대화방삭제", value="text_delete")
     ])
@@ -81,7 +114,6 @@ class RoomManager(commands.Cog):
         db = self.get_db(interaction.guild_id)
         guild = interaction.guild
 
-        # [1] 역할 지정 / 해제
         if 작업 == "role_setup":
             if not interaction.user.guild_permissions.administrator:
                 return await interaction.response.send_message("❌ 관리자 전용입니다.", ephemeral=True)
@@ -96,14 +128,12 @@ class RoomManager(commands.Cog):
             db.execute_query("DELETE FROM settings WHERE key = 'room_manager_role'")
             return await interaction.response.send_message("🗑️ 인원 제한 권한 설정이 해제되었습니다. 이제 관리자만 사용 가능합니다.")
 
-        # 권한 확인 로직 (공통)
         role_data = db.execute_query("SELECT value FROM settings WHERE key = 'room_manager_role'", (), 'one')
         is_allowed = interaction.user.guild_permissions.administrator
         if role_data and not is_allowed:
             is_allowed = discord.utils.get(interaction.user.roles, id=int(role_data['value'])) is not None
 
 
-        # [2] 음성방 생성기 (관리자 전용)
         if 작업 == "voice_gen_setup":
             if not interaction.user.guild_permissions.administrator:
                 return await interaction.response.send_message("❌ 관리자만 음성방 생성기를 만들 수 있습니다.", ephemeral=True)
@@ -111,9 +141,7 @@ class RoomManager(commands.Cog):
                 return await interaction.response.send_message("❌ 방명을 입력해주세요.", ephemeral=True)
             
             await interaction.response.defer(ephemeral=True)
-            
             category = interaction.channel.category if interaction.channel.category else None
-            
             temp_name = 임시방제목 if 임시방제목 else 제목
             topic_memo = f"생성기|기본명:{temp_name}|인원:{인원수}"
             
@@ -123,7 +151,6 @@ class RoomManager(commands.Cog):
             await interaction.followup.send(f"✅ 음성방 생성기가 만들어졌습니다: {channel.mention}")
 
 
-        # [3] 대화방 생성기 (역할권한 및 관리자 가능)
         elif 작업 == "text_gen_setup":
             if not is_allowed:
                 return await interaction.response.send_message("❌ 권한이 없습니다.", ephemeral=True)
@@ -138,52 +165,14 @@ class RoomManager(commands.Cog):
                 guild.me: discord.PermissionOverwrite(view_channel=True),
                 interaction.user: discord.PermissionOverwrite(view_channel=True)
             }
-            
-            invited_members = []
             for m in [멤버1, 멤버2, 멤버3]:
                 if m:
                     overwrites[m] = discord.PermissionOverwrite(view_channel=True)
-                    invited_members.append(m.mention)
 
             channel = await guild.create_text_channel(name=f"🔒-{제목}", category=category, overwrites=overwrites)
-            welcome_msg = f"✅ `{channel.name}` 생성 완료!"
-            if invited_members:
-                welcome_msg += f"\n초대된 멤버: {', '.join(invited_members)}"
-            await interaction.followup.send(welcome_msg)
+            await interaction.followup.send(f"✅ `{channel.name}` 대화방이 생성되었습니다.")
 
 
-        # [4] 방제 변경 (내부 사람들만 가능, 쿨타임 1분)
-        elif 작업 == "rename_room":
-            if not interaction.user.voice or not interaction.user.voice.channel:
-                return await interaction.response.send_message("❌ 음성 채널에 먼저 접속해 주세요.", ephemeral=True)
-            if not 제목:
-                return await interaction.response.send_message("❌ 변경할 제목을 입력해 주세요.", ephemeral=True)
-
-            current_channel = interaction.user.voice.channel
-
-            # 💡 원본 생성기 채널은 유저가 이름을 함부로 바꿀 수 없도록 잠금
-            is_generator = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_gen_{current_channel.id}",), 'one')
-            if is_generator:
-                return await interaction.response.send_message("❌ 음성방 생성기의 이름은 명령어로 변경할 수 없습니다.", ephemeral=True)
-
-            is_temp = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_temp_{current_channel.id}",), 'one')
-            if not is_temp:
-                return await interaction.response.send_message("❌ 이 방은 자동 생성된 임시 음성방이 아닙니다.", ephemeral=True)
-
-            now = datetime.now()
-            user_id = interaction.user.id
-            if user_id in self.rename_cooldown:
-                elapsed = now - self.rename_cooldown[user_id]
-                if elapsed < timedelta(minutes=1):
-                    remain = 60 - elapsed.seconds
-                    return await interaction.response.send_message(f"⏳ 쿨타임 중입니다. {remain}초 뒤에 시도하세요.", ephemeral=True)
-
-            await current_channel.edit(name=제목)
-            self.rename_cooldown[user_id] = now
-            await interaction.response.send_message(f"✅ 방 제목이 `{제목}`으로 변경되었습니다.")
-
-
-        # [5] 인원수 변경 (지정 역할 및 관리자 가능)
         elif 작업 == "limit_change":
             if not is_allowed:
                 return await interaction.response.send_message("❌ 권한이 없습니다.", ephemeral=True)
@@ -191,12 +180,10 @@ class RoomManager(commands.Cog):
                 return await interaction.response.send_message("❌ 음성 채널에 먼저 접속해 주세요.", ephemeral=True)
 
             current_channel = interaction.user.voice.channel
-
             await current_channel.edit(user_limit=인원수)
             await interaction.response.send_message(f"✅ 인원수가 {인원수}명으로 설정되었습니다.")
 
 
-        # [6] 대화방 삭제
         elif 작업 == "text_delete":
             if not isinstance(interaction.channel, discord.TextChannel) or "🔒-" not in interaction.channel.name:
                 return await interaction.response.send_message("❌ 삭제 가능한 방이 아닙니다.", ephemeral=True)
@@ -210,7 +197,6 @@ class RoomManager(commands.Cog):
         db = self.get_db(member.guild.id)
         if not db: return
 
-        # 입장 시 자동 순간이동 및 방 복제
         if after.channel is not None:
             gen_data = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_gen_{after.channel.id}",), 'one')
             
@@ -228,16 +214,11 @@ class RoomManager(commands.Cog):
                     position=after.channel.position + 1
                 )
                 
-                # 임시방 ID를 DB에 기록
                 db.execute_query("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (f"v_temp_{new_channel.id}", "true"))
-                
                 await member.move_to(new_channel)
 
-        # 퇴장 시 자동 방 청소
         if before.channel is not None:
             v_channel = before.channel
-            
-            # 💡 이모지에 의존하지 않고, DB에 기록된 임시 채널인지 조회
             temp_data = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_temp_{v_channel.id}",), 'one')
             
             if temp_data:
@@ -249,7 +230,6 @@ class RoomManager(commands.Cog):
                         db.execute_query("DELETE FROM settings WHERE key = ?", (f"v_temp_{v_channel.id}",))
                     except Exception as e:
                         logger.error(f"채널 삭제 중 에러 발생: {e}")
-
 
 async def setup(bot):
     await bot.add_cog(RoomManager(bot))

@@ -1113,16 +1113,6 @@ class DatabaseCog(commands.Cog, name="DatabaseManager"):
         if gid_str not in self._managers:
             self._managers[gid_str] = DatabaseManager(gid_str)
         return self._managers[gid_str]
-
-async def setup(bot):
-    await bot.add_cog(DatabaseCog(bot))
-    logger.info("✅ DatabaseManager Cog가 로드되었습니다.")
-
-# 💡 모든 로컬 테스트 코드는 반드시 이 if문 안으로 들어가야 합니다!
-if __name__ == "__main__":
-    test_guild_id = "test_guild_123"
-    db = DatabaseManager(guild_id=test_guild_id)
-    logger.info("데이터베이스 매니저 초기화 완료")
     
     # 아까 밖으로 나와있던 테스트용 코드도 이 안으로 넣어줍니다.
     from datetime import date
