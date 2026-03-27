@@ -1071,106 +1071,81 @@ class FishingSystemCog(commands.Cog):
             conn.rollback()
             await interaction.response.send_message(f"❌ 티어 변경 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
-    @app_commands.command(name="쓰레기청소", description="내 가방에 있는 패널티 쓰레기를 처리합니다.")
-    @app_commands.choices(액션=[
-        app_commands.Choice(name="🧹 가방 쓰레기 비우기 (정화)", value="clean"),
-        app_commands.Choice(name="🚮 그냥 길가에 버리기 (무단투기 - 적발 확률 있음!)", value="dump")
+    @app_commands.command(name="쓰레기청소", description="현재 낚시터 채널의 오염도를 돈을 내고 청소하여 정화합니다.")
+    @app_commands.choices(청소량=[
+        app_commands.Choice(name="🧹 가벼운 청소 (오염도 -5 감소 / 5,000원)", value="light"),
+        app_commands.Choice(name="🧼 대청소 (오염도 -20 감소 / 20,000원)", value="deep"),
+        app_commands.Choice(name="🚜 전문 방역 및 정화 (오염도 0으로 초기화 / 수치비례 가격)", value="full")
     ])
-    async def clean_trash_inventory(self, interaction: discord.Interaction, 액션: str):
+    async def clean_channel_pollution(self, interaction: discord.Interaction, 청소량: str):
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
 
-        all_trash_names = [t['name'] for t in TRASH_LIST]
-        placeholders = ', '.join(['?'] * len(all_trash_names))
-        query = f"SELECT id, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ? AND fish_name IN ({placeholders})"
-        
-        params = [uid, gid] + all_trash_names
-        user_trash = db.execute_query(query, tuple(params), 'all')
+        # 🔍 현재 낚시터의 오염도 정보 가져오기
+        ground = db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+        if not ground:
+            return await interaction.response.send_message("❌ 이 채널은 등록된 낚시터가 아닙니다.", ephemeral=True)
 
-        if not user_trash:
-            return await interaction.response.send_message("🎒 가방에 버릴 쓰레기가 없습니다! (깨끗한 상태입니다.)", ephemeral=True)
+        current_pollution = ground['pollution'] if ground['pollution'] is not None else 0
 
-        trash_count = len(user_trash)
-        CLEAN_COST_PER_ITEM = 1000
-        total_cost = trash_count * CLEAN_COST_PER_ITEM
+        if current_pollution <= 0:
+            return await interaction.response.send_message("✨ 이 낚시터는 이미 매우 깨끗합니다! 청소할 필요가 없습니다.", ephemeral=True)
 
-        if 액션 == "clean":
-            user_cash = db.get_user_cash(uid) or 0
-            if user_cash < total_cost:
-                return await interaction.response.send_message(
-                    f"❌ 쓰레기를 처리할 돈이 부족합니다!\n(필요 비용: {total_cost:,}원 / 보유 자금: {user_cash:,}원)", 
-                    ephemeral=True
-                )
+        # 💸 선택한 청소량에 따른 비용 및 정화 수치 계산
+        cost = 0
+        reduce_amount = 0
 
-            conn = db.get_connection()
-            try:
-                conn.execute("BEGIN")
-                conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (total_cost, uid, gid))
-                
-                trash_ids = [t['id'] for t in user_trash]
-                id_placeholders = ', '.join(['?'] * len(trash_ids))
-                conn.execute(f"DELETE FROM fishing_inventory WHERE id IN ({id_placeholders})", tuple(trash_ids))
-                conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                             (uid, "낚시", -total_cost, user_cash - total_cost, f"가방 쓰레기 {trash_count}개 정화 처리"))
-                conn.commit()
+        if 청소량 == "light":
+            reduce_amount = 5
+            cost = 5000
+        elif 청소량 == "deep":
+            reduce_amount = 20
+            cost = 20000
+        elif 청소량 == "full":
+            reduce_amount = current_pollution # 현재 오염도 전부 삭감
+            cost = int(current_pollution * 1000) # 오염도 1점당 1,000원으로 계산
 
-                await interaction.response.send_message(
-                    embed=discord.Embed(
-                        title="🧹 합법적 쓰레기 처리 완료", 
-                        description=f"가방에 있던 쓰레기 **{trash_count}개**를 정화 처리했습니다.\n처리 비용 **{total_cost:,}원**이 소모되었습니다.", 
-                        color=discord.Color.green()
-                    )
-                )
-            except Exception as e:
-                conn.rollback()
-                await interaction.response.send_message(f"❌ 쓰레기 처리 중 오류 발생: {e}", ephemeral=True)
+        # 💰 유저 소지금 검사
+        user_cash = db.get_user_cash(uid) or 0
+        if user_cash < cost:
+            return await interaction.response.send_message(
+                f"❌ 청소 비용이 부족합니다!\n(필요 비용: {cost:,}원 / 보유 자금: {user_cash:,}원)", 
+                ephemeral=True
+            )
 
-        elif 액션 == "dump":
-            conn = db.get_connection()
-            try:
-                conn.execute("BEGIN")
-                
-                trash_ids = [t['id'] for t in user_trash]
-                id_placeholders = ', '.join(['?'] * len(trash_ids))
-                conn.execute(f"DELETE FROM fishing_inventory WHERE id IN ({id_placeholders})", tuple(trash_ids))
+        conn = db.get_connection()
+        try:
+            conn.execute("BEGIN")
+            
+            # 1. 돈 차감
+            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
+            
+            # 2. 낚시터 오염도 차감 (음수가 되지 않도록 MAX 처리)
+            conn.execute("UPDATE fishing_ground SET pollution = MAX(0, pollution - ?) WHERE channel_id = ? AND guild_id = ?", (reduce_amount, chid, gid))
+            
+            # 3. 로그 기록
+            conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                         (uid, "낚시", -cost, user_cash - cost, f"낚시터 채널 오염도 {reduce_amount} 정화 비용 지출"))
+            
+            conn.commit()
 
-                # 🎲 30% 확률로 무단투기 적발 기믹
-                is_caught = random.random() < 0.30 
+            # ✨ 결과 안내 임베드
+            after_pollution = max(0, current_pollution - reduce_amount)
+            
+            embed = discord.Embed(
+                title="🌊 낚시터 환경 정화 완료", 
+                description=f"<#{chid}> 낚시터 채널을 깨끗하게 청소했습니다!", 
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="📉 소모 비용", value=f"`{cost:,}원`", inline=True)
+            embed.add_field(name="🚨 오염도 변화", value=f"`{current_pollution} P` ➡️ **`{after_pollution} P`**", inline=True)
+            embed.set_footer(text="정화된 낚시터는 물고기가 낚일 확률이 올라가고 쓰레기가 덜 낚입니다.")
 
-                if is_caught:
-                    # 적발 시: 오염도 대폭 상승(개당 10점) 및 개인 명성 삭감(개당 50점)
-                    pollution_increase = trash_count * 1.0
-                    reputation_penalty = trash_count * 50
+            await interaction.response.send_message(embed=embed)
 
-                    conn.execute("UPDATE fishing_ground SET pollution = pollution + ? WHERE channel_id = ? AND guild_id = ?", (pollution_increase, chid, gid))
-                    conn.execute("UPDATE users SET fishing_reputation = MAX(0, fishing_reputation - ?) WHERE user_id = ? AND guild_id = ?", (reputation_penalty, uid, gid))
-                    
-                    embed = discord.Embed(
-                        title="🚨 무단 투기 적발!", 
-                        description=f"환경단속반에게 무단투기를 들켰습니다!\n버린 쓰레기 **{trash_count}개**에 대한 과태료가 부과됩니다.", 
-                        color=discord.Color.red()
-                    )
-                    embed.add_field(name="⚠️ 낚시터 오염도 상승", value=f"`+{pollution_increase}`", inline=True)
-                    embed.add_field(name="📉 개인 명성 감소", value=f"`-{reputation_penalty:,}점`", inline=True)
-                    embed.set_footer(text="쓰레기는 반드시 쓰레기통에 합법적으로 버립시다!")
-
-                else:
-                    # 완전 범죄 성공 시: 기본 오염도만 상승(개당 2점)
-                    pollution_increase = trash_count * 2
-                    conn.execute("UPDATE fishing_ground SET pollution = pollution + ? WHERE channel_id = ? AND guild_id = ?", (pollution_increase, chid, gid))
-
-                    embed = discord.Embed(
-                        title="🤫 완전 범죄 성공", 
-                        description=f"단속반의 눈을 피해 쓰레기 **{trash_count}개**를 몰래 버렸습니다.\n조용히 낚시터 오염도가 **{pollution_increase}**만큼 상승합니다.", 
-                        color=discord.Color.dark_grey()
-                    )
-
-                conn.commit()
-                await interaction.response.send_message(embed=embed)
-
-            except Exception as e:
-                conn.rollback()
-                await interaction.response.send_message(f"❌ 무단 투기 처리 중 오류 발생: {e}", ephemeral=True)
+        except Exception as e:
+            conn.rollback()
+            await interaction.response.send_message(f"❌ 정화 처리 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
     # ==========================================
     # 🏢 [시설 건설 명령어] - 자동완성(Autocomplete) 추가 버전
