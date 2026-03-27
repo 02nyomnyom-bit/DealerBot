@@ -302,19 +302,22 @@ class DatabaseManager:
             )
         ''')
 
-        # 🎣 낚시터 정보 테이블 추가
+        # 🎣 낚시터 정보 테이블 (최신 규격으로 수정)
         self.create_table(
             "fishing_ground",
             """
             channel_id TEXT NOT NULL,
             guild_id TEXT NOT NULL,
             channel_name TEXT DEFAULT '',
-            owner_id TEXT,                    -- 땅주인 ID
-            ground_price INTEGER DEFAULT 100000, -- 땅값
-            usage_fee INTEGER DEFAULT 1000,     -- 이용 가격
-            pollution INTEGER DEFAULT 0,       -- 오염도 (버리기 시 상승)
-            ground_reputation INTEGER DEFAULT 0, -- 낚시터 명성
-            tier INTEGER DEFAULT 1,            -- 낚시터 등급
+            owner_id TEXT,                    
+            ground_type TEXT DEFAULT '호수',
+            ground_price INTEGER DEFAULT 100000, 
+            entry_fee INTEGER DEFAULT 0,
+            usage_time_limit INTEGER DEFAULT 1,
+            is_public INTEGER DEFAULT 1,
+            pollution INTEGER DEFAULT 0,       
+            ground_reputation INTEGER DEFAULT 0, 
+            tier INTEGER DEFAULT 1,            
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (channel_id, guild_id)
             """
