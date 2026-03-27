@@ -1337,10 +1337,20 @@ class FishingSystemCog(commands.Cog):
         elif 대상 == "reset_channel":
             self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
             
+            # 🔥 [추가] 현재 채널에서 낚시 중인 세션이나 락(Lock)이 있다면 메모리에서 강제 퇴출
+            # 이 채널의 ID를 사용하는 게임 인스턴스를 찾아 세션을 파괴합니다.
+            active_uids = list(active_sessions.keys())
+            for u_id in active_uids:
+                session = active_sessions.get(u_id)
+                # 세션 객체 내부의 channel_id가 현재 채널과 일치하면 메모리에서 지웁니다.
+                if hasattr(session, 'channel_id') and str(session.channel_id) == chid:
+                    active_sessions.pop(u_id, None)
+                    user_locks.pop(u_id, None)
+
             conn = db.get_connection()
             try:
                 conn.execute("BEGIN")
-                # 1. 낚시터 정보 초기화 (주인 없음, 구매 가능, 공개, 호수 지형, 입장료 0원)
+                # 1. 낚시터 정보 초기화
                 conn.execute(
                     "UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1, "
                     "ground_type = '호수', entry_fee = 0, ground_reputation = 0, tier = 1 "
@@ -1348,23 +1358,22 @@ class FishingSystemCog(commands.Cog):
                     (chid, gid)
                 )
                 
-                # 2. 해당 채널에 지어져있던 시설들 전량 삭제
+                # 2. 시설 완전 철거 (DB 삭제)
                 conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 conn.commit()
 
-                # 3. 비동기 채널명 원복 (속도 제한 우회)
+                # 3. 비동기 채널명 원복 (429 Rate Limit 방지)
                 async def safe_rename_reset():
                     try:
                         await interaction.channel.edit(name="🌊｜공용_낚시터")
                     except discord.HTTPException as e:
-                        # 속도 제한에 걸려 실패하더라도 봇이 뻗지 않고 로그만 남깁니다.
                         print(f"[경고] 초기화 채널명 변경 속도 제한 무시됨: {e}")
 
                 asyncio.create_task(safe_rename_reset())
 
                 await interaction.response.send_message(
-                    f"🧹 <#{chid}> 채널의 낚시 데이터 및 시설이 완전히 초기화되었습니다.\n"
-                    f"이제 다시 누구나 사용할 수 있는 **기본 공용 낚시터** 상태입니다!"
+                    f"🧹 <#{chid}> 채널의 DB 데이터, 시설 버프 및 **실시간 메모리 세션**이 완전히 초기화되었습니다!\n"
+                    f"이제 깔끔한 기본 공용 낚시터 상태입니다."
                 )
             except Exception as e:
                 conn.rollback()
