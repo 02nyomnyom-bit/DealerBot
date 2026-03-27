@@ -758,29 +758,51 @@ class FishingSystemCog(commands.Cog):
             db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", (chid, gid, interaction.channel.name))
             ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
 
-        # 🔍 [1] 정보 조회 기능
+        # 🔍 [1] 정보 조회 기능 (수정본)
         if 액션 == "info":
             owner = f"<@{ground['owner_id']}>" if ground['owner_id'] else "없음 (구매 가능)"
             facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
             f_list = ", ".join([f['facility_name'] for f in facilities]) if facilities else "없음"
 
-            total_fish_rate = 0.0
-            total_trash_rate = 0.0
-            best_sell_mult = 1.0
+            # 🔥 [핵심 수정] 조회할 때마다 수치를 0.0과 1.0(기본값)으로 엄격하게 초기화합니다.
+            adj_fee = 0.0          # 🎫 매표소 수수료 조정
+            fish_rate = 0.0         # 📦 물고기 낚일 확률 증가
+            base_fee = 0.0         # 📦 창고 기본 수수료
+            trash_rate = 0.0       # 🧹 쓰레기 감소 확률
+            upkeep_discount = 0.0  # ⚡ 유지비 감소율
+            upkeep_mult = 0.0      # 💸 유지비 증가율
+            rep_mult = 1.0         # ✨ 명성 획득 배율 (기본 1배)
+            fish_price_mult = 1.0  # 🏪 물고기 판매가 배율 (기본 1배)
+            fail_rate = 0.0        # 🏫 낚시 실패 확률 증가
 
             if facilities:
                 for f in facilities:
                     f_name = f['facility_name']
                     if f_name in FACILITIES:
                         effects = FACILITIES[f_name].get("effect", {})
-                        total_fish_rate += effects.get("fish_rate", 0.0)
-                        total_trash_rate += effects.get("trash_rate", 0.0)
-                        price_mult = effects.get("fish_price_mult", 1.0)
-                        if price_mult > best_sell_mult:
-                            best_sell_mult = price_mult
+                        
+                        adj_fee += effects.get("fee_adj", 0.0)
+                        fish_rate += effects.get("fish_rate", 0.0)
+                        base_fee += effects.get("base_fee", 0.0)
+                        trash_rate += effects.get("trash_rate", 0.0)
+                        upkeep_discount += effects.get("upkeep_discount", 0.0)
+                        upkeep_mult += effects.get("upkeep_mult", 0.0)
+                        
+                        # 배율형 데이터는 가장 높은 시설의 효과를 적용하거나 누적(곱하기)합니다. 여기선 가장 높은 수치를 채택합니다.
+                        p_mult = effects.get("fish_price_mult", 1.0)
+                        if p_mult > fish_price_mult:
+                            fish_price_mult = p_mult
+                            
+                        r_mult = effects.get("rep_mult", 1.0)
+                        if r_mult > rep_mult:
+                            rep_mult = r_mult
+                            
+                        fail_rate += effects.get("fail_rate", 0.0)
 
-            trash_prob = max(0.0, 25.0 + (total_trash_rate * 100))
-            
+            # ⚖️ 최종 합산 및 보정 계산
+            final_upkeep_mod = (upkeep_mult - upkeep_discount) * 100 # 증가량 - 감소율
+            trash_prob = max(0.0, 25.0 + (trash_rate * 100)) # 기본 쓰레기 확률 25% 기반
+
             embed = discord.Embed(title=f"📍 낚시터 정보: {interaction.channel.name}", color=discord.Color.blue())
             embed.add_field(name="👑 소유주", value=owner, inline=True)
             embed.add_field(name="💰 구매 가격", value=f"{ground['ground_price']:,}원", inline=True)
@@ -789,12 +811,18 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=True)
             embed.add_field(name="🌍 자연 환경", value=ground['ground_type'], inline=True)
 
+            # 📊 9대 카테고리 효과 종합 리포트 출력
             effect_summary = (
-                f"📈 **희귀 물고기 확률 증가:** `+{total_fish_rate * 100:.1f}%` (창고 효과)\n"
-                f"🗑️ **현재 쓰레기 낚일 확률:** `{trash_prob:.1f}%` (환경미화 효과)\n"
-                f"🏪 **물고기 판매가 정산율:** `{best_sell_mult:.1f}배` (상업 시설 효과)"
+                f"🎫 **수수료 조정 범위:** `±{adj_fee * 100:.1f}%` (매표소)\n"
+                f"📦 **희귀 물고기 확률:** `+{fish_rate * 100:.1f}%` (창고)\n"
+                f"💰 **창고 기본 수수료:** `+{base_fee * 100:.1f}%` (창고)\n"
+                f"🗑️ **현재 쓰레기 확률:** `{trash_prob:.1f}%` (청소/환경)\n"
+                f"⚡ **최종 유지비 변동률:** `{final_upkeep_mod:+.1f}%` (발전소/사업체)\n"
+                f"✨ **명성 획득 배율:** `{rep_mult:.1f}배` (명성 시설)\n"
+                f"🏪 **물고기 판매가 보너스:** `{fish_price_mult:.1f}배` (상점/기업)\n"
+                f"🏫 **낚시 실패 확률 증가:** `+{fail_rate * 100:.1f}%` (학교)\n"
             )
-            embed.add_field(name="📊 현재 낚시터 적용 효과", value=effect_summary, inline=False)
+            embed.add_field(name="📊 현재 낚시터 적용 효과 종합", value=effect_summary, inline=False)
 
             await interaction.response.send_message(embed=embed)
 
@@ -956,7 +984,7 @@ class FishingSystemCog(commands.Cog):
             await interaction.response.send_message(f"❌ 티어 변경 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
     # ==========================================
-    # 🏢 [시설 건설 명령어] - 채널 단위로 저장됩니다.
+    # 🏢 [시설 건설 명령어] - 자동완성(Autocomplete) 추가 버전
     # ==========================================
     @app_commands.command(name="시설", description="낚시터에 수익을 높여줄 시설을 건설합니다.")
     @app_commands.choices(대분류=[
@@ -970,6 +998,7 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🏪 가게 및 상업", value="store"),
         app_commands.Choice(name="🏫 학교 (방해요소)", value="school")
     ])
+    # 📌 autocomplete=True 를 시설명 파라미터에 추가합니다.
     async def build_facility(self, interaction: discord.Interaction, 대분류: str, 시설명: str):
         if 시설명 not in FACILITIES:
             return await interaction.response.send_message("❌ 존재하지 않는 시설입니다.", ephemeral=True)
@@ -982,7 +1011,6 @@ class FishingSystemCog(commands.Cog):
         
         ground = db.execute_query("SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         
-        # 🚨 [수정] 채널 주인이 아예 없거나(공용), 주인이 내가 아니라면 건설 불가
         if not ground or not ground['owner_id'] or ground['owner_id'] != uid: 
             return await interaction.response.send_message("❌ 본인이 매입한 개인 사유지(채널)에만 시설을 지을 수 있습니다.", ephemeral=True)
         
@@ -1002,13 +1030,32 @@ class FishingSystemCog(commands.Cog):
         try:
             conn.execute("BEGIN")
             conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (f_data['req_cash'], uid, gid))
-            # 📌 PRIMARY KEY (channel_id, guild_id, facility_name) 이므로 채널당 시설 1개씩 독립 적용
             conn.execute("INSERT INTO fishing_facilities (channel_id, guild_id, facility_name) VALUES (?, ?, ?)", (chid, gid, 시설명))
             conn.commit()
             await interaction.response.send_message(f"🏗️ <#{chid}> 채널에 **{시설명}** 건설이 완료되었습니다!\n(효과: {f_data['desc']})")
         except Exception as e:
             conn.rollback()
             await interaction.response.send_message(f"❌ 시설 건설 중 DB 오류가 발생했습니다. (에러: {e})", ephemeral=True)
+        
+        # 🔥 [추가되는 자동완성 함수] 유저가 대분류를 고르면 그에 맞는 시설명 리스트만 반환합니다.
+    @build_facility.autocomplete('시설명')
+    async def build_facility_autocomplete(self, interaction: discord.Interaction, current: str):
+        # 유저가 명령어를 칠 때 '대분류'에 무엇을 골랐는지 실시간으로 가져옵니다.
+        selected_category = interaction.namespace.대분류 
+
+        if not selected_category:
+            return []
+
+        # 딕셔너리(CATEGORY_FACILITIES)에서 해당 대분류의 리스트를 꺼내옵니다.
+        available_facilities = CATEGORY_FACILITIES.get(selected_category, [])
+
+        choices = []
+        for f_name in available_facilities:
+            # 유저가 검색창에 글자를 치면 필터링하고, 아무것도 안 치면 전체 목록을 보여줍니다.
+            if current.lower() in f_name.lower():
+                choices.append(app_commands.Choice(name=f_name, value=f_name))
+
+        return choices[:25]
 
 
     # ==========================================
