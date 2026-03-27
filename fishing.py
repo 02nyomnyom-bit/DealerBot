@@ -653,8 +653,11 @@ class FishingGameView(discord.ui.View):
 
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
     async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user: return await interaction.response.send_message("본인만 조작할 수 있습니다.", ephemeral=True)
-        if self.user.id not in user_locks: user_locks[self.user.id] = asyncio.Lock()
+        if interaction.user != self.user: 
+            return await interaction.response.send_message("본인만 조작할 수 있습니다.", ephemeral=True)
+        
+        if self.user.id not in user_locks: 
+            user_locks[self.user.id] = asyncio.Lock()
         
         async with user_locks[self.user.id]:
             if self.responded: return
@@ -664,43 +667,25 @@ class FishingGameView(discord.ui.View):
 
             if self.stage != "bite":
                 title = "❌ 실패!" if self.stage != "fake" else "💢 허탕!"
-    
-                # 📝 상황에 맞는 피드백 문구 세분화
-                if self.stage == "fake":
-                    desc = "가짜 입질이었습니다! 물고기가 아니었던 것 같습니다."
-                elif self.stage == "waiting":
-                    desc = "아직 아무런 입질도 오지 않았는데 줄을 당겼습니다!"
-                else:
-                    desc = "타이밍을 놓쳤습니다."
-
-                await interaction.edit_original_response(
-                embed=discord.Embed(title=title, description=desc, color=discord.Color.default()),
-                view=None
-                )
+                desc = "가짜 입질이었습니다!" if self.stage == "fake" else "아직 입질이 오지 않았거나 타이밍을 놓쳤습니다."
+                await interaction.edit_original_response(embed=discord.Embed(title=title, description=desc, color=discord.Color.default()), view=None)
+                self._clear_session()
+                return
 
             uid, gid = str(self.user.id), str(interaction.guild_id)
             conn = self.db.get_connection()
+            
             try:
-
+                # 🔓 트랜잭션 시작
                 conn.execute("BEGIN")
                 conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 1) WHERE user_id = ? AND guild_id = ?", (uid, gid))
 
-                ground_info = self.db.execute_query(
-                    "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
-                    (str(self.channel_id), gid), 'one'
-                )
-
+                ground_info = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
                 current_pollution = ground_info['pollution'] if ground_info else 0
 
-                built_facilities = self.db.execute_query(
-                    "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", 
-                    (str(self.channel_id), gid), 'all'
-                )
+                built_facilities = self.db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'all')
 
-                # 2. 기본 쓰레기 확률 설정 (25%) + 🚨 오염도 반영 (오염도 1점당 1% 확률 상승)
                 trash_chance = 0.25 + (current_pollution / 100.0)
-
-                # 3. 설치된 시설들 중 '쓰레기 감소 효과' 적용
                 if built_facilities:
                     for f in built_facilities:
                         f_name = f['facility_name']
@@ -708,11 +693,9 @@ class FishingGameView(discord.ui.View):
                             trash_mod = FACILITIES[f_name].get("effect", {}).get("trash_rate", 0)
                             trash_chance += trash_mod
 
-                # 4. 🛑 [조정] 쓰레기 확률 상한선(Cap) 부여
-                # 오염도가 아무리 높아도 쓰레기 확률이 60%(0.6)를 넘지 못하게 락을 겁니다.
                 trash_chance = max(0.0, min(0.80, trash_chance))
 
-                # 🗑️ [쓰레기 기믹 작동부]
+                # 🗑️ 쓰레기 기믹
                 if random.random() < trash_chance:
                     trash = random.choice(TRASH_LIST)
                     if trash["type"] == "loss":
@@ -720,27 +703,24 @@ class FishingGameView(discord.ui.View):
                         active_sessions[self.user.id] = view
                         msg = await interaction.edit_original_response(embed=discord.Embed(title="🚮 쓰레기가 걸려왔습니다!", description=f"**[{trash['name']}]**\n적절한 조치가 필요합니다.", color=discord.Color.orange()), view=view)
                         view.message = msg
-                        conn.commit()
+                        conn.commit() # 👈 리턴 전 커밋 필수!
                         return
                     
-                    # 쓰레기 수익 (음수일 경우 0원 처리)
                     conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (max(0, trash["value"]), uid, gid))
                     await interaction.edit_original_response(embed=discord.Embed(title="🗑️ 잡동사니를 건졌습니다", description=f"**{trash['name']}** (수익: {max(0, trash['value']):,}원)", color=discord.Color.default()), view=None)
-                    conn.commit()
-                    return self._clear_session()
+                    conn.commit() # 👈 리턴 전 커밋 필수!
+                    self._clear_session()
+                    return
 
-                # 🎣 [물고기 기믹 작동부]
+                # 🎣 물고기 기믹
                 ground = self.db.execute_query("SELECT ground_type, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
                 location = ground['ground_type'] if ground else "호수"
-                current_ground_tier = ground['tier'] if ground else 1 # 현재 낚시터의 티어 가져오기
+                current_ground_tier = ground['tier'] if ground else 1
 
                 pool = FISHING_ECOLOGY.get(location, FISHING_ECOLOGY["호수"])
-
-                # 1. 낚시터 티어에 맞는 물고기만 필터링
                 valid_pool = [f for f in pool if f.get("req_tier", 1) <= current_ground_tier]
                 if not valid_pool: valid_pool = pool
 
-                # 📦 [창고 및 낚시터 티어 보너스 연동]
                 fish_rate_bonus = 0.0
                 if built_facilities:
                     for f in built_facilities:
@@ -748,27 +728,20 @@ class FishingGameView(discord.ui.View):
                         if f_name in FACILITIES:
                             fish_rate_bonus += FACILITIES[f_name].get("effect", {}).get("fish_rate", 0.0)
 
-                # 티어 및 시설에 따른 가중치 확률 계산
                 adjusted_weights = []
                 for f in valid_pool:
                     base_chance = f["chance"]
-                    
                     if f["rarity"] in ["희귀", "신종", "전설", "환상"]:
-                        tier_multiplier = current_ground_tier 
-                        adjusted_chance = base_chance * tier_multiplier * (1 + fish_rate_bonus)
+                        adjusted_chance = base_chance * current_ground_tier * (1 + fish_rate_bonus)
                     else:
                         adjusted_chance = base_chance
-                    
                     adjusted_weights.append(adjusted_chance)
 
-                # 🎲 1. 물고기 종류를 먼저 뽑습니다.
+                # ✅ 딱 한 번만 물고기 및 길이 추출
                 fish = random.choices(valid_pool, weights=adjusted_weights, k=1)[0]
-
-                # 📏 2. [에러 해결 지점] 뽑힌 물고기의 길이를 정의합니다!
                 length = round(random.uniform(fish["min"], fish["max"]), 1)
 
                 # 💥 [특수 동물 및 유해생물 이벤트 즉시 작동 구역]
-                # 인벤토리에 들어가지 않고, 경험치나 길이 기록 없이 즉시 세션이 종료됩니다.
 
                 if fish["name"] == "수달":
                     most_expensive = self.db.execute_query(
@@ -830,14 +803,18 @@ class FishingGameView(discord.ui.View):
                     await interaction.edit_original_response(embed=discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold()), view=None)
                     return self._clear_session()
 
-                # 📏 2. 일반 물고기일 때만 길이를 정의하고 인벤토리에 넣는 기존 로직 시작
-                length = round(random.uniform(fish["min"], fish["max"]), 1)
+                # 📜 일반 물고기 저장 프로세스
                 conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
-                
+                conn.commit() # 👈 정상 프로세스 커밋!
+
+                embed = discord.Embed(title="🎣 월척입니다!", description=f"**[{fish['name']}]** (길이: {length}cm)을(를) 낚았습니다!", color=discord.Color.green())
+                await interaction.edit_original_response(embed=embed, view=None)
+
             except Exception as e:
-                conn.rollback()
+                conn.rollback() # 👈 에러 시 반드시 롤백!
                 await interaction.edit_original_response(embed=discord.Embed(title="❌ 시스템 오류", description=f"데이터 처리 중 오류가 발생했습니다. (에러: {e})", color=discord.Color.red()), view=None)
-            finally: self._clear_session()
+            finally:
+                self._clear_session() # 👈 성공하든 에러가 나든 메모리 세션 해제!
 
     # === 2. [추가할 코드] 옆에 나란히 붙을 [🛑 낚시 중지] 버튼 ===
     @discord.ui.button(label="🛑 낚시 중지", style=discord.ButtonStyle.secondary)
