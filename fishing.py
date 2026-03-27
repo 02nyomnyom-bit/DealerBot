@@ -435,7 +435,7 @@ class FishingGameView(discord.ui.View):
             if self.stage != "bite":
                 title = "❌ 실패!" if self.stage != "fake" else "💢 허탕!"
                 desc = "타이밍을 놓쳤습니다." if self.stage != "fake" else "물고기가 아니었던 것 같습니다!"
-                await interaction.edit_original_response(embed=discord.Embed(title=title, description=desc, color=discord.Color.gray()), view=None)
+                await interaction.edit_original_response(embed=discord.Embed(title=title, description=desc, color=discord.Color.grey()), view=None)
                 return self._clear_session()
 
             uid, gid = str(self.user.id), str(interaction.guild_id)
@@ -583,6 +583,29 @@ class FishingGameView(discord.ui.View):
                 await interaction.edit_original_response(embed=discord.Embed(title="❌ 시스템 오류", description=f"데이터 처리 중 오류가 발생했습니다. (에러: {e})", color=discord.Color.red()), view=None)
             finally: self._clear_session()
 
+    # === 2. [추가할 코드] 옆에 나란히 붙을 [🛑 낚시 중지] 버튼 ===
+    @discord.ui.button(label="🛑 낚시 중지", style=discord.ButtonStyle.secondary)
+    async def stop_fishing(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user: 
+            return await interaction.response.send_message("본인만 조작할 수 있습니다.", ephemeral=True)
+        
+        if self.responded: 
+            return
+        
+        self.responded = True
+        await interaction.response.defer()
+        self.stop() # 뷰 타이머와 이벤트 루프를 정지합니다.
+
+        # 낚시 중지 알림 임베드 출력
+        embed = discord.Embed(
+            title="🛑 낚시 중단", 
+            description="낚싯대를 거두었습니다. 소모된 미끼는 반환되지 않습니다.", 
+            color=discord.Color.grey() # 지난번 에러 방지를 위해 grey 사용!
+        )
+        
+        await interaction.edit_original_response(embed=embed, view=None)
+        self._clear_session() # 액티브 세션 및 유저 락을 해제합니다.
+
 class GroundAccessView(discord.ui.View):
     def __init__(self, user: discord.Member, fee: int, hours: int, owner_id: str, db_manager: DatabaseManager):
         super().__init__(timeout=60.0)
@@ -639,9 +662,14 @@ class FishingSystemCog(commands.Cog):
         db.create_table("fishing_facilities", "channel_id TEXT, guild_id TEXT, facility_name TEXT, PRIMARY KEY(channel_id, guild_id, facility_name)")
         db.create_table("point_history", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, transaction_type TEXT, amount INTEGER, balance_after INTEGER, description TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP")
         
-        # 3. 낚시터 테이블 컬럼 누락 보정 (None을 ()로 변경)
+        # 3. 낚시터 테이블 컬럼 누락 보정 (PRAGMA 조회)
         cols_g_res = db.execute_query("PRAGMA table_info(fishing_ground)", (), 'all')
         cols_g = [c['name'] for c in cols_g_res] if cols_g_res else []
+
+        # ✅ 여기에 purchasable 자동 생성 로직을 추가합니다!
+        if 'purchasable' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN purchasable INTEGER DEFAULT 1")
+            except: pass
 
         if 'is_public' not in cols_g:
             try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 1")
