@@ -246,6 +246,8 @@ class TrashActionView(discord.ui.View):
             await interaction.response.send_message("❌ 처리 중 오류 발생!", ephemeral=True)
         finally: self._clear_session()
 
+    # fishing.py 내 TrashActionView 클래스의 dump 메서드 수정
+
     @discord.ui.button(label="🚮 그냥 버리기", style=discord.ButtonStyle.danger)
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
@@ -253,16 +255,29 @@ class TrashActionView(discord.ui.View):
         
         chid, gid = str(interaction.channel_id), str(interaction.guild_id)
         
-        # ✅ 무단 투기 시 해당 낚시터의 오염도를 5 상승시킵니다.
+        # 🔍 현재 오염도 가져오기
+        current_data = self.db.execute_query(
+            "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+            (chid, gid), 'one'
+        )
+        current_pollution = current_data['pollution'] if current_data else 0
+
+        # 📈 [조정] 계속 버릴수록 오염도 상승폭 체증 (기본 0.5 + 현재 오염도의 10%)
+        # 오염도가 0일 땐 0.5가 오르지만, 오염도가 20일 땐 한 번에 2.5가 오릅니다.
+        added_pollution = 0.5 + (current_pollution * 0.1)
+        
+        # 최대 오염도 상한선(예: 50)을 두어 무한 오염 폭주를 방지합니다.
+        new_pollution = min(50.0, current_pollution + added_pollution)
+
         self.db.execute_query(
-            "UPDATE fishing_ground SET pollution = pollution + 5 WHERE channel_id = ? AND guild_id = ?", 
-            (chid, gid)
+            "UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", 
+            (new_pollution, chid, gid)
         )
 
         await interaction.response.edit_message(
             embed=discord.Embed(
                 title="⚠️ 무단 투기", 
-                description="환경이 오염되었습니다! 이 낚시터에서 쓰레기가 잡힐 확률이 **0.5%** 상승합니다.", 
+                description=f"환경이 오염되었습니다! (오염도: +{added_pollution:.1f})\n현재 오염도: **{new_pollution:.1f} P**", 
                 color=discord.Color.red()
             ), 
             view=None
@@ -384,7 +399,7 @@ class FishingGameView(discord.ui.View):
         if self.message and not self.responded:
             try:
                 for child in self.children: child.disabled = True
-                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초과", description="낚시가 자동으로 중단되었습니다.", color=discord.Color.grey()), view=self)
+                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초과", description="낚시가 자동으로 중단되었습니다.", color=discord.Color.default()), view=self)
             except: pass
 
     def _clear_session(self):
@@ -472,7 +487,7 @@ class FishingGameView(discord.ui.View):
                     desc = "타이밍을 놓쳤습니다."
 
                 await interaction.edit_original_response(
-                embed=discord.Embed(title=title, description=desc, color=discord.Color.dark_grey()), 
+                embed=discord.Embed(title=title, description=desc, color=discord.Color.default()),
                 view=None
                 )
 
@@ -506,8 +521,9 @@ class FishingGameView(discord.ui.View):
                             trash_mod = FACILITIES[f_name].get("effect", {}).get("trash_rate", 0)
                             trash_chance += trash_mod
 
-                # 4. 음수 방지 및 최대 100% 한계치 설정
-                trash_chance = max(0.0, min(1.0, trash_chance))
+                # 4. 🛑 [조정] 쓰레기 확률 상한선(Cap) 부여
+                # 오염도가 아무리 높아도 쓰레기 확률이 60%(0.6)를 넘지 못하게 락을 겁니다.
+                trash_chance = max(0.0, min(0.60, trash_chance))
 
                 # 🗑️ [쓰레기 기믹 작동부]
                 if random.random() < trash_chance:
@@ -522,7 +538,7 @@ class FishingGameView(discord.ui.View):
                     
                     # 쓰레기 수익 (음수일 경우 0원 처리)
                     conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (max(0, trash["value"]), uid, gid))
-                    await interaction.edit_original_response(embed=discord.Embed(title="🗑️ 잡동사니를 건졌습니다", description=f"**{trash['name']}** (수익: {max(0, trash['value']):,}원)", color=discord.Color.grey()), view=None)
+                    await interaction.edit_original_response(embed=discord.Embed(title="🗑️ 잡동사니를 건졌습니다", description=f"**{trash['name']}** (수익: {max(0, trash['value']):,}원)", color=discord.Color.default()), view=None)
                     conn.commit()
                     return self._clear_session()
 
@@ -1001,9 +1017,27 @@ class FishingSystemCog(commands.Cog):
             view.message = await interaction.original_response()
 
         # 🏢 [4] 낚시터 판매 기능
+        # 🏢 [4] 낚시터 판매 기능
         elif 액션 == "sell":
             if ground['owner_id'] != uid: 
                 return await interaction.response.send_message("❌ 본인 소유의 낚시터만 매각할 수 있습니다.", ephemeral=True)
+
+            # 🚨 [추가] 오염도 먹튀 방지 검증
+            current_pollution = ground['pollution'] if ground['pollution'] is not None else 0
+            
+            # 오염도가 0보다 크면 매각을 거부합니다. (완전 무결한 청정 상태 요구)
+            # 만약 약간의 오염(예: 5.0 미만)은 봐주고 싶다면 `if current_pollution >= 5.0:` 으로 수정하세요.
+            if current_pollution > 0:
+                embed = discord.Embed(
+                    title="🛑 매각 거부: 환경 오염",
+                    description=(
+                        f"현재 낚시터의 오염도가 **{current_pollution:.1f} P**입니다.\n"
+                        f"오염된 낚시터는 국가(시스템)에서 매입하지 않습니다!\n\n"
+                        f"🧹 `/쓰레기청소` 명령어를 통해 오염도를 **0**으로 만든 뒤 다시 매각해 주세요."
+                    ),
+                    color=discord.Color.red()
+                )
+                return await interaction.response.send_message(embed=embed, ephemeral=True)
 
             price = ground['ground_price'] or 100000
 
@@ -1011,10 +1045,9 @@ class FishingSystemCog(commands.Cog):
             try:
                 conn.execute("BEGIN")
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (price, uid, gid))
-                conn.execute("UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+                conn.execute("UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1, pollution = 0 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 conn.commit()
                 
-                # 📌 [수정] 채널명 변경을 비동기 안전 태스크로 분리
                 async def safe_rename_sell():
                     try:
                         await interaction.channel.edit(name="🌊｜공용_낚시터")
