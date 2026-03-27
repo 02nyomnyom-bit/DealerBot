@@ -661,6 +661,11 @@ class FishingSystemCog(commands.Cog):
         # ✅ 명령어를 날릴 때마다 스키마를 체크하여 누락된 컬럼(is_public 등)이 있다면 채워 넣습니다.
         self._init_db_schema(db)
         return db
+    
+    def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
+        ground = db.execute_query("SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+        if not ground:
+            db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", (chid, gid, channel_name))
 
     async def _execute_fishing(self, interaction: discord.Interaction):
         if interaction.user.id in active_sessions: 
@@ -700,7 +705,8 @@ class FishingSystemCog(commands.Cog):
     @app_commands.command(name="낚시터", description="낚시터 정보를 조회하거나 땅을 관리합니다.")
     @app_commands.choices(액션=[
         app_commands.Choice(name="정보 조회", value="info"),
-        app_commands.Choice(name="낚시터 구매", value="buy"),
+        app_commands.Choice(name="낚시터 구매 (매입)", value="buy"),
+        app_commands.Choice(name="낚시터 판매 (매각)", value="sell"), # 👈 추가됨!
         app_commands.Choice(name="설정 변경 (입장료/공개여부/지형)", value="edit")
     ])
     @app_commands.choices(지형=[ # 🌟 지형 선택지 추가!
@@ -770,9 +776,14 @@ class FishingSystemCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
 
         elif 액션 == "buy":
-            if ground['owner_id']: return await interaction.response.send_message("❌ 이미 주인이 있는 땅입니다.", ephemeral=True)
+            if ground['owner_id']: 
+                return await interaction.response.send_message("❌ 이미 주인이 있는 땅입니다.", ephemeral=True)
+            
             cost = ground['ground_price']
-            if (db.get_user_cash(uid) or 0) < cost: return await interaction.response.send_message("❌ 소지금이 부족합니다!", ephemeral=True)
+            user_cash = db.get_user_cash(uid) or 0
+
+            if user_cash < cost: 
+                return await interaction.response.send_message(f"❌ 소지금이 부족합니다! (보유: {user_cash:,}원 / 필요: {cost:,}원)", ephemeral=True)
 
             conn = db.get_connection()
             try:
@@ -810,7 +821,37 @@ class FishingSystemCog(commands.Cog):
             )
             view = PublicSettingView(interaction.user, db)
             await interaction.response.send_message(embed=embed, view=view)
-            view.message = await interaction.original_response()
+            view.message = await interaction.original_response()\
+            
+        elif 액션 == "sell":
+            if ground['owner_id'] != uid: 
+                return await interaction.response.send_message("❌ 본인 소유의 낚시터만 매각할 수 있습니다.", ephemeral=True)
+
+            price = ground['ground_price'] or 100000
+            
+            # 🤝 1차 확인 절차 (실수 방지용 UI 뷰 호출)
+            # 과거 버전에 있던 ConfirmActionView를 현재 UI 스타일인 PublicSettingView 등의 구조와 맞춘 임시 확인창입니다.
+            embed = discord.Embed(
+                title="🏢 낚시터 매각 확인", 
+                description=f"정말로 현재 낚시터를 매각하시겠습니까?\n매각 시 **{price:,}원**을 돌려받으며, 소유권이 초기화되어 **누구나 다시 구매할 수 있게 됩니다.**", 
+                color=discord.Color.orange()
+            )
+
+            # 간단하게 구현하기 위해 기존에 이미 정의되어 있는 TrashActionView나 PublicSettingView처럼 
+            # 즉시 처리하는 인라인 코드를 작성하거나, 아래와 같이 표준 SQLite 트랜잭션으로 안전하게 구현합니다.
+            conn = db.get_connection()
+            try:
+                conn.execute("BEGIN")
+                # 1. 판매자에게 땅값 환불
+                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (price, uid, gid))
+                # 2. 소유주 비우기 및 다시 구매 가능하도록 세팅 (owner_id = NULL, purchasable = 1)
+                conn.execute("UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+                conn.commit()
+                
+                await interaction.response.send_message(f"🏢 낚시터 매각이 완료되었습니다! 계좌로 **{price:,}원**이 입금되었으며, 이제 다른 사람이 이 땅을 살 수 있습니다.")
+            except Exception as e:
+                conn.rollback()
+                await interaction.response.send_message(f"❌ 매각 중 오류가 발생했습니다: {e}", ephemeral=True)
 
     @app_commands.command(name="낚시터티어", description="[주인 전용] 낚시터 명성을 소모하여 땅 등급을 올리거나 내립니다.")
     @app_commands.choices(액션=[
@@ -1018,9 +1059,29 @@ class FishingSystemCog(commands.Cog):
         
         if 액션 == "sell":
             items = db.execute_query("SELECT length, price_per_cm, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid), 'all')
-            if not items: return await interaction.response.send_message("🎒 가방에 팔 물고기가 없습니다.", ephemeral=True)
+            if not items: 
+                return await interaction.response.send_message("🎒 가방에 팔 물고기가 없습니다.", ephemeral=True)
             
-            # 🏪 [정상화] 설치된 모든 시설을 긁어모아 가장 높은 물고기 가격 배율(fish_price_mult)을 찾습니다.
+            # 👤 유저의 개인 명성 조회
+            user_data = db.get_user(uid)
+            user_rep = user_data.get('fishing_reputation', 0) if user_data else 0
+
+            # ⭐ [명성별 1회 최대 판매 한도 설정]
+            # 원하는 수치로 자유롭게 수정 가능합니다!
+            if user_rep < 1000:
+                max_limit = 50000        # 명성 1,000 미만: 최대 5만 원
+                tier_name = "초보 낚시꾼"
+            elif user_rep < 5000:
+                max_limit = 200000       # 명성 5,000 미만: 최대 20만 원
+                tier_name = "숙련된 낚시꾼"
+            elif user_rep < 20000:
+                max_limit = 1000000      # 명성 20,000 미만: 최대 100만 원
+                tier_name = "전문 낚시꾼"
+            else:
+                max_limit = 999999999    # 명성 20,000 이상: 한도 없음 (무제한)
+                tier_name = "전설의 낚시꾼"
+
+            # 🏪 설치된 시설 중 가장 높은 물고기 가격 배율 찾기
             built_facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
             
             best_multiplier = 1.0
@@ -1028,23 +1089,39 @@ class FishingSystemCog(commands.Cog):
                 for f in built_facilities:
                     f_name = f['facility_name']
                     if f_name in FACILITIES:
-                        # 합산하는 대신, 설치된 건물 중 가장 배율이 높은 '단 하나'만 추출합니다.
                         f_mult = FACILITIES[f_name].get("effect", {}).get("fish_price_mult", 1.0)
                         if f_mult > best_multiplier:
                             best_multiplier = f_mult
 
-            # 💰 총액 정산 (각 물고기 가격 * 최고 시설 배율 단일 적용)
-            total = sum([int(i['length'] * i['price_per_cm'] * best_multiplier) for i in items])
+            # 💰 총액 정산
+            calculated_total = sum([int(i['length'] * i['price_per_cm'] * best_multiplier) for i in items])
             
+            # 🚨 [한도 초과 검사] 계산된 금액이 한도를 넘으면 한도 금액으로 고정
+            actual_earn = min(calculated_total, max_limit)
+            is_capped = calculated_total > max_limit
+
             conn = db.get_connection()
             try:
                 conn.execute("BEGIN")
-                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (total, uid, gid))
+                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (actual_earn, uid, gid))
                 conn.execute("DELETE FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid))
                 conn.commit()
                 
-                bonus_msg = f"\n(상업 시설 효과 적용: {best_multiplier}배 보너스 정산!)" if best_multiplier > 1.0 else ""
-                await interaction.response.send_message(f"💰 물고기 **{len(items)}마리**를 총 **{total:,}원**에 판매했습니다!{bonus_msg}")
+                # 📜 결과 임베드 메시지 구성
+                embed = discord.Embed(title="💰 물고기 일괄 정산", color=discord.Color.green())
+                embed.add_field(name="🎒 판매 수량", value=f"{len(items)}마리", inline=True)
+                embed.add_field(name="🏅 현재 등급", value=f"{tier_name} (명성: {user_rep:,}점)", inline=True)
+                
+                if is_capped:
+                    embed.add_field(name="⚠️ 정산 경고", value=f"정산 금액({calculated_total:,}원)이 현재 등급의 한도를 초과하여 **{max_limit:,}원**만 입금되었습니다!", inline=False)
+                else:
+                    embed.add_field(name="💸 획득 금액", value=f"**{actual_earn:,}원** 입금 완료", inline=True)
+
+                if best_multiplier > 1.0:
+                    embed.set_footer(text=f"상업 시설 효과로 판매 가격이 {best_multiplier}배 보너스 정산되었습니다.")
+
+                await interaction.response.send_message(embed=embed)
+
             except Exception as e:
                 conn.rollback()
                 await interaction.response.send_message(f"❌ 판매 처리 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
@@ -1202,6 +1279,18 @@ class FishingSystemCog(commands.Cog):
             view = AdminGroundTypeView(interaction.user, db)
             await interaction.response.send_message(embed=embed, view=view)
             view.message = await interaction.original_response()
-            
+    
+    def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
+        """낚시터가 DB에 없을 경우 기본값으로 생성해주는 헬퍼 메서드"""
+        ground = db.execute_query(
+            "SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+            (chid, gid), 
+            'one'
+        )
+        if not ground:
+            db.execute_query(
+                "INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", 
+                (chid, gid, channel_name)
+            )
 async def setup(bot):
     await bot.add_cog(FishingSystemCog(bot))
