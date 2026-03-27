@@ -648,7 +648,10 @@ class GroundAccessView(discord.ui.View):
     @discord.ui.button(label="💳 이용권 구매", style=discord.ButtonStyle.success)
     async def buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 구매 가능합니다.", ephemeral=True)
+        
+        # 👈 chid 변수를 추가해 좌우 변수 개수(3개)를 똑같이 맞춥니다.
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
+        
         current_cash = self.db.get_user_cash(uid) or 0
         if current_cash < self.fee: return await interaction.response.send_message("❌ 소지 금액이 부족합니다!", ephemeral=True)
 
