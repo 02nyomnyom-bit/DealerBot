@@ -1030,6 +1030,32 @@ class FishingSystemCog(commands.Cog):
             if ground['owner_id'] != uid: 
                 return await interaction.response.send_message("❌ 소유자만 설정을 변경할 수 있습니다.", ephemeral=True)
             
+            # 유저의 현재 소지금 조회
+            user_cash = db.get_user_cash(uid) or 0
+
+            # 🚨 [입장료 상한선 제한: 소지금의 80%]
+            if 입장료 is not None:
+                if 입장료 < 0:
+                    return await interaction.response.send_message("❌ 입장료는 음수로 설정할 수 없습니다.", ephemeral=True)
+                
+                # 상한선 계산 (소지금의 80%)
+                # 소지금이 너무 적을 때(예: 0원)를 대비해 최소 상한선을 1,000원으로 보장합니다.
+                max_fee_limit = max(1000, int(user_cash * 0.8))
+
+                if 입장료 > max_fee_limit:
+                    embed = discord.Embed(
+                        title="🛑 입장료 설정 거부",
+                        description=(
+                            f"본인 소지금의 **80%**를 초과하는 입장료를 책정할 수 없습니다!\n"
+                            f"서버 경제 인플레이션 및 사기 가격 방지를 위한 조치입니다.\n\n"
+                            f"💰 현재 본인의 소지금: **{user_cash:,}원**\n"
+                            f"🔒 설정 가능한 최대 입장료 (80%): **{max_fee_limit:,}원**\n"
+                            f"❌ 요청한 입장료: **{입장료:,}원**"
+                        ),
+                        color=discord.Color.red()
+                    )
+                    return await interaction.response.send_message(embed=embed, ephemeral=True)
+
             if 입장료 is not None or 지형 is not None:
                 new_fee = 입장료 if 입장료 is not None else ground['entry_fee']
                 new_type = 지형 if 지형 is not None else ground['ground_type']
@@ -1048,8 +1074,7 @@ class FishingSystemCog(commands.Cog):
             view = PublicSettingView(interaction.user, db)
             await interaction.response.send_message(embed=embed, view=view)
             view.message = await interaction.original_response()
-
-        # 🏢 [4] 낚시터 판매 기능
+            
         # 🏢 [4] 낚시터 판매 기능
         elif 액션 == "sell":
             if ground['owner_id'] != uid: 
