@@ -600,7 +600,7 @@ class FishingGameView(discord.ui.View):
         embed = discord.Embed(
             title="🛑 낚시 중단", 
             description="낚싯대를 거두었습니다. 소모된 미끼는 반환되지 않습니다.", 
-            color=discord.Color.grey() # 지난번 에러 방지를 위해 grey 사용!
+            color=discord.Color.from_rgb(128, 128, 128) # 직접 RGB (회색) 지정
         )
         
         await interaction.edit_original_response(embed=embed, view=None)
@@ -784,16 +784,16 @@ class FishingSystemCog(commands.Cog):
             # 최종 퍼센트 변환
             trash_prob = max(0.0, 25.0 + (total_trash_rate * 100)) # 기본 쓰레기 확률 25%
             
+            # ✅ 하나의 임베드에 모든 필드(Add field)를 추가합니다.
             embed = discord.Embed(title=f"📍 낚시터 정보: {interaction.channel.name}", color=discord.Color.blue())
             embed.add_field(name="👑 소유주", value=owner, inline=True)
             embed.add_field(name="💰 구매 가격", value=f"{ground['ground_price']:,}원", inline=True)
             embed.add_field(name="🎫 입장료", value=f"{ground['entry_fee']:,}원", inline=True)
             embed.add_field(name="🔓 상태", value="공개" if ground['is_public'] == 1 else "비공개 (입장권 필요)", inline=True)
-            embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=False)
+            embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=True)
             embed.add_field(name="🌍 자연 환경", value=ground['ground_type'], inline=True)
-            await interaction.response.send_message(embed=embed)
 
-            # ✨ [확률 및 시설 효과 출력란]
+            # ✨ [확률 및 시설 효과 출력란 합치기]
             effect_summary = (
                 f"📈 **희귀 물고기 확률 증가:** `+{total_fish_rate * 100:.1f}%` (창고 효과)\n"
                 f"🗑️ **현재 쓰레기 낚일 확률:** `{trash_prob:.1f}%` (환경미화 효과)\n"
@@ -801,28 +801,8 @@ class FishingSystemCog(commands.Cog):
             )
             embed.add_field(name="📊 현재 낚시터 적용 효과", value=effect_summary, inline=False)
 
+            # ✅ 딱 한 번만 전송합니다!
             await interaction.response.send_message(embed=embed)
-
-        elif 액션 == "buy":
-            if ground['owner_id']: 
-                return await interaction.response.send_message("❌ 이미 주인이 있는 땅입니다.", ephemeral=True)
-            
-            cost = ground['ground_price']
-            user_cash = db.get_user_cash(uid) or 0
-
-            if user_cash < cost: 
-                return await interaction.response.send_message(f"❌ 소지금이 부족합니다! (보유: {user_cash:,}원 / 필요: {cost:,}원)", ephemeral=True)
-
-            conn = db.get_connection()
-            try:
-                conn.execute("BEGIN")
-                conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
-                conn.execute("UPDATE fishing_ground SET owner_id = ?, purchasable = 0 WHERE channel_id = ? AND guild_id = ?", (uid, chid, gid))
-                conn.commit()
-                await interaction.response.send_message(f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!")
-            except:
-                conn.rollback()
-                await interaction.response.send_message("❌ 구매 중 오류가 발생했습니다.", ephemeral=True)
 
         elif 액션 == "edit":
             if ground['owner_id'] != uid: 
@@ -856,7 +836,7 @@ class FishingSystemCog(commands.Cog):
                 return await interaction.response.send_message("❌ 본인 소유의 낚시터만 매각할 수 있습니다.", ephemeral=True)
 
             price = ground['ground_price'] or 100000
-            
+
             # 🤝 1차 확인 절차 (실수 방지용 UI 뷰 호출)
             # 과거 버전에 있던 ConfirmActionView를 현재 UI 스타일인 PublicSettingView 등의 구조와 맞춘 임시 확인창입니다.
             embed = discord.Embed(
@@ -865,18 +845,22 @@ class FishingSystemCog(commands.Cog):
                 color=discord.Color.orange()
             )
 
-            # 간단하게 구현하기 위해 기존에 이미 정의되어 있는 TrashActionView나 PublicSettingView처럼 
-            # 즉시 처리하는 인라인 코드를 작성하거나, 아래와 같이 표준 SQLite 트랜잭션으로 안전하게 구현합니다.
             conn = db.get_connection()
             try:
                 conn.execute("BEGIN")
                 # 1. 판매자에게 땅값 환불
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (price, uid, gid))
-                # 2. 소유주 비우기 및 다시 구매 가능하도록 세팅 (owner_id = NULL, purchasable = 1)
+                # 2. 소유주 비우기 및 다시 구매 가능하도록 세팅 (owner_id = NULL, purchasable = 1, is_public = 1)
                 conn.execute("UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 conn.commit()
                 
-                await interaction.response.send_message(f"🏢 낚시터 매각이 완료되었습니다! 계좌로 **{price:,}원**이 입금되었으며, 이제 다른 사람이 이 땅을 살 수 있습니다.")
+                # 🏷️ [채널명 공용으로 초기화 로직 추가]
+                try:
+                    await interaction.channel.edit(name="🌊｜공용_낚시터")
+                except Exception as e:
+                    print(f"채널명 변경 실패: {e}")
+
+                await interaction.response.send_message(f"🏢 낚시터 매각이 완료되었습니다! 계좌로 **{price:,}원**이 입금되었으며, 채널이 다시 **공용 낚시터**로 초기화되었습니다.")
             except Exception as e:
                 conn.rollback()
                 await interaction.response.send_message(f"❌ 매각 중 오류가 발생했습니다: {e}", ephemeral=True)
@@ -1268,6 +1252,7 @@ class FishingSystemCog(commands.Cog):
     @app_commands.choices(대상=[
         app_commands.Choice(name="👤 특정 유저 개인 명성 수정", value="user"),
         app_commands.Choice(name="🏞️ 현재 채널의 낚시터 명성 수정", value="channel"),
+        app_commands.Choice(name="💰 현재 채널의 기본 매입가 수정", value="price"), # 👈 추가!
         app_commands.Choice(name="⚙️ 현재 채널의 낚시터 유형 설정 (버튼)", value="set_type")
     ])
     async def admin_control(
@@ -1307,6 +1292,13 @@ class FishingSystemCog(commands.Cog):
             view = AdminGroundTypeView(interaction.user, db)
             await interaction.response.send_message(embed=embed, view=view)
             view.message = await interaction.original_response()
+
+        elif 대상 == "price": 
+            if 수치 is None or 수치 < 0:
+                return await interaction.response.send_message("❌ 올바른 매입가 수치를 입력해 주세요.", ephemeral=True)
+            self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
+            db.execute_query("UPDATE fishing_ground SET ground_price = ? WHERE channel_id = ? AND guild_id = ?", (수치, chid, gid))
+            await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)의 초기 매입가가 **{수치:,}원**으로 변경되었습니다.", ephemeral=True)
     
     def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
         """낚시터가 DB에 없을 경우 기본값으로 생성해주는 헬퍼 메서드"""
