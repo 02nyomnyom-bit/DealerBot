@@ -366,6 +366,70 @@ class PublicSettingView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=None)
         self.stop()
 
+# 🔼 [낚시터 티어 업그레이드 최종 확인 UI 뷰]
+class TierUpgradeConfirmView(discord.ui.View):
+    def __init__(self, user: discord.Member, req_rep: int, current_tier: int, chid: str, gid: str, db_manager):
+        super().__init__(timeout=60.0)
+        self.user = user
+        self.req_rep = req_rep
+        self.current_tier = current_tier
+        self.chid = chid
+        self.gid = gid
+        self.db = db_manager
+        self.message = None
+        self.responded = False
+
+    async def on_timeout(self):
+        if self.message and not self.responded:
+            try:
+                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초과", description="티어 업그레이드 요청이 취소되었습니다.", color=discord.Color.light_gray()), view=None)
+            except: pass
+
+    @discord.ui.button(label="✅ 최종 승인", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 명령어를 입력한 땅 주인만 누를 수 있습니다.", ephemeral=True)
+        
+        if self.responded: return
+        self.responded = True
+
+        # 최신 명성 데이터 재검증
+        ground = self.db.execute_query("SELECT ground_reputation FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid), 'one')
+        current_rep = ground['ground_reputation'] if ground else 0
+
+        if current_rep < self.req_rep:
+            return await interaction.response.edit_message(embed=discord.Embed(title="❌ 업그레이드 실패", description="결제하려는 순간 낚시터 명성이 부족해졌습니다!", color=discord.Color.red()), view=None)
+
+        conn = self.db.get_connection()
+        try:
+            conn.execute("BEGIN")
+            conn.execute("UPDATE fishing_ground SET tier = tier + 1, ground_reputation = ground_reputation - ? WHERE channel_id = ? AND guild_id = ?", (self.req_rep, self.chid, self.gid))
+            conn.commit()
+
+            embed = discord.Embed(
+                title="🎉 낚시터 등급 상승 완료!", 
+                description=f"<#{self.chid}> 채널이 **{self.current_tier + 1}티어**가 되었습니다!", 
+                color=discord.Color.green()
+            )
+            embed.add_field(name="📉 소모 명성", value=f"`-{self.req_rep:,} P`", inline=True)
+            embed.add_field(name="📈 남은 명성", value=f"`{current_rep - self.req_rep:,} P`", inline=True)
+            embed.set_footer(text="티어가 오를수록 더 가치 있고 희귀한 물고기가 잡힙니다.")
+
+            await interaction.response.edit_message(embed=embed, view=None)
+
+        except Exception as e:
+            conn.rollback()
+            await interaction.response.edit_message(embed=discord.Embed(title="❌ 에러 발생", description=f"티어 상승 중 오류: {e}", color=discord.Color.red()), view=None)
+
+    @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 명령어를 입력한 땅 주인만 누를 수 있습니다.", ephemeral=True)
+        
+        self.responded = True
+        await interaction.response.edit_message(embed=discord.Embed(title="⏹️ 요청 취소", description="티어 업그레이드를 취소했습니다. 명성이 소모되지 않았습니다.", color=discord.Color.light_gray()), view=None)
+        self.stop()
+
 # 🏗️ [관리자용 낚시터 유형 지정 버튼 UI 뷰]
 class AdminGroundTypeView(discord.ui.View):
     def __init__(self, admin: discord.Member, db_manager: DatabaseManager):
@@ -786,8 +850,33 @@ class FishingGameView(discord.ui.View):
                 rep = {"흔함": 10, "희귀": 50, "신종": 150, "전설": 500, "환상": 2000}.get(fish["rarity"], 10)
                 conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ?, max_fish_length = MAX(max_fish_length, ?) WHERE user_id = ? AND guild_id = ?", (rep, length, uid, gid))
                 
+                # 📈 [안전 장치] 시설 목록을 다시 조회하여 명성 배율(rep_mult)을 안전하게 정의합니다.
+                current_rep_mult = 1.0
+                built_facilities = self.db.execute_query(
+                    "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", 
+                    (str(self.channel_id), gid), 'all'
+                )
+                if built_facilities:
+                    for f in built_facilities:
+                        f_name = f['facility_name']
+                        if f_name in FACILITIES:
+                            f_effects = FACILITIES[f_name].get("effect", {})
+                            f_rep_mult = f_effects.get("rep_mult", 1.0)
+                            if f_rep_mult > current_rep_mult:
+                                current_rep_mult = f_rep_mult # 가장 높은 명성 배율 적용
+
+                # 배율이 적용된 최종 명성량 계산
+                final_rep = int(rep * current_rep_mult)
+
+                # 유저 개인 명성 지급
+                conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ?, max_fish_length = MAX(max_fish_length, ?) WHERE user_id = ? AND guild_id = ?", (final_rep, length, uid, gid))
+                
+                # 🏞️ [자동화] 신종, 전설, 환상 물고기를 낚았을 때 해당 낚시터 채널 명성도 함께 올려줍니다.
+                if fish["rarity"] in ["신종", "전설", "환상"]:
+                    conn.execute("UPDATE fishing_ground SET ground_reputation = ground_reputation + ? WHERE channel_id = ? AND guild_id = ?", (final_rep, str(self.channel_id), gid))
+                
                 conn.commit()
-                await interaction.edit_original_response(embed=discord.Embed(title=f"🎉 {fish['name']}을(를) 잡았습니다!", description=f"길이: **{length}cm** (등급: {fish['rarity']})\n*{fish.get('effect_desc', '')}*", color=discord.Color.blue()), view=None)
+                await interaction.edit_original_response(embed=discord.Embed(title=f"🎉 {fish['name']}을(를) 잡았습니다!", description=f"길이: **{length}cm** (등급: {fish['rarity']})\n*{fish.get('effect_desc', '')}*\n\n⭐ 획득 명성: **+{final_rep:,} P** (배율: {current_rep_mult}배 적용)", color=discord.Color.blue()), view=None)
             
             except Exception as e:
                 conn.rollback()
@@ -994,6 +1083,23 @@ class FishingSystemCog(commands.Cog):
         
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
+
+        ground_check = db.execute_query(
+            "SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+            (chid, gid), 'one'
+        )
+
+        if not ground_check:
+            embed = discord.Embed(
+                title="❌ 낚시 금지 구역",
+                description=(
+                    "이곳은 공식적으로 지정된 낚시터 채널이 아닙니다!\n"
+                    "정해진 낚시터 채널로 이동하여 낚싯대를 던져주세요.\n\n"
+                    "💡 사유지라면 낚시터를 먼저 구매해야 낚시가 가능합니다."
+                ),
+                color=discord.Color.red()
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True) # 본인에게만 메시지 노출
         
         gear = db.execute_query("SELECT bait_count, rod_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
         if not gear: return await interaction.response.send_message("❌ 장비가 없습니다! `/낚시가게`에서 초보자 세트를 구매하세요.", ephemeral=True)
@@ -1313,32 +1419,52 @@ class FishingSystemCog(commands.Cog):
         current_tier = ground['tier'] or 1
         current_rep = ground['ground_reputation'] or 0
 
-        conn = db.get_connection()
-        try:
-            conn.execute("BEGIN")
-            if 액션 == "up":
-                if current_tier >= 5:
-                    return await interaction.response.send_message("❌ 이미 최고 등급(5티어)입니다.", ephemeral=True)
-                
-                req_rep = current_tier * 1000 # 1->2는 1000점, 2->3은 2000점 소모
-                if current_rep < req_rep:
-                    return await interaction.response.send_message(f"❌ 낚시터 명성이 부족합니다! (필요: {req_rep:,}점 / 보유: {current_rep:,}점)", ephemeral=True)
+        # 🔼 업그레이드 액션 시 1차 승인 버튼 팝업
+        if 액션 == "up":
+            if current_tier >= 5:
+                return await interaction.response.send_message("❌ 이미 최고 등급(5티어)입니다.", ephemeral=True)
+            
+            tier_costs = {
+                1: 1000,  # 1 -> 2티어 갈 때 2000 P 소모
+                2: 5000,  # 2 -> 3티어 갈 때 5000 P 소모
+                3: 25000, # 3 -> 4티어 갈 때 10000 P 소모
+                4: 50000  # 4 -> 5티어 갈 때 20000 P 소모
+            }
 
-                conn.execute("UPDATE fishing_ground SET tier = tier + 1, ground_reputation = ground_reputation - ? WHERE channel_id = ? AND guild_id = ?", (req_rep, chid, gid))
-                conn.commit()
-                await interaction.response.send_message(f"🔼 낚시터 등급이 **{current_tier + 1}티어**로 상승했습니다! (소모 명성: -{req_rep:,}점)")
+            req_rep = tier_costs.get(current_tier, 1000) # 정의되지 않은 에러 방지용 기본값 1000
+            
+            if current_rep < req_rep:
+                return await interaction.response.send_message(f"❌ 낚시터 명성이 부족합니다! (필요: {req_rep:,}점 / 보유: {current_rep:,}점)", ephemeral=True)
 
-            elif 액션 == "down":
-                if current_tier <= 1:
-                    return await interaction.response.send_message("❌ 이미 최하 등급(1티어)입니다.", ephemeral=True)
+            embed = discord.Embed(
+                title="🔔 티어 업그레이드 확인",
+                description=(
+                    f"<#{chid}> 채널의 등급을 올리시겠습니까?\n"
+                    f"아래의 [✅ 최종 승인] 버튼을 누르면 즉시 명성이 차감되고 랭크가 오릅니다.\n\n"
+                    f"🔼 **목표 등급:** `Lv.{current_tier + 1}`\n"
+                    f"📉 **소모 예정 명성:** `{req_rep:,} P` (남은 명성 예상치: {current_rep - req_rep:,} P)"
+                ),
+                color=discord.Color.orange()
+            )
+            
+            view = TierUpgradeConfirmView(interaction.user, req_rep, current_tier, chid, gid, db)
+            await interaction.response.send_message(embed=embed, view=view)
+            view.message = await interaction.original_response()
 
+        # 🔽 다운그레이드는 기존처럼 즉시 반영 (혹은 필요하다면 동일하게 버튼 뷰 적용 가능)
+        elif 액션 == "down":
+            if current_tier <= 1:
+                return await interaction.response.send_message("❌ 이미 최하 등급(1티어)입니다.", ephemeral=True)
+
+            conn = db.get_connection()
+            try:
+                conn.execute("BEGIN")
                 conn.execute("UPDATE fishing_ground SET tier = tier - 1, ground_reputation = ground_reputation + 500 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 conn.commit()
                 await interaction.response.send_message(f"🔽 낚시터 등급이 **{current_tier - 1}티어**로 내려갔습니다! (명성 500점 환급)")
-
-        except Exception as e:
-            conn.rollback()
-            await interaction.response.send_message(f"❌ 티어 변경 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
+            except Exception as e:
+                conn.rollback()
+                await interaction.response.send_message(f"❌ 티어 변경 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
     @app_commands.command(name="쓰레기청소", description="현재 낚시터 채널의 오염도를 돈을 내고 청소하여 정화합니다.")
     @app_commands.choices(청소량=[
