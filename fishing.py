@@ -252,6 +252,111 @@ class TrashActionView(discord.ui.View):
         self._clear_session()
         await interaction.response.edit_message(embed=discord.Embed(title="⚠️ 무단 투기", description="환경이 오염되었습니다.", color=discord.Color.red()), view=None)
 
+# 🏗️ [낚시터 공개/비공개 설정용 버튼 UI 뷰]
+class PublicSettingView(discord.ui.View):
+    def __init__(self, user: discord.Member, db_manager: DatabaseManager):
+        super().__init__(timeout=60.0)
+        self.user = user
+        self.db = db_manager
+        self.message = None
+
+    async def on_timeout(self):
+        if self.message:
+            try: await self.message.edit(view=None)
+            except: pass
+
+    @discord.ui.button(label="🔓 공개로 변경", style=discord.ButtonStyle.success)
+    async def set_public(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 소유자만 변경할 수 있습니다.", ephemeral=True)
+        
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        self.db.execute_query("UPDATE fishing_ground SET is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+        
+        embed = discord.Embed(title="✅ 설정 완료", description="이 낚시터가 **[🔓 공개]** 상태로 변경되었습니다!\n누구나 무료로 낚시할 수 있습니다.", color=discord.Color.green())
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()
+
+    @discord.ui.button(label="🔒 비공개로 변경", style=discord.ButtonStyle.danger)
+    async def set_private(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 소유자만 변경할 수 있습니다.", ephemeral=True)
+
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        self.db.execute_query("UPDATE fishing_ground SET is_public = 0 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+        
+        embed = discord.Embed(title="✅ 설정 완료", description="이 낚시터가 **[🔒 비공개]** 상태로 변경되었습니다!\n다른 유저는 입장권을 구매해야 합니다.", color=discord.Color.red())
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()
+
+# 🏗️ [관리자용 낚시터 유형 지정 버튼 UI 뷰]
+class AdminGroundTypeView(discord.ui.View):
+    def __init__(self, admin: discord.Member, db_manager: DatabaseManager):
+        super().__init__(timeout=60.0)
+        self.admin = admin
+        self.db = db_manager
+        self.message = None
+
+    async def on_timeout(self):
+        if self.message:
+            try: await self.message.edit(view=None)
+            except: pass
+
+    @discord.ui.button(label="🔓 공용", style=discord.ButtonStyle.success)
+    async def set_public(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
+
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        
+        # 공용화 규칙: purchasable=0(구매불가), is_public=1(공개), 소유주 추방(NULL)
+        self.db.execute_query(
+            "UPDATE fishing_ground SET purchasable = 0, is_public = 1, owner_id = NULL WHERE channel_id = ? AND guild_id = ?", 
+            (chid, gid)
+        )
+        
+        embed = discord.Embed(
+            title="✅ [공용] 지정 완료", 
+            description="이 채널이 **공용 낚시터**로 지정되었습니다!\n누구나 무료로 이용할 수 있으며, 개인이 구매할 수 없습니다.", 
+            color=discord.Color.green()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()
+    
+    @discord.ui.button(label="🛒 개인", style=discord.ButtonStyle.primary)
+    async def set_purchasable(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ 관리자 권한이 필요합니다.", ephemeral=True)
+
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        
+        # 개인용 규칙: purchasable=1(구매가능), 사기 전까진 비공개(is_public=0)
+        self.db.execute_query(
+            "UPDATE fishing_ground SET purchasable = 1, is_public = 0 WHERE channel_id = ? AND guild_id = ?", 
+            (chid, gid)
+        )
+        
+        embed = discord.Embed(
+            title="✅ [개인] 활성화 완료", 
+            description="이 채널이 **개인 구매용 낚시터**로 활성화되었습니다!\n유저들이 돈을 모아 땅을 구매할 수 있습니다.", 
+            color=discord.Color.blue()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()
+
+    @discord.ui.button(label="❌ 불가(취소)", style=discord.ButtonStyle.secondary)
+    async def cancel_action(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.admin:
+            return await interaction.response.send_message("❌ 명령어를 발동한 관리자만 취소할 수 있습니다.", ephemeral=True)
+
+        embed = discord.Embed(
+            title="⏹️ 설정 취소", 
+            description="낚시터 유형 설정을 취소했습니다. 아무런 데이터도 변경되지 않았습니다.", 
+            color=discord.Color.light_gray()
+        )
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()
+
 class FishingGameView(discord.ui.View):
     def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
         super().__init__(timeout=60.0)
@@ -315,43 +420,6 @@ class FishingGameView(discord.ui.View):
             try: await interaction.edit_original_response(embed=discord.Embed(title="💨 물고기가 도망갔습니다.", description="타이밍이 늦었습니다.", color=discord.Color.dark_gray()), view=None)
             except: pass
             self._clear_session()
-
-# 🏗️ [낚시터 공개/비공개 설정용 버튼 UI 뷰]
-class PublicSettingView(discord.ui.View):
-    def __init__(self, user: discord.Member, db_manager: DatabaseManager):
-        super().__init__(timeout=60.0)
-        self.user = user
-        self.db = db_manager
-        self.message = None
-
-    async def on_timeout(self):
-        if self.message:
-            try: await self.message.edit(view=None)
-            except: pass
-
-    @discord.ui.button(label="🔓 공개로 변경", style=discord.ButtonStyle.success)
-    async def set_public(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user:
-            return await interaction.response.send_message("❌ 소유자만 변경할 수 있습니다.", ephemeral=True)
-        
-        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
-        self.db.execute_query("UPDATE fishing_ground SET is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
-        
-        embed = discord.Embed(title="✅ 설정 완료", description="이 낚시터가 **[🔓 공개]** 상태로 변경되었습니다!\n누구나 무료로 낚시할 수 있습니다.", color=discord.Color.green())
-        await interaction.response.edit_message(embed=embed, view=None)
-        self.stop()
-
-    @discord.ui.button(label="🔒 비공개로 변경", style=discord.ButtonStyle.danger)
-    async def set_private(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user:
-            return await interaction.response.send_message("❌ 소유자만 변경할 수 있습니다.", ephemeral=True)
-
-        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
-        self.db.execute_query("UPDATE fishing_ground SET is_public = 0 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
-        
-        embed = discord.Embed(title="✅ 설정 완료", description="이 낚시터가 **[🔒 비공개]** 상태로 변경되었습니다!\n다른 유저는 입장권을 구매해야 합니다.", color=discord.Color.red())
-        await interaction.response.edit_message(embed=embed, view=None)
-        self.stop()
 
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
     async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -952,7 +1020,7 @@ class FishingSystemCog(commands.Cog):
             items = db.execute_query("SELECT length, price_per_cm, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid), 'all')
             if not items: return await interaction.response.send_message("🎒 가방에 팔 물고기가 없습니다.", ephemeral=True)
             
-            # 🏪 [기획 연동] 설치된 모든 시설을 긁어모아 가장 높은 물고기 가격 배율(fish_price_mult)을 찾습니다.
+            # 🏪 [정상화] 설치된 모든 시설을 긁어모아 가장 높은 물고기 가격 배율(fish_price_mult)을 찾습니다.
             built_facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
             
             best_multiplier = 1.0
@@ -960,12 +1028,12 @@ class FishingSystemCog(commands.Cog):
                 for f in built_facilities:
                     f_name = f['facility_name']
                     if f_name in FACILITIES:
-                        # 시설 데이터에 정의된 'fish_price_mult' 값을 읽어와 비교합니다.
+                        # 합산하는 대신, 설치된 건물 중 가장 배율이 높은 '단 하나'만 추출합니다.
                         f_mult = FACILITIES[f_name].get("effect", {}).get("fish_price_mult", 1.0)
                         if f_mult > best_multiplier:
                             best_multiplier = f_mult
 
-            # 💰 총액 정산 (각 물고기 가격 * 시설 배율)
+            # 💰 총액 정산 (각 물고기 가격 * 최고 시설 배율 단일 적용)
             total = sum([int(i['length'] * i['price_per_cm'] * best_multiplier) for i in items])
             
             conn = db.get_connection()
@@ -1089,78 +1157,51 @@ class FishingSystemCog(commands.Cog):
 
             # === 👑 [여기에 붙여넣으세요!] 관리자 전용 낚시 시스템 조작 명령어 ===
     
-    @app_commands.command(name="낚시관리", description="[관리자 전용] 특정 유저의 개인 명성이나 현재 채널의 낚시터 명성을 강제로 수정합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    @app_commands.command(name="낚시관리", description="[관리자 전용] 명성 수정 및 현재 채널의 공용/개인 낚시터 상태를 관리합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True) # 디스코드 메뉴 노출 설정
     @app_commands.choices(대상=[
         app_commands.Choice(name="👤 특정 유저 개인 명성 수정", value="user"),
         app_commands.Choice(name="🏞️ 현재 채널의 낚시터 명성 수정", value="channel"),
-        app_commands.Choice(name="🔓 현재 채널을 [공용 낚시터]로 지정 (구매 불가)", value="set_public"),
-        app_commands.Choice(name="🛒 현재 채널을 [개인 구매용 낚시터]로 지정", value="set_purchasable")
+        app_commands.Choice(name="⚙️ 현재 채널의 낚시터 유형 설정 (버튼)", value="set_type")
     ])
     async def admin_control(
         self, 
         interaction: discord.Interaction, 
         대상: str, 
-        수치: Optional[int] = None, # 명성 수정 시에만 사용하므로 Optional 처리
+        수치: Optional[int] = None, 
         유저: Optional[discord.Member] = None
     ):
         db = self._get_db(interaction)
         gid = str(interaction.guild_id)
         chid = str(interaction.channel_id)
 
-        # 1. 👤 유저 개인 명성 수정
         if 대상 == "user":
             if not 유저 or 수치 is None:
                 return await interaction.response.send_message("❌ 유저 명성을 수정할 때는 '유저'와 '수치' 파라미터를 모두 입력해 주세요.", ephemeral=True)
-            
             uid = str(유저.id)
             db.execute_query("UPDATE users SET fishing_reputation = ? WHERE user_id = ? AND guild_id = ?", (수치, uid, gid))
             await interaction.response.send_message(f"✅ <@{uid}> 유저의 개인 명성을 **{수치:,}점**으로 수정했습니다.", ephemeral=True)
 
-        # 2. 🏞️ 현재 채널 낚시터 명성 수정
         elif 대상 == "channel":
             if 수치 is None:
                 return await interaction.response.send_message("❌ 낚시터 명성을 수정할 때는 '수치' 파라미터를 입력해 주세요.", ephemeral=True)
-
             self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
             db.execute_query("UPDATE fishing_ground SET ground_reputation = ? WHERE channel_id = ? AND guild_id = ?", (수치, chid, gid))
             await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)의 낚시터 명성을 **{수치:,}점**으로 수정했습니다.", ephemeral=True)
 
-        # 3. 🔓 현재 채널을 공용 낚시터로 지정
-        elif 대상 == "set_public":
+        elif 대상 == "set_type":
             self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
-            
-            # 공용 낚시터 규칙: 구매 불가능(0), 공개 상태(1), 기존 소유주 초기화(NULL)
-            db.execute_query(
-                "UPDATE fishing_ground SET purchasable = 0, is_public = 1, owner_id = NULL WHERE channel_id = ? AND guild_id = ?", 
-                (chid, gid)
+            embed = discord.Embed(
+                title="⚙️ 낚시터 유형 설정", 
+                description="현재 채널을 어떤 낚시터로 지정할지 아래 버튼을 선택하세요.\n\n"
+                            "- **공용:** 구매 불가능, 누구나 무료 이용\n"
+                            "- **개인:** 유저들이 구매 가능, 주인이 사면 비공개 사유지화", 
+                color=discord.Color.purple()
             )
-            await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)이 **[공용 낚시터]**로 지정되었습니다! (유저 구매가 제한되며 누구나 이용 가능합니다.)", ephemeral=True)
-
-        # 4. 🛒 현재 채널을 개인 구매용 낚시터로 활성화
-        elif 대상 == "set_purchasable":
-            self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
-            
-            # 개인 구매용 규칙: 구매 가능(1), 주인이 사기 전까진 비공개(사유지화 대기)
-            db.execute_query(
-                "UPDATE fishing_ground SET purchasable = 1, is_public = 0 WHERE channel_id = ? AND guild_id = ?", 
-                (chid, gid)
-            )
-            await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)이 **[개인 구매용 낚시터]**로 활성화되었습니다! 유저가 땅을 살 수 있습니다.", ephemeral=True)
-
-    # 🛠️ [헬퍼 함수] 낚시터 데이터가 없으면 자동으로 행을 생성해주는 방어 코드
-    def _ensure_ground_exists(self, db, chid, gid, channel_name):
-        ground = db.execute_query("SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
-        if not ground:
-            db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", (chid, gid, channel_name))
-
-
-    # 🚨 관리자 에러 메시지 핸들러
-    @admin_control.error
-    async def admin_control_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.MissingPermissions):
-            await interaction.response.send_message("🚫 이 명령어는 서버 관리자(Administrator) 권한을 가진 사람만 사용할 수 있습니다.", ephemeral=True)
+            view = AdminGroundTypeView(interaction.user, db)
+            await interaction.response.send_message(embed=embed, view=view)
+            view.message = await interaction.original_response()
             
 async def setup(bot):
     await bot.add_cog(FishingSystemCog(bot))
