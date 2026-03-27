@@ -526,6 +526,7 @@ class FishingSystemCog(commands.Cog):
             self._init_db_schema(db)
 
     def _init_db_schema(self, db):
+        # 1. 기본 테이블 생성
         db.create_table("fishing_ground", "channel_id TEXT, guild_id TEXT, owner_id TEXT, channel_name TEXT, ground_type TEXT DEFAULT '호수', tier INTEGER DEFAULT 1, ground_reputation INTEGER DEFAULT 0, ground_price INTEGER DEFAULT 100000, purchasable INTEGER DEFAULT 1, is_public INTEGER DEFAULT 1, entry_fee INTEGER DEFAULT 0, usage_time_limit INTEGER DEFAULT 1, PRIMARY KEY(channel_id, guild_id)")
         db.create_table("fishing_gear", "user_id TEXT, guild_id TEXT, rod_level INTEGER DEFAULT 0, rod_durability INTEGER DEFAULT 100, bait_level INTEGER DEFAULT 0, bait_count INTEGER DEFAULT 0, PRIMARY KEY(user_id, guild_id)")
         db.create_table("fishing_inventory", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, guild_id TEXT, fish_name TEXT, length REAL, price_per_cm INTEGER")
@@ -533,9 +534,22 @@ class FishingSystemCog(commands.Cog):
         db.create_table("fishing_facilities", "channel_id TEXT, guild_id TEXT, facility_name TEXT, PRIMARY KEY(channel_id, guild_id, facility_name)")
         db.create_table("point_history", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, transaction_type TEXT, amount INTEGER, balance_after INTEGER, description TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP")
         
+        # 2. 유저 테이블 컬럼 누락 보정
         cols_u = [c['name'] for c in db.execute_query("PRAGMA table_info(users)", None, 'all')]
         if 'fishing_reputation' not in cols_u: db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
         if 'max_fish_length' not in cols_u: db.execute_query("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
+
+        # 🚨 [여기 추가!] 낚시터 테이블 컬럼 누락 보정 (is_public 및 기타 신규 컬럼들)
+        cols_g = [c['name'] for c in db.execute_query("PRAGMA table_info(fishing_ground)", None, 'all')]
+        if 'is_public' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 1")
+            except: pass
+        if 'usage_time_limit' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN usage_time_limit INTEGER DEFAULT 1")
+            except: pass
+        if 'entry_fee' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN entry_fee INTEGER DEFAULT 0")
+            except: pass
 
     def _get_db(self, interaction: discord.Interaction):
         return self.db_cog.get_manager(interaction.guild_id)
