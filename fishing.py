@@ -767,6 +767,9 @@ class FishingGameView(discord.ui.View):
                 length = round(random.uniform(fish["min"], fish["max"]), 1)
 
                 # 💥 [특수 동물 및 유해생물 이벤트 즉시 작동 구역]
+                # ✅ [수정] 특수 이벤트 체크 및 DB 트랜잭션을 통합 관리합니다.
+                special_event = False
+                event_embed = None
 
                 if fish["name"] == "수달":
                     most_expensive = self.db.execute_query(
@@ -778,99 +781,84 @@ class FishingGameView(discord.ui.View):
                         desc = f"😱 수달이 가방을 뒤져 가장 비싼 **[{most_expensive['fish_name']}]**을(를) 훔쳐 달아났습니다!"
                     else:
                         desc = "🦦 수달이 가방을 뒤졌지만 훔칠 물고기가 없어 그냥 도망갔습니다."
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🦦 수달 출현!", description=desc, color=discord.Color.red()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🦦 수달 출현!", description=desc, color=discord.Color.red())
+                    special_event = True
 
                 elif fish["name"] == "자라":
                     conn.execute("UPDATE users SET cash = MAX(0, cash - 5000) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🤕 자라에게 물렸습니다!", description="물고 늘어지는 자라 때문에 치료비 **5,000원**이 지출되었습니다.", color=discord.Color.red()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🤕 자라에게 물렸습니다!", description="물고 늘어지는 자라 때문에 치료비 **5,000원**이 지출되었습니다.", color=discord.Color.red())
+                    special_event = True
 
                 elif fish["name"] == "붉은가위가재":
                     conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 10) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🦞 붉은가위가재 출현!", description="가위가재가 날카로운 집게로 낚싯줄을 끊으려 합니다!\n낚싯대 내구도가 **-10** 감소했습니다.", color=discord.Color.orange()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🦞 붉은가위가재 출현!", description="가위가재가 날카로운 집게로 낚싯줄을 끊으려 합니다!\n낚싯대 내구도가 **-10** 감소했습니다.", color=discord.Color.orange())
+                    special_event = True
 
                 elif fish["name"] == "너구리":
                     conn.execute("UPDATE fishing_gear SET bait_count = MAX(0, bait_count - 5) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🦝 너구리 출현!", description="늪가에서 기웃거리던 너구리가 가방을 털어 **미끼 5개**를 훔쳐 달아났습니다!", color=discord.Color.red()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🦝 너구리 출현!", description="늪가에서 기웃거리던 너구리가 가방을 털어 **미끼 5개**를 훔쳐 달아났습니다!", color=discord.Color.red())
+                    special_event = True
 
                 elif fish["name"] == "바다거북":
                     conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + 500 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🐢 바다거북을 방생했습니다!", description="멸종위기 청정 보호종 바다거북을 안전하게 돌려보냈습니다.\n\n⭐ **개인 명성 +500**", color=discord.Color.green()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🐢 바다거북을 방생했습니다!", description="멸종위기 청정 보호종 바다거북을 안전하게 돌려보냈습니다.\n\n⭐ **개인 명성 +500**", color=discord.Color.green())
+                    special_event = True
 
                 elif fish["name"] == "보라성게":
                     conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 10) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🟣 보라성게를 건졌습니다!", description="바다 백화현상의 주범입니다! 성게 가시에 찔려 낚싯대 내구도가 **-10** 감소했습니다.", color=discord.Color.orange()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🟣 보라성게를 건졌습니다!", description="바다 백화현상의 주범입니다! 성게 가시에 찔려 낚싯대 내구도가 **-10** 감소했습니다.", color=discord.Color.orange())
+                    special_event = True
 
                 elif fish["name"] == "아무르불가사리":
                     conn.execute("UPDATE fishing_gear SET bait_count = MAX(0, bait_count - 2) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🌟 아무르불가사리 출현!", description="해양 생태계를 파괴하는 유해 불가사리입니다! 엉킨 줄을 푸느라 미끼가 **2개** 더 소실되었습니다.", color=discord.Color.orange()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🌟 아무르불가사리 출현!", description="해양 생태계를 파괴하는 유해 불가사리입니다! 엉킨 줄을 푸느라 미끼가 **2개** 더 소실되었습니다.", color=discord.Color.orange())
+                    special_event = True
 
                 elif fish["name"] == "황소개구리":
                     conn.execute("UPDATE users SET cash = cash + 10000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    current_data = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
-                    current_pollution = current_data['pollution'] if current_data else 0
                     new_pollution = min(50.0, current_pollution + 2.0)
                     conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, str(self.channel_id), gid))
-                    conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold()), view=None)
-                    return self._clear_session()
+                    event_embed = discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold())
+                    special_event = True
 
-                # 1. 인벤토리 저장
-                conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
-                
-                # ✨ [명성 배율 계산하기]
-                rep_multiplier = 1.0 # 기본 배율은 1배
-                
-                # 건설된 시설들 중 명성 증가 배율이 가장 높은 것 하나를 가져옵니다.
-                if built_facilities:
-                    for f in built_facilities:
-                        f_name = f['facility_name']
-                        if f_name in FACILITIES:
-                            # FACILITIES 상수에 정의된 rep_mult 값을 가져옴 (기본 1.0)
-                            f_mult = FACILITIES[f_name].get("effect", {}).get("rep_mult", 1.0)
-                            if f_mult > rep_multiplier:
-                                rep_multiplier = f_mult
 
-                # 🎣 [명성 계산] 기본 10점 * 시설 배율 (소수점은 int로 버림)
-                base_give_rep = int(10 * rep_multiplier)
+                # 🎣 [수정] 특수 이벤트가 아닐 때만 일반 물고기 인벤토리에 한 번만 저장
+                if not special_event:
+                    conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
+                    
+                    rep_multiplier = 1.0
+                    if built_facilities:
+                        for f in built_facilities:
+                            f_name = f['facility_name']
+                            if f_name in FACILITIES:
+                                f_mult = FACILITIES[f_name].get("effect", {}).get("rep_mult", 1.0)
+                                if f_mult > rep_multiplier:
+                                    rep_multiplier = f_mult
 
-                # 📜 DB에 물고기 저장 및 계산된 명성 지급 처리
-                conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
-                
-                # 계산된 명성을 유저 정보에 추가
-                conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?", (base_give_rep, uid, gid))
-                
+                    base_give_rep = int(10 * rep_multiplier)
+                    conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?", (base_give_rep, uid, gid))
+
+                    event_embed = discord.Embed(
+                        title=f"🎉 {fish['name']}을(를) 잡았습니다!", 
+                        description=(
+                            f"📏 **길이:** `{length}cm` (등급: `{fish['rarity']}`)\n"
+                            f"⭐ **개인 명성:** `+{base_give_rep} P` (배율: {rep_multiplier:.1f}배 적용)\n\n"
+                            f"_{fish['effect_desc']}_"
+                        ), 
+                        color=discord.Color.green()
+                    )
+
+                # 🏁 모든 처리가 끝난 후 커밋을 딱 한 번만 수행합니다!
                 conn.commit()
-
-                # 🌟 [임베드 출력] 배율이 얼마가 적용되었는지 시각적으로 보여줍니다.
-                embed = discord.Embed(
-                    title=f"🎉 {fish['name']}을(를) 잡았습니다!", 
-                    description=(
-                        f"📏 **길이:** `{length}cm` (등급: `{fish['rarity']}`)\n"
-                        f"⭐ **개인 명성:** `+{base_give_rep} P` (배율: {rep_multiplier:.1f}배 적용)\n\n"
-                        f"_{fish['effect_desc']}_"
-                    ), 
-                    color=discord.Color.green()
-                )
+                
+                # 💬 최종적으로 한 번만 유저에게 메시지를 편집해서 보여줍니다.
+                await interaction.edit_original_response(embed=event_embed, view=None)
 
             except Exception as e:
-                conn.rollback() # 👈 에러 시 반드시 롤백!
+                conn.rollback()
                 await interaction.edit_original_response(embed=discord.Embed(title="❌ 시스템 오류", description=f"데이터 처리 중 오류가 발생했습니다. (에러: {e})", color=discord.Color.red()), view=None)
             finally:
-                self._clear_session() # 👈 성공하든 에러가 나든 메모리 세션 해제!
+                self._clear_session()
 
     # === 2. [추가할 코드] 옆에 나란히 붙을 [🛑 낚시 중지] 버튼 ===
     @discord.ui.button(label="🛑 낚시 중지", style=discord.ButtonStyle.secondary)
