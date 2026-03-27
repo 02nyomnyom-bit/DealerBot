@@ -1054,5 +1054,80 @@ class FishingSystemCog(commands.Cog):
             conn.rollback()
             await interaction.response.send_message(f"❌ 강화 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
+            # === 👑 [여기에 붙여넣으세요!] 관리자 전용 낚시 시스템 조작 명령어 ===
+    
+    @app_commands.command(name="낚시관리", description="[관리자 전용] 특정 유저의 개인 명성이나 현재 채널의 낚시터 명성을 강제로 수정합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    @app_commands.choices(대상=[
+        app_commands.Choice(name="👤 특정 유저 개인 명성 수정", value="user"),
+        app_commands.Choice(name="🏞️ 현재 채널의 낚시터 명성 수정", value="channel"),
+        app_commands.Choice(name="🔓 현재 채널을 [공용 낚시터]로 지정 (구매 불가)", value="set_public"),
+        app_commands.Choice(name="🛒 현재 채널을 [개인 구매용 낚시터]로 지정", value="set_purchasable")
+    ])
+    async def admin_control(
+        self, 
+        interaction: discord.Interaction, 
+        대상: str, 
+        수치: Optional[int] = None, # 명성 수정 시에만 사용하므로 Optional 처리
+        유저: Optional[discord.Member] = None
+    ):
+        db = self._get_db(interaction)
+        gid = str(interaction.guild_id)
+        chid = str(interaction.channel_id)
+
+        # 1. 👤 유저 개인 명성 수정
+        if 대상 == "user":
+            if not 유저 or 수치 is None:
+                return await interaction.response.send_message("❌ 유저 명성을 수정할 때는 '유저'와 '수치' 파라미터를 모두 입력해 주세요.", ephemeral=True)
+            
+            uid = str(유저.id)
+            db.execute_query("UPDATE users SET fishing_reputation = ? WHERE user_id = ? AND guild_id = ?", (수치, uid, gid))
+            await interaction.response.send_message(f"✅ <@{uid}> 유저의 개인 명성을 **{수치:,}점**으로 수정했습니다.", ephemeral=True)
+
+        # 2. 🏞️ 현재 채널 낚시터 명성 수정
+        elif 대상 == "channel":
+            if 수치 is None:
+                return await interaction.response.send_message("❌ 낚시터 명성을 수정할 때는 '수치' 파라미터를 입력해 주세요.", ephemeral=True)
+
+            self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
+            db.execute_query("UPDATE fishing_ground SET ground_reputation = ? WHERE channel_id = ? AND guild_id = ?", (수치, chid, gid))
+            await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)의 낚시터 명성을 **{수치:,}점**으로 수정했습니다.", ephemeral=True)
+
+        # 3. 🔓 현재 채널을 공용 낚시터로 지정
+        elif 대상 == "set_public":
+            self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
+            
+            # 공용 낚시터 규칙: 구매 불가능(0), 공개 상태(1), 기존 소유주 초기화(NULL)
+            db.execute_query(
+                "UPDATE fishing_ground SET purchasable = 0, is_public = 1, owner_id = NULL WHERE channel_id = ? AND guild_id = ?", 
+                (chid, gid)
+            )
+            await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)이 **[공용 낚시터]**로 지정되었습니다! (유저 구매가 제한되며 누구나 이용 가능합니다.)", ephemeral=True)
+
+        # 4. 🛒 현재 채널을 개인 구매용 낚시터로 활성화
+        elif 대상 == "set_purchasable":
+            self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
+            
+            # 개인 구매용 규칙: 구매 가능(1), 주인이 사기 전까진 비공개(사유지화 대기)
+            db.execute_query(
+                "UPDATE fishing_ground SET purchasable = 1, is_public = 0 WHERE channel_id = ? AND guild_id = ?", 
+                (chid, gid)
+            )
+            await interaction.response.send_message(f"✅ 이 채널(<#{chid}>)이 **[개인 구매용 낚시터]**로 활성화되었습니다! 유저가 땅을 살 수 있습니다.", ephemeral=True)
+
+    # 🛠️ [헬퍼 함수] 낚시터 데이터가 없으면 자동으로 행을 생성해주는 방어 코드
+    def _ensure_ground_exists(self, db, chid, gid, channel_name):
+        ground = db.execute_query("SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+        if not ground:
+            db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", (chid, gid, channel_name))
+
+
+    # 🚨 관리자 에러 메시지 핸들러
+    @admin_control.error
+    async def admin_control_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message("🚫 이 명령어는 서버 관리자(Administrator) 권한을 가진 사람만 사용할 수 있습니다.", ephemeral=True)
+            
 async def setup(bot):
     await bot.add_cog(FishingSystemCog(bot))
