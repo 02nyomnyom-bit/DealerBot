@@ -759,7 +759,7 @@ class FishingGameView(discord.ui.View):
 
                 # 🧺 4. 일반 물고기 인벤토리 저장 (이 아래 코드는 기존과 동일합니다)
                 conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
-                
+
                 # 🛠️ 4. 대형 어종 고유 패널티 (내구도 추가 삭감)
                 penalty_durability = 0
                 if "악어" in fish["name"]: penalty_durability = 60
@@ -1342,8 +1342,8 @@ class FishingSystemCog(commands.Cog):
 
     @app_commands.command(name="쓰레기청소", description="현재 낚시터 채널의 오염도를 돈을 내고 청소하여 정화합니다.")
     @app_commands.choices(청소량=[
-        app_commands.Choice(name="🧹 가벼운 청소 (오염도 -5 감소 / 5,000원)", value="light"),
-        app_commands.Choice(name="🧼 대청소 (오염도 -20 감소 / 20,000원)", value="deep"),
+        app_commands.Choice(name="🧹 가벼운 청소 (오염도 -5 감소원)", value="light"),
+        app_commands.Choice(name="🧼 대청소 (오염도 -20 감소원)", value="deep"),
         app_commands.Choice(name="🚜 전문 방역 및 정화 (오염도 0으로 초기화 / 수치비례 가격)", value="full")
     ])
     async def clean_channel_pollution(self, interaction: discord.Interaction, 청소량: str):
@@ -1365,10 +1365,10 @@ class FishingSystemCog(commands.Cog):
 
         if 청소량 == "light":
             reduce_amount = 5.0
-            base_cost = 5000
+            base_cost = 2500
         elif 청소량 == "deep":
             reduce_amount = 20.0
-            base_cost = 20000
+            base_cost = 10000
         elif 청소량 == "full":
             reduce_amount = current_pollution
             base_cost = int(current_pollution * 1000)
