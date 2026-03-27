@@ -1035,8 +1035,9 @@ class DatabaseManager:
         """XP 형식 포맷"""
         return f"{xp:,} XP"
 
+# (기존 DatabaseManager 클래스 및 메서드들은 그대로 둡니다...)
+
 # ==================== 호환성 함수들 ====================
-# 이 함수들은 이제 guild_id를 인자로 받아야 합니다.
 def get_guild_db_manager(guild_id: str) -> DatabaseManager:
     """특정 길드에 대한 DatabaseManager 인스턴스를 반환합니다."""
     return DatabaseManager(guild_id=guild_id)
@@ -1063,8 +1064,28 @@ def is_registered(guild_id: str, user_id: str) -> bool:
     db = get_guild_db_manager(guild_id)
     return db.get_user(user_id) is not None
 
+
+# ✅ 1. Cog 클래스 정의 (테스트 코드 없이 깔끔하게 유지)
+class DatabaseCog(commands.Cog, name="DatabaseManager"):
+    def __init__(self, bot):
+        self.bot = bot
+        self._managers: Dict[str, DatabaseManager] = {}
+
+    def get_manager(self, guild_id: Union[str, int]) -> DatabaseManager:
+        gid_str = str(guild_id)
+        if gid_str not in self._managers:
+            self._managers[gid_str] = DatabaseManager(gid_str)
+        return self._managers[gid_str]
+
+
+# ✅ 2. 봇이 확장 프로그램으로 로드할 때 사용하는 셋업 함수
+async def setup(bot):
+    await bot.add_cog(DatabaseCog(bot))
+    logger.info("✅ DatabaseManager Cog가 로드되었습니다.")
+
+
+# ✅ 3. 로컬에서 파일 단독 실행 시에만 작동하는 테스트 코드
 if __name__ == "__main__":
-    # 테스트를 위해 임시 길드 ID 사용
     test_guild_id = "test_guild_123"
     db = DatabaseManager(guild_id=test_guild_id)
     logger.info("데이터베이스 매니저 초기화 완료")
@@ -1084,8 +1105,10 @@ if __name__ == "__main__":
     xp_data = db.get_user_xp("user1")
     logger.info(f"User1 XP: {xp_data}")
 
-    # 출석 테스트
-    attendance_result = db.record_attendance("user1")
+    # 출석 테스트 (기존 에러 유발 코드를 이곳 안전한 곳으로 이동)
+    from datetime import date
+    today_date = date.today()
+    attendance_result = db.record_attendance("user1", today_date)
     logger.info(f"User1 attendance: {attendance_result}")
 
     # 리더보드 설정 테스트
@@ -1102,23 +1125,6 @@ if __name__ == "__main__":
     user2 = db2.get_user("user1")
     logger.info(f"User1 in Guild2: {user2}")
     logger.info(f"Stats for Guild2: {db2.get_database_stats()}")
-
-class DatabaseCog(commands.Cog, name="DatabaseManager"):
-    def __init__(self, bot):
-        self.bot = bot
-        self._managers: Dict[str, DatabaseManager] = {}
-
-    def get_manager(self, guild_id: Union[str, int]) -> DatabaseManager:
-        gid_str = str(guild_id)
-        if gid_str not in self._managers:
-            self._managers[gid_str] = DatabaseManager(gid_str)
-        return self._managers[gid_str]
-    
-    # 아까 밖으로 나와있던 테스트용 코드도 이 안으로 넣어줍니다.
-    from datetime import date
-    today_date = date.today()
-    attendance_result = db.record_attendance("user1", today_date)
-    logger.info(f"User1 attendance: {attendance_result}")
 
 async def setup(bot):
     # Cog 등록
