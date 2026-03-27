@@ -316,6 +316,43 @@ class FishingGameView(discord.ui.View):
             except: pass
             self._clear_session()
 
+# 🏗️ [낚시터 공개/비공개 설정용 버튼 UI 뷰]
+class PublicSettingView(discord.ui.View):
+    def __init__(self, user: discord.Member, db_manager: DatabaseManager):
+        super().__init__(timeout=60.0)
+        self.user = user
+        self.db = db_manager
+        self.message = None
+
+    async def on_timeout(self):
+        if self.message:
+            try: await self.message.edit(view=None)
+            except: pass
+
+    @discord.ui.button(label="🔓 공개로 변경", style=discord.ButtonStyle.success)
+    async def set_public(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 소유자만 변경할 수 있습니다.", ephemeral=True)
+        
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        self.db.execute_query("UPDATE fishing_ground SET is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+        
+        embed = discord.Embed(title="✅ 설정 완료", description="이 낚시터가 **[🔓 공개]** 상태로 변경되었습니다!\n누구나 무료로 낚시할 수 있습니다.", color=discord.Color.green())
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()
+
+    @discord.ui.button(label="🔒 비공개로 변경", style=discord.ButtonStyle.danger)
+    async def set_private(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 소유자만 변경할 수 있습니다.", ephemeral=True)
+
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        self.db.execute_query("UPDATE fishing_ground SET is_public = 0 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+        
+        embed = discord.Embed(title="✅ 설정 완료", description="이 낚시터가 **[🔒 비공개]** 상태로 변경되었습니다!\n다른 유저는 입장권을 구매해야 합니다.", color=discord.Color.red())
+        await interaction.response.edit_message(embed=embed, view=None)
+        self.stop()
+
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
     async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 조작할 수 있습니다.", ephemeral=True)
@@ -692,24 +729,31 @@ class FishingSystemCog(commands.Cog):
                 await interaction.response.send_message("❌ 구매 중 오류가 발생했습니다.", ephemeral=True)
 
         elif 액션 == "edit":
-            if ground['owner_id'] != uid: return await interaction.response.send_message("❌ 소유자만 설정을 변경할 수 있습니다.", ephemeral=True)
+            if ground['owner_id'] != uid: 
+                return await interaction.response.send_message("❌ 소유자만 설정을 변경할 수 있습니다.", ephemeral=True)
             
-            # 1. 어떤 것을 수정할지 확인하는 방어 코드 수정
-            # (기존 코드에 '지형' 매개변수를 추가할 예정이므로 체크 로직을 바꿉니다.)
-            options_passed = any(v is not None for v in [입장료, 공개, 지형])
-            if not options_passed: 
-                return await interaction.response.send_message("수정할 값을 하나 이상 입력해 주세요.", ephemeral=True)
-            
-            # 2. 유저가 입력한 값만 덮어씌우기
-            new_fee = 입장료 if 입장료 is not None else ground['entry_fee']
-            new_public = 공개 if 공개 is not None else ground['is_public']
-            new_type = 지형 if 지형 is not None else ground['ground_type']
-            
-            db.execute_query(
-                "UPDATE fishing_ground SET entry_fee = ?, is_public = ?, ground_type = ? WHERE channel_id = ? AND guild_id = ?", 
-                (new_fee, new_public, new_type, chid, gid)
+            # 1. 텍스트로 수정할 입장료와 지형 타입 갱신
+            if 입장료 is not None or 지형 is not None:
+                new_fee = 입장료 if 입장료 is not None else ground['entry_fee']
+                new_type = 지형 if 지형 is not None else ground['ground_type']
+                db.execute_query(
+                    "UPDATE fishing_ground SET entry_fee = ?, ground_type = ? WHERE channel_id = ? AND guild_id = ?", 
+                    (new_fee, new_type, chid, gid)
+                )
+                await interaction.response.send_message(f"✅ 기초 정보가 업데이트되었습니다! (입장료: {new_fee:,}원 / 환경: {new_type})")
+                return # 👈 기초 정보만 수정했다면 여기서 끝냅니다.
+
+            # 2. 유저가 값을 안 치고 `/낚시터 액션:edit`만 친 경우 공개/비공개 버튼 UI 발송!
+            embed = discord.Embed(
+                title="🔒 낚시터 공개 여부 설정", 
+                description="아래 버튼을 눌러 낚시터 개방 여부를 선택하세요.\n\n"
+                            "- **공개:** 입장권 없이 누구나 무료 이용\n"
+                            "- **비공개:** 다른 유저는 이용권 구매 필요", 
+                color=discord.Color.purple()
             )
-            await interaction.response.send_message(f"✅ 낚시터 정보가 업데이트되었습니다! (현재 환경: **{new_type}**)")
+            view = PublicSettingView(interaction.user, db)
+            await interaction.response.send_message(embed=embed, view=view)
+            view.message = await interaction.original_response()
 
     @app_commands.command(name="낚시터티어", description="[주인 전용] 낚시터 명성을 소모하여 땅 등급을 올리거나 내립니다.")
     @app_commands.choices(액션=[
