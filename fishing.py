@@ -805,7 +805,7 @@ class FishingSystemCog(commands.Cog):
             base_price = ground['ground_price'] or 100000
 
             # 🛑 관리자가 공용 낚시터로 고정해 뒀으면 구매 불가
-            is_purchasable = ground.get('purchasable', 1)
+            is_purchasable = ground['purchasable'] if 'purchasable' in ground.keys() else 1
             if is_purchasable == 0 and not owner_id:
                 return await interaction.response.send_message("❌ 이 채널은 관리자에 의해 **공용 전용 낚시터**로 지정되어 구매할 수 없습니다.", ephemeral=True)
 
