@@ -734,10 +734,10 @@ class FishingSystemCog(commands.Cog):
     @app_commands.choices(액션=[
         app_commands.Choice(name="정보 조회", value="info"),
         app_commands.Choice(name="낚시터 구매 (매입)", value="buy"),
-        app_commands.Choice(name="낚시터 판매 (매각)", value="sell"), # 👈 추가됨!
+        app_commands.Choice(name="낚시터 판매 (매각)", value="sell"),
         app_commands.Choice(name="설정 변경 (입장료/공개여부/지형)", value="edit")
     ])
-    @app_commands.choices(지형=[ # 🌟 지형 선택지 추가!
+    @app_commands.choices(지형=[
         app_commands.Choice(name="🏞️ 호수", value="호수"),
         app_commands.Choice(name="🌊 바다", value="바다"),
         app_commands.Choice(name="🐊 늪", value="늪")
@@ -748,7 +748,7 @@ class FishingSystemCog(commands.Cog):
         액션: str, 
         입장료: Optional[int] = None, 
         공개: Optional[int] = None, 
-        지형: Optional[str] = None # 🌟 매개변수 추가!
+        지형: Optional[str] = None
     ):
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
@@ -758,15 +758,15 @@ class FishingSystemCog(commands.Cog):
             db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", (chid, gid, interaction.channel.name))
             ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
 
+        # 🔍 [1] 정보 조회 기능
         if 액션 == "info":
             owner = f"<@{ground['owner_id']}>" if ground['owner_id'] else "없음 (구매 가능)"
             facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
             f_list = ", ".join([f['facility_name'] for f in facilities]) if facilities else "없음"
 
-            # 📊 [확률 보너스 계산] 현재 설치된 시설들의 총합 스탯 도출
-            total_fish_rate = 0.0     # 물고기(창고) 확률 보너스
-            total_trash_rate = 0.0    # 쓰레기 감소 확률 (기본 25%에서 차감)
-            best_sell_mult = 1.0      # 최고 판매가 배율 (가게)
+            total_fish_rate = 0.0
+            total_trash_rate = 0.0
+            best_sell_mult = 1.0
 
             if facilities:
                 for f in facilities:
@@ -775,16 +775,12 @@ class FishingSystemCog(commands.Cog):
                         effects = FACILITIES[f_name].get("effect", {})
                         total_fish_rate += effects.get("fish_rate", 0.0)
                         total_trash_rate += effects.get("trash_rate", 0.0)
-                        
-                        # 물고기 가격은 가장 높은 배율 하나만 적용
                         price_mult = effects.get("fish_price_mult", 1.0)
                         if price_mult > best_sell_mult:
                             best_sell_mult = price_mult
 
-            # 최종 퍼센트 변환
-            trash_prob = max(0.0, 25.0 + (total_trash_rate * 100)) # 기본 쓰레기 확률 25%
+            trash_prob = max(0.0, 25.0 + (total_trash_rate * 100))
             
-            # ✅ 하나의 임베드에 모든 필드(Add field)를 추가합니다.
             embed = discord.Embed(title=f"📍 낚시터 정보: {interaction.channel.name}", color=discord.Color.blue())
             embed.add_field(name="👑 소유주", value=owner, inline=True)
             embed.add_field(name="💰 구매 가격", value=f"{ground['ground_price']:,}원", inline=True)
@@ -793,7 +789,6 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=True)
             embed.add_field(name="🌍 자연 환경", value=ground['ground_type'], inline=True)
 
-            # ✨ [확률 및 시설 효과 출력란 합치기]
             effect_summary = (
                 f"📈 **희귀 물고기 확률 증가:** `+{total_fish_rate * 100:.1f}%` (창고 효과)\n"
                 f"🗑️ **현재 쓰레기 낚일 확률:** `{trash_prob:.1f}%` (환경미화 효과)\n"
@@ -801,14 +796,72 @@ class FishingSystemCog(commands.Cog):
             )
             embed.add_field(name="📊 현재 낚시터 적용 효과", value=effect_summary, inline=False)
 
-            # ✅ 딱 한 번만 전송합니다!
             await interaction.response.send_message(embed=embed)
 
+        # 🛒 [2] 낚시터 구매 (매입 / 약탈) 기능
+        elif 액션 == "buy":
+            is_hostile_takeover = False
+            owner_id = ground['owner_id']
+            base_price = ground['ground_price'] or 100000
+
+            # 🛑 관리자가 공용 낚시터로 고정해 뒀으면 구매 불가
+            is_purchasable = ground.get('purchasable', 1)
+            if is_purchasable == 0 and not owner_id:
+                return await interaction.response.send_message("❌ 이 채널은 관리자에 의해 **공용 전용 낚시터**로 지정되어 구매할 수 없습니다.", ephemeral=True)
+
+            if owner_id:
+                if owner_id == uid:
+                    return await interaction.response.send_message("❌ 이미 본인이 소유하고 있는 낚시터입니다.", ephemeral=True)
+                
+                is_hostile_takeover = True
+                cost = int(base_price * 1.1)  # 10% 상승 가격
+            else:
+                cost = base_price
+
+            user_cash = db.get_user_cash(uid) or 0
+
+            if user_cash < cost: 
+                msg = f"❌ 소지금이 부족합니다! (필요: {cost:,}원 / 보유: {user_cash:,}원)"
+                if is_hostile_takeover:
+                    msg = f"❌ 다른 사람의 땅을 인수하려면 10% 할증된 **{cost:,}원**이 필요합니다! (보유: {user_cash:,}원)"
+                return await interaction.response.send_message(msg, ephemeral=True)
+
+            conn = db.get_connection()
+            try:
+                conn.execute("BEGIN")
+                conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
+                conn.execute("UPDATE fishing_ground SET owner_id = ?, purchasable = 0, ground_price = ? WHERE channel_id = ? AND guild_id = ?", (uid, cost, chid, gid))
+
+                if is_hostile_takeover:
+                    conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (cost, owner_id, gid))
+
+                conn.commit()
+                
+                try:
+                    clean_name = interaction.user.display_name.replace(" ", "_")
+                    new_name = f"🎣｜{clean_name}의_낚시터"
+                    await interaction.channel.edit(name=new_name)
+                except Exception as e:
+                    print(f"채널명 변경 실패: {e}")
+
+                if is_hostile_takeover:
+                    await interaction.response.send_message(
+                        f"⚔️ **[낚시터 강제 인수 성공!]**\n"
+                        f"<@{uid}> 유저님이 기존 소유주인 <@{owner_id}>님에게 10% 할증된 **{cost:,}원**을 지불하고 이 낚시터를 뺏었습니다!\n"
+                        f"📈 다음 인수를 위한 이 낚시터의 기본 매매가가 **{cost:,}원**으로 상승했습니다."
+                    )
+                else:
+                    await interaction.response.send_message(f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!\n채널명이 개인 사유지로 변경되었습니다.")
+                
+            except Exception as e:
+                conn.rollback()
+                await interaction.response.send_message(f"❌ 구매/인수 중 오류가 발생했습니다: {e}", ephemeral=True)
+
+        # ⚙️ [3] 설정 변경 기능
         elif 액션 == "edit":
             if ground['owner_id'] != uid: 
                 return await interaction.response.send_message("❌ 소유자만 설정을 변경할 수 있습니다.", ephemeral=True)
             
-            # 1. 텍스트로 수정할 입장료와 지형 타입 갱신
             if 입장료 is not None or 지형 is not None:
                 new_fee = 입장료 if 입장료 is not None else ground['entry_fee']
                 new_type = 지형 if 지형 is not None else ground['ground_type']
@@ -817,44 +870,31 @@ class FishingSystemCog(commands.Cog):
                     (new_fee, new_type, chid, gid)
                 )
                 await interaction.response.send_message(f"✅ 기초 정보가 업데이트되었습니다! (입장료: {new_fee:,}원 / 환경: {new_type})")
-                return # 👈 기초 정보만 수정했다면 여기서 끝냅니다.
+                return 
 
-            # 2. 유저가 값을 안 치고 `/낚시터 액션:edit`만 친 경우 공개/비공개 버튼 UI 발송!
             embed = discord.Embed(
                 title="🔒 낚시터 공개 여부 설정", 
-                description="아래 버튼을 눌러 낚시터 개방 여부를 선택하세요.\n\n"
-                            "- **공개:** 입장권 없이 누구나 무료 이용\n"
-                            "- **비공개:** 다른 유저는 이용권 구매 필요", 
+                description="아래 버튼을 눌러 낚시터 개방 여부를 선택하세요.\n\n- **공개:** 입장권 없이 누구나 무료 이용\n- **비공개:** 다른 유저는 이용권 구매 필요", 
                 color=discord.Color.purple()
             )
             view = PublicSettingView(interaction.user, db)
             await interaction.response.send_message(embed=embed, view=view)
-            view.message = await interaction.original_response()\
-            
+            view.message = await interaction.original_response()
+
+        # 🏢 [4] 낚시터 판매 기능
         elif 액션 == "sell":
             if ground['owner_id'] != uid: 
                 return await interaction.response.send_message("❌ 본인 소유의 낚시터만 매각할 수 있습니다.", ephemeral=True)
 
             price = ground['ground_price'] or 100000
 
-            # 🤝 1차 확인 절차 (실수 방지용 UI 뷰 호출)
-            # 과거 버전에 있던 ConfirmActionView를 현재 UI 스타일인 PublicSettingView 등의 구조와 맞춘 임시 확인창입니다.
-            embed = discord.Embed(
-                title="🏢 낚시터 매각 확인", 
-                description=f"정말로 현재 낚시터를 매각하시겠습니까?\n매각 시 **{price:,}원**을 돌려받으며, 소유권이 초기화되어 **누구나 다시 구매할 수 있게 됩니다.**", 
-                color=discord.Color.orange()
-            )
-
             conn = db.get_connection()
             try:
                 conn.execute("BEGIN")
-                # 1. 판매자에게 땅값 환불
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (price, uid, gid))
-                # 2. 소유주 비우기 및 다시 구매 가능하도록 세팅 (owner_id = NULL, purchasable = 1, is_public = 1)
                 conn.execute("UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 conn.commit()
                 
-                # 🏷️ [채널명 공용으로 초기화 로직 추가]
                 try:
                     await interaction.channel.edit(name="🌊｜공용_낚시터")
                 except Exception as e:
