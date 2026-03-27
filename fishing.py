@@ -55,64 +55,64 @@ FISHING_ECOLOGY = {
         # --- 환상 ---
         {"name": "황금 잉어", "rarity": "환상", "chance": 0.01, "min": 80, "max": 150, "price_per_cm": 5000, "req_tier": 5, "water_quality": [1,2], "effect_desc": "영험한 영물. 잡을 시 모든 보유 시설 유지비 1회 면제"},
         {"name": "천지 네시", "rarity": "환상", "chance": 0.005, "min": 300, "max": 700, "price_per_cm": 10000, "req_tier": 5, "water_quality": [1], "effect_desc": "호수의 지배자. 낚을 시 낚싯대 내구도 -30"},
-        # --- 🗑️ 호수 유해생물 및 특수동물 ---
-        {"name": "큰입 배스", "rarity": "유해생물", "chance": 0.15, "min": 20, "max": 50, "price_per_cm": 50, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "[유해] 생태계 교란종. 잡을 시 다음 3회 일반 어종 확률 상승"},
-        {"name": "파랑볼우럭(블루길)", "rarity": "유해생물", "chance": 0.15, "min": 10, "max": 25, "price_per_cm": 30, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "[유해] 미끼 스틸러. 미끼 2개 추가 소실"}
     ],
 
     "바다": [
+        # --- 흔함 ---
         {"name": "전갱이", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 30, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
         {"name": "고등어", "rarity": "흔함", "chance": 0.15, "min": 20, "max": 40, "price_per_cm": 40, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
         {"name": "전어", "rarity": "흔함", "chance": 0.10, "min": 15, "max": 30, "price_per_cm": 45, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
         {"name": "숭어", "rarity": "흔함", "chance": 0.10, "min": 30, "max": 80, "price_per_cm": 35, "req_tier": 1, "water_quality": [2,3,4,5], "effect_desc": "연안에서 펄쩍 뛰어오르는 흔한 바다 물고기입니다."},
         {"name": "민어", "rarity": "흔함", "chance": 0.08, "min": 40, "max": 100, "price_per_cm": 80, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "여름철 최고의 보양식으로 꼽힙니다."},
         {"name": "농어", "rarity": "흔함", "chance": 0.05, "min": 40, "max": 100, "price_per_cm": 70, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "연안으로 거슬러 올라오는 힘센 어종입니다."},
+        # --- 희귀 ---
         {"name": "벵에돔", "rarity": "희귀", "chance": 0.05, "min": 25, "max": 50, "price_per_cm": 350, "req_tier": 2, "water_quality": [1,2], "effect_desc": "낚시꾼들의 로망 중 하나입니다. 잡을 시 개인 명성 +50"},
         {"name": "감성돔", "rarity": "희귀", "chance": 0.05, "min": 25, "max": 60, "price_per_cm": 400, "req_tier": 2, "water_quality": [1,2], "effect_desc": "바다의 왕자. 경험치 획득 +15%"},
         {"name": "우럭", "rarity": "희귀", "chance": 0.05, "min": 20, "max": 50, "price_per_cm": 250, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "바위 틈에 서식하는 대중적인 횟감입니다."},
         {"name": "연어", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 90, "price_per_cm": 300, "req_tier": 2, "water_quality": [1,2], "effect_desc": "강을 거슬러 올라가는 붉은 살 생선입니다."},
         {"name": "바다빙어", "rarity": "희귀", "chance": 0.03, "min": 10, "max": 25, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "떼를 지어 다니는 작은 겨울철 어종입니다."},
+        # --- 신종 ---
         {"name": "고래상어", "rarity": "신종", "chance": 0.03, "min": 500, "max": 1200, "price_per_cm": 1500, "req_tier": 3, "water_quality": [1,2], "effect_desc": "지구상에서 가장 큰 어류입니다. 낚을 시 낚시터 명성 +500"},
         {"name": "타이거 샤크(뱀상어)", "rarity": "신종", "chance": 0.02, "min": 300, "max": 600, "price_per_cm": 1800, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "무엇이든 먹어치우는 바다의 포식자입니다. 낚싯대 내구도 -15"},
         {"name": "범고래", "rarity": "신종", "chance": 0.02, "min": 500, "max": 900, "price_per_cm": 2500, "req_tier": 3, "water_quality": [1,2], "effect_desc": "바다의 지배자이자 영리한 포식자입니다. 낚싯대 내구도 -20"},
         {"name": "대왕 오징어", "rarity": "신종", "chance": 0.02, "min": 200, "max": 1000, "price_per_cm": 1200, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "심해의 거대 괴수입니다. 낚싯대 내구도 -10"},
         {"name": "대왕 문어", "rarity": "신종", "chance": 0.02, "min": 100, "max": 300, "price_per_cm": 1300, "req_tier": 3, "water_quality": [1,2,3,4], "effect_desc": "무거운 빨판의 손맛. 낚싯대 내구도 -10"},
+        # --- 전설 ---
         {"name": "백상아리", "rarity": "전설", "chance": 0.015, "min": 300, "max": 600, "price_per_cm": 4000, "req_tier": 4, "water_quality": [1,2], "effect_desc": "죠스의 주인공! 낚을 시 낚싯대 내구도 -35"},
         {"name": "향유고래", "rarity": "전설", "chance": 0.01, "min": 1000, "max": 1800, "price_per_cm": 3500, "req_tier": 4, "water_quality": [1,2], "effect_desc": "거대한 머리를 가진 잠수의 명수입니다. 낚싯대 내구도 -40"},
         {"name": "혹등고래", "rarity": "전설", "chance": 0.01, "min": 1200, "max": 1600, "price_per_cm": 3800, "req_tier": 4, "water_quality": [1,2], "effect_desc": "화려한 점프를 선보이는 온순한 거인입니다. 낚을 시 명성 +1,000"},
+        # --- 환상 ---
         {"name": "돌고래", "rarity": "환상", "chance": 0.01, "min": 150, "max": 300, "price_per_cm": 7000, "req_tier": 5, "water_quality": [1,2], "effect_desc": "바다의 천사. 잡을 시 다음 낚시 성공 확률 +15%"},
         {"name": "메갈로돈", "rarity": "환상", "chance": 0.001, "min": 1500, "max": 2000, "price_per_cm": 20000, "req_tier": 5, "water_quality": [1,2], "effect_desc": "고대의 초대형 상어. 낚을 시 낚싯대 내구도 -80"},
-        # --- 🌊 바다 유해생물 및 특수동물 ---
-        {"name": "보라성게", "rarity": "유해생물", "chance": 0.12, "min": 10, "max": 20, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "[유해] 바다 백화현상 주범! 낚싯줄을 갉아먹습니다. 낚싯대 내구도 -10"},
-        {"name": "아무르불가사리", "rarity": "유해생물", "chance": 0.12, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "[유해] 낚싯줄에 엉킵니다! 줄을 푸느라 미끼 2개가 추가로 소실됩니다."},
-        {"name": "바다거북", "rarity": "환상", "chance": 0.004, "min": 60, "max": 150, "price_per_cm": 0, "req_tier": 5, "water_quality": [1,2], "effect_desc": "[청정] 보호종입니다! 자동으로 방생되며 개인 명성이 +500 상승합니다."}
+        {"name": "바다거북", "rarity": "환상", "chance": 0.004, "min": 60, "max": 150, "price_per_cm": 0, "req_tier": 5, "water_quality": [1,2], "effect_desc": "[청정] 보호종입니다! 자동으로 방생되며 개인 명성이 +500 상승합니다."},
     ],
 
     "늪": [
+        # --- 흔함 ---
         {"name": "검정말", "rarity": "흔함", "chance": 0.20, "min": 10, "max": 50, "price_per_cm": 10, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "늪 바닥에 무성한 수초입니다. 판매가는 낮습니다."},
         {"name": "부레옥잠", "rarity": "흔함", "chance": 0.15, "min": 10, "max": 30, "price_per_cm": 20, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "수질 정화 능력이 있는 흔한 수생식물입니다."},
         {"name": "가시연꽃", "rarity": "흔함", "chance": 0.15, "min": 30, "max": 100, "price_per_cm": 30, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "가시가 돋아난 연꽃잎입니다. 낚을 시 낚싯대 내구도 -2"},
         {"name": "해캄", "rarity": "흔함", "chance": 0.15, "min": 5, "max": 20, "price_per_cm": 5, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "탁한 물에 끼는 녹조류 뭉덩이입니다."},
+        # --- 희귀 ---
         {"name": "물방개", "rarity": "희귀", "chance": 0.07, "min": 2, "max": 5, "price_per_cm": 500, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "헤엄을 잘 치는 수서곤충입니다. 잡을 시 개인 명성 +30"},
         {"name": "민물새우", "rarity": "희귀", "chance": 0.05, "min": 3, "max": 8, "price_per_cm": 300, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "작고 투명한 늪지 새우입니다. 미끼로도 쓰입니다."},
         {"name": "각시붕어", "rarity": "희귀", "chance": 0.05, "min": 5, "max": 10, "price_per_cm": 400, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "빛깔이 고운 한국 고유종 소형 민물고기입니다."},
         {"name": "말조개", "rarity": "희귀", "chance": 0.05, "min": 10, "max": 25, "price_per_cm": 250, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "진흙 바닥에 서식하는 거대 민물 조개입니다."},
+        # --- 신종 ---
         {"name": "물총새", "rarity": "신종", "chance": 0.02, "min": 15, "max": 25, "price_per_cm": 1500, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "날렵하게 물고기를 낚아채는 새입니다. 잡을 시 경험치 획득 +20%"},
         {"name": "개개비", "rarity": "신종", "chance": 0.02, "min": 10, "max": 20, "price_per_cm": 1200, "req_tier": 3, "water_quality": [2,3,4], "effect_desc": "여름철 늪지 갈대밭에서 시끄럽게 우는 새입니다."},
         {"name": "누룩뱀", "rarity": "신종", "chance": 0.02, "min": 50, "max": 120, "price_per_cm": 1000, "req_tier": 3, "water_quality": [3,4,5], "effect_desc": "늪 주변 습지에서 흔히 보이는 뱀입니다. 낚을 시 낚싯대 내구도 -5"},
         {"name": "잉어", "rarity": "신종", "chance": 0.015, "min": 30, "max": 80, "price_per_cm": 500, "req_tier": 3, "water_quality": [3,4,5], "effect_desc": "늪지 진흙 바닥에서 적응하여 자란 거대 잉어입니다."},
         {"name": "메기", "rarity": "신종", "chance": 0.015, "min": 30, "max": 70, "price_per_cm": 600, "req_tier": 3, "water_quality": [3,4,5,6], "effect_desc": "음침하고 탁한 수질에 도가 튼 야행성 포식자입니다."},
+        # --- 전설 ---
         {"name": "가물치", "rarity": "전설", "chance": 0.01, "min": 40, "max": 100, "price_per_cm": 2500, "req_tier": 4, "water_quality": [3,4,5,6], "effect_desc": "늪지의 무법자이자 난폭한 최상위 어종입니다. 낚을 시 내구도 -15"},
         {"name": "물수리", "rarity": "전설", "chance": 0.01, "min": 50, "max": 70, "price_per_cm": 3000, "req_tier": 4, "water_quality": [1,2,3], "effect_desc": "하늘에서 물고기를 사냥하는 맹금류입니다. 낚을 시 낚시터 명성 +500"},
         {"name": "황소개구리", "rarity": "전설", "chance": 0.005, "min": 15, "max": 30, "price_per_cm": 1000, "req_tier": 4, "water_quality": [4,5,6], "effect_desc": "생태계를 파괴하는 거대 양서류입니다. 잡을 시 늪 오염도 상승 및 포상금 획득."},
         {"name": "너구리", "rarity": "전설", "chance": 0.005, "min": 40, "max": 70, "price_per_cm": 2000, "req_tier": 4, "water_quality": [3,4,5], "effect_desc": "늪가에서 먹이를 씻어 먹는 잡식 동물입니다. 가방의 미끼 5개를 소실시킵니다."},
+        # --- 환상 ---
         {"name": "백로", "rarity": "환상", "chance": 0.004, "min": 60, "max": 100, "price_per_cm": 6000, "req_tier": 5, "water_quality": [1,2,3], "effect_desc": "순백의 자태를 뽐내는 새입니다. 잡을 시 낚시터 명성 +1,000"},
         {"name": "왜가리", "rarity": "환상", "chance": 0.004, "min": 80, "max": 110, "price_per_cm": 6500, "req_tier": 5, "water_quality": [2,3,4], "effect_desc": "부동의 자세로 물고기를 사냥하는 새입니다. 낚을 시 다음 낚시 대기 시간 -15%"},
         {"name": "악어", "rarity": "환상", "chance": 0.002, "min": 150, "max": 400, "price_per_cm": 15000, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "늪지의 최종 지배자. 낚을 시 엄청난 데스롤을 시전하여 낚싯대 내구도 -60"},
-        # --- 🐊 늪 유해생물 및 특수동물 ---
-        {"name": "자라", "rarity": "특수동물", "chance": 0.05, "min": 20, "max": 40, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "[유해] 물어뜯기! 자라가 물고 안 놔줍니다. 치료비 5,000원 지출"},
-        {"name": "붉은가위가재", "rarity": "유해생물", "chance": 0.10, "min": 10, "max": 20, "price_per_cm": 40, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "[유해] 줄 끊기! 낚싯대 내구도 -10"},
-        {"name": "수달", "rarity": "특수동물", "chance": 0.02, "min": 50, "max": 100, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "[유해] 물고기 도둑! 가방 안에서 가장 비싼 물고기 1마리를 훔쳐 달아납니다."}
     ]
 }
 
@@ -767,9 +767,9 @@ class FishingGameView(discord.ui.View):
                 # 📏 2. [에러 해결 지점] 뽑힌 물고기의 길이를 정의합니다!
                 length = round(random.uniform(fish["min"], fish["max"]), 1)
 
+                # 💥 [특수 동물 및 유해생물 이벤트 즉시 작동 구역]
+                # 인벤토리에 들어가지 않고, 경험치나 길이 기록 없이 즉시 세션이 종료됩니다.
 
-                # 💥 3. 특수 동물 및 유해생물 기믹 작동 (인벤토리에 들어가지 않고 이벤트 즉시 발생)
-                
                 if fish["name"] == "수달":
                     most_expensive = self.db.execute_query(
                         "SELECT id, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ? ORDER BY (length * price_per_cm) DESC LIMIT 1",
@@ -788,6 +788,18 @@ class FishingGameView(discord.ui.View):
                     conn.execute("UPDATE users SET cash = MAX(0, cash - 5000) WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     conn.commit()
                     await interaction.edit_original_response(embed=discord.Embed(title="🤕 자라에게 물렸습니다!", description="물고 늘어지는 자라 때문에 치료비 **5,000원**이 지출되었습니다.", color=discord.Color.red()), view=None)
+                    return self._clear_session()
+
+                elif fish["name"] == "붉은가위가재":
+                    conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 10) WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                    conn.commit()
+                    await interaction.edit_original_response(embed=discord.Embed(title="🦞 붉은가위가재 출현!", description="가위가재가 날카로운 집게로 낚싯줄을 끊으려 합니다!\n낚싯대 내구도가 **-10** 감소했습니다.", color=discord.Color.orange()), view=None)
+                    return self._clear_session()
+
+                elif fish["name"] == "너구리":
+                    conn.execute("UPDATE fishing_gear SET bait_count = MAX(0, bait_count - 5) WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                    conn.commit()
+                    await interaction.edit_original_response(embed=discord.Embed(title="🦝 너구리 출현!", description="늪가에서 기웃거리던 너구리가 가방을 털어 **미끼 5개**를 훔쳐 달아났습니다!", color=discord.Color.red()), view=None)
                     return self._clear_session()
 
                 elif fish["name"] == "바다거북":
@@ -810,74 +822,18 @@ class FishingGameView(discord.ui.View):
 
                 elif fish["name"] == "황소개구리":
                     conn.execute("UPDATE users SET cash = cash + 10000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    
                     current_data = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
                     current_pollution = current_data['pollution'] if current_data else 0
                     new_pollution = min(50.0, current_pollution + 2.0)
                     conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, str(self.channel_id), gid))
-                    
                     conn.commit()
                     await interaction.edit_original_response(embed=discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold()), view=None)
                     return self._clear_session()
 
-
-                # 🧺 4. 일반 물고기 인벤토리 저장 (이 아래 코드는 기존과 동일합니다)
+                # 📏 2. 일반 물고기일 때만 길이를 정의하고 인벤토리에 넣는 기존 로직 시작
+                length = round(random.uniform(fish["min"], fish["max"]), 1)
                 conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
-
-                # 🛠️ 4. 대형 어종 고유 패널티 (내구도 추가 삭감)
-                penalty_durability = 0
-                if "악어" in fish["name"]: penalty_durability = 60
-                elif "메갈로돈" in fish["name"]: penalty_durability = 80
-                elif "백상아리" in fish["name"]: penalty_durability = 35
-                elif "천지 네시" in fish["name"]: penalty_durability = 30
-                elif "향유고래" in fish["name"]: penalty_durability = 40
-                elif "혹등고래" in fish["name"]: penalty_durability = 0 # 온순하므로 패스
-                elif fish["name"] in ["타이거 샤크(뱀상어)", "가물치"]: penalty_durability = 15
-                elif "범고래" in fish["name"]: penalty_durability = 20
-                elif fish["name"] in ["대왕 오징어", "대왕 문어", "붉은가위가재"]: penalty_durability = 10
-                elif "피라루쿠" in fish["name"]: penalty_durability = 5
-
-                if penalty_durability > 0:
-                    conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - ?) WHERE user_id = ? AND guild_id = ?", (penalty_durability, uid, gid))
-
-                # 🐛 5. 유해생물 패널티 (미끼 추가 소실)
-                if fish["name"] == "파랑볼우럭(블루길)":
-                    conn.execute("UPDATE fishing_gear SET bait_count = MAX(0, bait_count - 2) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                elif fish["name"] == "너구리":
-                    conn.execute("UPDATE fishing_gear SET bait_count = MAX(0, bait_count - 5) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-
-                # 🌟 6. 명성 및 월척 기록 저장
-                rep = {"흔함": 10, "희귀": 50, "신종": 150, "전설": 500, "환상": 2000}.get(fish["rarity"], 10)
-                conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ?, max_fish_length = MAX(max_fish_length, ?) WHERE user_id = ? AND guild_id = ?", (rep, length, uid, gid))
                 
-                # 📈 [안전 장치] 시설 목록을 다시 조회하여 명성 배율(rep_mult)을 안전하게 정의합니다.
-                current_rep_mult = 1.0
-                built_facilities = self.db.execute_query(
-                    "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", 
-                    (str(self.channel_id), gid), 'all'
-                )
-                if built_facilities:
-                    for f in built_facilities:
-                        f_name = f['facility_name']
-                        if f_name in FACILITIES:
-                            f_effects = FACILITIES[f_name].get("effect", {})
-                            f_rep_mult = f_effects.get("rep_mult", 1.0)
-                            if f_rep_mult > current_rep_mult:
-                                current_rep_mult = f_rep_mult # 가장 높은 명성 배율 적용
-
-                # 배율이 적용된 최종 명성량 계산
-                final_rep = int(rep * current_rep_mult)
-
-                # 유저 개인 명성 지급
-                conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ?, max_fish_length = MAX(max_fish_length, ?) WHERE user_id = ? AND guild_id = ?", (final_rep, length, uid, gid))
-                
-                # 🏞️ [자동화] 신종, 전설, 환상 물고기를 낚았을 때 해당 낚시터 채널 명성도 함께 올려줍니다.
-                if fish["rarity"] in ["신종", "전설", "환상"]:
-                    conn.execute("UPDATE fishing_ground SET ground_reputation = ground_reputation + ? WHERE channel_id = ? AND guild_id = ?", (final_rep, str(self.channel_id), gid))
-                
-                conn.commit()
-                await interaction.edit_original_response(embed=discord.Embed(title=f"🎉 {fish['name']}을(를) 잡았습니다!", description=f"길이: **{length}cm** (등급: {fish['rarity']})\n*{fish.get('effect_desc', '')}*\n\n⭐ 획득 명성: **+{final_rep:,} P** (배율: {current_rep_mult}배 적용)", color=discord.Color.blue()), view=None)
-            
             except Exception as e:
                 conn.rollback()
                 await interaction.edit_original_response(embed=discord.Embed(title="❌ 시스템 오류", description=f"데이터 처리 중 오류가 발생했습니다. (에러: {e})", color=discord.Color.red()), view=None)
