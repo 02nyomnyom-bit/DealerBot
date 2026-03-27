@@ -407,35 +407,47 @@ class FishingGameView(discord.ui.View):
         await interaction.response.send_message(embed=discord.Embed(title="🎣 낚시 시작!", description="찌를 던졌습니다. 물고기를 기다리는 중...", color=discord.Color.green()), view=self)
         self.message = await interaction.original_response()
 
-        await asyncio.sleep(random.uniform(2, 4))
+        await asyncio.sleep(random.uniform(1.5, 2.5))
         if self.responded: return
         try: await interaction.edit_original_response(embed=discord.Embed(title="🌬️ 찌가 살짝 살랑거립니다...", color=discord.Color.light_gray()))
         except: return
 
-        await asyncio.sleep(random.uniform(3, 5))
+        await asyncio.sleep(random.uniform(1.5, 2.5))
         if self.responded: return
         
-        if random.random() < 0.3: # 가짜 입질
+        if random.random() < 0.25: # 가짜 입질
             self.stage = "fake"
             try: await interaction.edit_original_response(embed=discord.Embed(title=f"❓ {random.choice(TRAPS)}", color=discord.Color.orange()))
             except: return
-            await asyncio.sleep(2.5)
+            await asyncio.sleep(1.5)
             if self.responded: return
             self.stage = "waiting"
             try: await interaction.edit_original_response(embed=discord.Embed(title="...낚시터가 다시 조용해졌습니다.", color=discord.Color.light_gray()))
             except: return
-            await asyncio.sleep(random.uniform(2, 4))
+            await asyncio.sleep(random.uniform(1.5, 2.5))
             if self.responded: return
 
         self.stage, self.is_real = "bite", True
-        try: await interaction.edit_original_response(embed=discord.Embed(title=f"🚨 {random.choice(REAL_BITES)}", description="**지금 당기세요!!**", color=discord.Color.red()))
-        except: return
 
-        await asyncio.sleep(4.0)
-        if not self.responded:
-            try: await interaction.edit_original_response(embed=discord.Embed(title="💨 물고기가 도망갔습니다.", description="타이밍이 늦었습니다.", color=discord.Color.dark_gray()), view=None)
-            except: pass
-            self._clear_session()
+        # 🎰 아래의 리스트 중 하나가 무작위로 선택됩니다. 원하시는 멘트를 더 추가하셔도 됩니다!
+        random_descriptions = [
+            "**지금이야! 빨리 당겨!!**",
+            "**어엇!! 팽팽하게 당겨진다!!**",
+            "**엄청난 무게감이다! 놓치지 마!!**",
+            "**왔다! 손맛이 느껴진다!!**",
+            "**찌가 완전히 시야에서 사라졌다!!**"
+        ]
+
+        try: 
+            await interaction.edit_original_response(
+                embed=discord.Embed(
+                    title=f"🚨 {random.choice(REAL_BITES)}", 
+                    description=random.choice(random_descriptions), # 👈 랜덤 텍스트 적용!
+                    color=discord.Color.red()
+                )
+            )
+        except: 
+            return
 
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
     async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
