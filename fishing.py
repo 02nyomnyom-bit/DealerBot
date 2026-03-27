@@ -434,6 +434,83 @@ class AdminGroundTypeView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=None)
         self.stop()
 
+# 🧹 [쓰레기 청소 최종 확인 UI 뷰]
+class CleanConfirmView(discord.ui.View):
+    def __init__(self, user: discord.Member, cost: int, reduce_amount: float, chid: str, gid: str, db_manager):
+        super().__init__(timeout=60.0)
+        self.user = user
+        self.cost = cost
+        self.reduce_amount = reduce_amount
+        self.chid = chid
+        self.gid = gid
+        self.db = db_manager
+        self.message = None
+        self.responded = False
+
+    async def on_timeout(self):
+        if self.message and not self.responded:
+            try:
+                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초과", description="청소 요청이 취소되었습니다.", color=discord.Color.light_gray()), view=None)
+            except: pass
+
+    @discord.ui.button(label="✅ 최종 청소", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 명령어를 입력한 유저만 누를 수 있습니다.", ephemeral=True)
+        
+        if self.responded: return
+        self.responded = True
+
+        # 소지금 재검증
+        user_cash = self.db.get_user_cash(str(self.user.id)) or 0
+        if user_cash < self.cost:
+            return await interaction.response.edit_message(embed=discord.Embed(title="❌ 청소 실패", description="결제하려는 순간 소지금이 부족해졌습니다!", color=discord.Color.red()), view=None)
+
+        conn = self.db.get_connection()
+        try:
+            conn.execute("BEGIN")
+            
+            # 1. 돈 차감
+            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.cost, str(self.user.id), self.gid))
+            
+            # 2. 낚시터 오염도 차감 (음수가 되지 않도록 MAX 처리)
+            conn.execute("UPDATE fishing_ground SET pollution = MAX(0, pollution - ?) WHERE channel_id = ? AND guild_id = ?", (self.reduce_amount, self.chid, self.gid))
+            
+            # 3. 로그 기록
+            conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                         (str(self.user.id), "낚시", -self.cost, user_cash - self.cost, f"낚시터 채널 오염도 {self.reduce_amount} 정화 비용 지출"))
+            
+            conn.commit()
+
+            # 오염도 정산 후 최종 조회
+            ground = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid), 'one')
+            after_pollution = ground['pollution'] if ground else 0
+
+            embed = discord.Embed(
+                title="🌊 낚시터 환경 정화 완료", 
+                description=f"<#{self.chid}> 낚시터 채널이 반짝반짝 깨끗해졌습니다!", 
+                color=discord.Color.blue()
+            )
+            embed.add_field(name="📉 소모 비용", value=f"`{self.cost:,}원`", inline=True)
+            embed.add_field(name="🚨 현재 오염도", value=f"**`{after_pollution:.1f} P`**", inline=True)
+            embed.set_footer(text="깨끗한 낚시터는 물고기 획득률이 오르고 쓰레기 획득률이 내려갑니다.")
+
+            await interaction.response.edit_message(embed=embed, view=None)
+
+        except Exception as e:
+            conn.rollback()
+            await interaction.response.edit_message(embed=discord.Embed(title="❌ 에러 발생", description=f"정화 처리 중 오류: {e}", color=discord.Color.red()), view=None)
+
+
+    @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("❌ 명령어를 입력한 유저만 누를 수 있습니다.", ephemeral=True)
+        
+        self.responded = True
+        await interaction.response.edit_message(embed=discord.Embed(title="⏹️ 청소 취소", description="청소 요청을 취소했습니다. 돈이 차감되지 않았습니다.", color=discord.Color.light_gray()), view=None)
+        self.stop()
+
 class FishingGameView(discord.ui.View):
     def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
         super().__init__(timeout=60.0)
@@ -589,45 +666,46 @@ class FishingGameView(discord.ui.View):
                     return self._clear_session()
 
                 # 🎣 [물고기 기믹 작동부]
-                ground = self.db.execute_query("SELECT ground_type FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
-                location = ground['ground_type'] if ground else "호수" # 기본값은 호수
-                pool = FISHING_ECOLOGY.get(location, FISHING_ECOLOGY["호수"]) # 해당 지형의 물고기 풀 로드
+                ground = self.db.execute_query("SELECT ground_type, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
+                location = ground['ground_type'] if ground else "호수"
+                current_ground_tier = ground['tier'] if ground else 1 # 현재 낚시터의 티어 가져오기
 
-                # 🔧 1. 장비 티어 필터링
-                gear = self.db.execute_query("SELECT rod_level FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
-                user_tier = (gear['rod_level'] + 1) if gear else 1 
-                
-                valid_pool = [f for f in pool if f.get("req_tier", 1) <= user_tier]
+                pool = FISHING_ECOLOGY.get(location, FISHING_ECOLOGY["호수"])
+
+                # 1. 낚시터 티어에 맞는 물고기만 필터링
+                valid_pool = [f for f in pool if f.get("req_tier", 1) <= current_ground_tier]
                 if not valid_pool: valid_pool = pool
 
-                # 📦 [창고 효과 연동 추가] 설치된 창고 시설의 물고기 확률 보너스 계산
+                # 📦 [창고 및 낚시터 티어 보너스 연동]
                 fish_rate_bonus = 0.0
                 if built_facilities:
                     for f in built_facilities:
                         f_name = f['facility_name']
                         if f_name in FACILITIES:
-                            # FACILITIES 딕셔너리에서 창고의 "fish_rate" 수치를 읽어옵니다.
                             fish_rate_bonus += FACILITIES[f_name].get("effect", {}).get("fish_rate", 0.0)
-                            
-                # ⚖️ 가중치(확률) 계산 시 창고 보너스 적용
-                # 흔함 어종을 제외한 [희귀, 신종, 전설, 환상] 물고기들의 확률을 창고 보너스만큼 뻥튀기 해줍니다.
+
+                # 티어 및 시설에 따른 가중치 확률 계산
                 adjusted_weights = []
                 for f in valid_pool:
                     base_chance = f["chance"]
+                    
                     if f["rarity"] in ["희귀", "신종", "전설", "환상"]:
-                        # 예: 기본 확률이 0.05 이고 창고 보너스가 0.05 이면 -> 0.05 * (1 + 0.05) = 0.0525 (5.25%)
-                        adjusted_chance = base_chance * (1 + fish_rate_bonus)
+                        tier_multiplier = current_ground_tier 
+                        adjusted_chance = base_chance * tier_multiplier * (1 + fish_rate_bonus)
                     else:
                         adjusted_chance = base_chance
+                    
                     adjusted_weights.append(adjusted_chance)
 
-                    # 보정된 확률로 물고기 선택
+                # 🎲 1. 물고기 종류를 먼저 뽑습니다.
                 fish = random.choices(valid_pool, weights=adjusted_weights, k=1)[0]
+
+                # 📏 2. [에러 해결 지점] 뽑힌 물고기의 길이를 정의합니다!
                 length = round(random.uniform(fish["min"], fish["max"]), 1)
 
-                # 💥 2. 특수 동물 및 유해생물 기믹 (인벤토리에 들어가지 않고 이벤트 즉시 발생)
+
+                # 💥 3. 특수 동물 및 유해생물 기믹 작동 (인벤토리에 들어가지 않고 이벤트 즉시 발생)
                 
-                # 🦦 1) 수달 (가방에서 가장 비싼 물고기 훔치기)
                 if fish["name"] == "수달":
                     most_expensive = self.db.execute_query(
                         "SELECT id, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ? ORDER BY (length * price_per_cm) DESC LIMIT 1",
@@ -642,52 +720,46 @@ class FishingGameView(discord.ui.View):
                     await interaction.edit_original_response(embed=discord.Embed(title="🦦 수달 출현!", description=desc, color=discord.Color.red()), view=None)
                     return self._clear_session()
 
-                # 🐢 2) 자라 (물림 치료비 지출)
                 elif fish["name"] == "자라":
                     conn.execute("UPDATE users SET cash = MAX(0, cash - 5000) WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     conn.commit()
                     await interaction.edit_original_response(embed=discord.Embed(title="🤕 자라에게 물렸습니다!", description="물고 늘어지는 자라 때문에 치료비 **5,000원**이 지출되었습니다.", color=discord.Color.red()), view=None)
                     return self._clear_session()
 
-                # 🐢 3) 바다거북 (방생 및 개인 명성 획득)
                 elif fish["name"] == "바다거북":
                     conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + 500 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     conn.commit()
                     await interaction.edit_original_response(embed=discord.Embed(title="🐢 바다거북을 방생했습니다!", description="멸종위기 청정 보호종 바다거북을 안전하게 돌려보냈습니다.\n\n⭐ **개인 명성 +500**", color=discord.Color.green()), view=None)
                     return self._clear_session()
 
-                # 🟣 4) 보라성게 (바다 유해생물 - 낚싯대 내구도 추가 삭감)
                 elif fish["name"] == "보라성게":
                     conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 10) WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     conn.commit()
                     await interaction.edit_original_response(embed=discord.Embed(title="🟣 보라성게를 건졌습니다!", description="바다 백화현상의 주범입니다! 성게 가시에 찔려 낚싯대 내구도가 **-10** 감소했습니다.", color=discord.Color.orange()), view=None)
                     return self._clear_session()
 
-                # 🌟 5) 아무르불가사리 (바다 유해생물 - 미끼 2개 추가 소실)
                 elif fish["name"] == "아무르불가사리":
                     conn.execute("UPDATE fishing_gear SET bait_count = MAX(0, bait_count - 2) WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     conn.commit()
                     await interaction.edit_original_response(embed=discord.Embed(title="🌟 아무르불가사리 출현!", description="해양 생태계를 파괴하는 유해 불가사리입니다! 엉킨 줄을 푸느라 미끼가 **2개** 더 소실되었습니다.", color=discord.Color.orange()), view=None)
                     return self._clear_session()
 
-                # 🐸 6) 황소개구리 (늪 전설 유해생물 - 오염도 상승 및 환경 포상금 지급)
                 elif fish["name"] == "황소개구리":
-                    # 포상금 지급
                     conn.execute("UPDATE users SET cash = cash + 10000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     
-                    # 늪 낚시터 오염도 상승 (+2.0 P)
                     current_data = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
                     current_pollution = current_data['pollution'] if current_data else 0
                     new_pollution = min(50.0, current_pollution + 2.0)
                     conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, str(self.channel_id), gid))
                     
                     conn.commit()
-                    await interaction.edit_original_response(embed=discord.Embed(title="🐸 황소개구리 포획!", description="늪의 생태계를 교란하는 황소개구리입니다!\n외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold()), view=None)
+                    await interaction.edit_original_response(embed=discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold()), view=None)
                     return self._clear_session()
 
-                # 🧺 3. 일반 물고기 인벤토리 저장
-                conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
 
+                # 🧺 4. 일반 물고기 인벤토리 저장 (이 아래 코드는 기존과 동일합니다)
+                conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
+                
                 # 🛠️ 4. 대형 어종 고유 패널티 (내구도 추가 삭감)
                 penalty_durability = 0
                 if "악어" in fish["name"]: penalty_durability = 60
@@ -1030,6 +1102,10 @@ class FishingSystemCog(commands.Cog):
 
             final_upkeep_mod = (upkeep_mult - upkeep_discount) * 100
 
+            base_land_price = ground['ground_price'] or 100000
+            facilities_value = self._get_facilities_value(db, chid, gid) # 아까 만든 시설 가치 합산 헬퍼 함수 호출
+            current_property_value = base_land_price + facilities_value
+
             embed = discord.Embed(title=f"📍 낚시터 정보: {interaction.channel.name}", color=discord.Color.blue())
             embed.add_field(name="👑 소유주", value=owner, inline=True)
             embed.add_field(name="💰 구매 가격", value=f"{ground['ground_price']:,}원", inline=True)
@@ -1274,71 +1350,60 @@ class FishingSystemCog(commands.Cog):
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
 
-        # 🔍 현재 낚시터의 오염도 정보 가져오기
-        ground = db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+        ground = db.execute_query("SELECT pollution, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         if not ground:
             return await interaction.response.send_message("❌ 이 채널은 등록된 낚시터가 아닙니다.", ephemeral=True)
 
         current_pollution = ground['pollution'] if ground['pollution'] is not None else 0
+        ground_tier = ground['tier'] if ground['tier'] is not None else 1 # 👈 현재 티어 가져오기
 
         if current_pollution <= 0:
             return await interaction.response.send_message("✨ 이 낚시터는 이미 매우 깨끗합니다! 청소할 필요가 없습니다.", ephemeral=True)
 
-        # 💸 선택한 청소량에 따른 비용 및 정화 수치 계산
-        cost = 0
-        reduce_amount = 0
+        base_cost = 0
+        reduce_amount = 0.0
 
         if 청소량 == "light":
-            reduce_amount = 5
-            cost = 5000
+            reduce_amount = 5.0
+            base_cost = 5000
         elif 청소량 == "deep":
-            reduce_amount = 20
-            cost = 20000
+            reduce_amount = 20.0
+            base_cost = 20000
         elif 청소량 == "full":
-            reduce_amount = current_pollution # 현재 오염도 전부 삭감
-            cost = int(current_pollution * 1000) # 오염도 1점당 1,000원으로 계산
+            reduce_amount = current_pollution
+            base_cost = int(current_pollution * 1000)
 
-        # 💰 유저 소지금 검사
+        # 🚨 [중요 밸런스 조정] 티어 배율 적용
+        # 1티어: base_cost * 1
+        # 2티어: base_cost * 2
+        # ... 5티어: base_cost * 5
+        final_cost = base_cost * ground_tier
+
+        # 💰 1차 소지금 검사
         user_cash = db.get_user_cash(uid) or 0
-        if user_cash < cost:
+        if user_cash < final_cost:
             return await interaction.response.send_message(
-                f"❌ 청소 비용이 부족합니다!\n(필요 비용: {cost:,}원 / 보유 자금: {user_cash:,}원)", 
+                f"❌ 청소 비용이 부족합니다!\n(현재 {ground_tier}티어 요율 적용)\n"
+                f"필요 비용: **{final_cost:,}원** (기본: {base_cost:,}원 × {ground_tier}배)\n보유 자금: {user_cash:,}원", 
                 ephemeral=True
             )
 
-        conn = db.get_connection()
-        try:
-            conn.execute("BEGIN")
-            
-            # 1. 돈 차감
-            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
-            
-            # 2. 낚시터 오염도 차감 (음수가 되지 않도록 MAX 처리)
-            conn.execute("UPDATE fishing_ground SET pollution = MAX(0, pollution - ?) WHERE channel_id = ? AND guild_id = ?", (reduce_amount, chid, gid))
-            
-            # 3. 로그 기록
-            conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                         (uid, "낚시", -cost, user_cash - cost, f"낚시터 채널 오염도 {reduce_amount} 정화 비용 지출"))
-            
-            conn.commit()
-
-            # ✨ 결과 안내 임베드
-            after_pollution = max(0, current_pollution - reduce_amount)
-            
-            embed = discord.Embed(
-                title="🌊 낚시터 환경 정화 완료", 
-                description=f"<#{chid}> 낚시터 채널을 깨끗하게 청소했습니다!", 
-                color=discord.Color.blue()
-            )
-            embed.add_field(name="📉 소모 비용", value=f"`{cost:,}원`", inline=True)
-            embed.add_field(name="🚨 오염도 변화", value=f"`{current_pollution} P` ➡️ **`{after_pollution} P`**", inline=True)
-            embed.set_footer(text="정화된 낚시터는 물고기가 낚일 확률이 올라가고 쓰레기가 덜 낚입니다.")
-
-            await interaction.response.send_message(embed=embed)
-
-        except Exception as e:
-            conn.rollback()
-            await interaction.response.send_message(f"❌ 정화 처리 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
+        # 🔍 버튼을 통한 가격 가승인 출력
+        embed = discord.Embed(
+            title="🔔 청소 결제 확인",
+            description=(
+                f"<#{chid}> 채널을 청소하시겠습니까?\n"
+                f"이 낚시터는 현재 **[{ground_tier}티어]** 등급이므로 정비 비용이 **{ground_tier}배** 증가합니다.\n\n"
+                f"💳 **최종 결제 금액:** `{final_cost:,}원` (기본 비용 {base_cost:,}원 × {ground_tier}배)\n"
+                f"📉 **오염도 정화 수치:** `- {min(current_pollution, reduce_amount):.1f} P`"
+            ),
+            color=discord.Color.orange()
+        )
+        embed.set_footer(text=f"차감 후 예상 잔액: {user_cash - final_cost:,}원")
+        
+        view = CleanConfirmView(interaction.user, final_cost, reduce_amount, chid, gid, db)
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
     # ==========================================
     # 🏢 [시설 건설 명령어] - 자동완성(Autocomplete) 추가 버전

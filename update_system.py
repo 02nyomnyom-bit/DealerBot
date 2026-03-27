@@ -223,7 +223,7 @@ class RealtimeUpdateSystem(commands.Cog):
             new_update = {
                 "id": new_id,
                 "title": 제목,
-                "description": 설명,
+                "description": 설명.replace("\\n", "\n"),  # \n 글자를 진짜 엔터로 변환!
                 "priority": 분류,
                 "author": interaction.user.display_name,
                 "timestamp": now.isoformat()
