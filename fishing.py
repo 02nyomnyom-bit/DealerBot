@@ -828,16 +828,39 @@ class FishingGameView(discord.ui.View):
                     await interaction.edit_original_response(embed=discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold()), view=None)
                     return self._clear_session()
 
-                # 📜 일반 물고기 저장 프로세스
+                # 1. 인벤토리 저장
                 conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
-                conn.commit() # 👈 정상 프로세스 커밋!
+                
+                # ✨ [명성 배율 계산하기]
+                rep_multiplier = 1.0 # 기본 배율은 1배
+                
+                # 건설된 시설들 중 명성 증가 배율이 가장 높은 것 하나를 가져옵니다.
+                if built_facilities:
+                    for f in built_facilities:
+                        f_name = f['facility_name']
+                        if f_name in FACILITIES:
+                            # FACILITIES 상수에 정의된 rep_mult 값을 가져옴 (기본 1.0)
+                            f_mult = FACILITIES[f_name].get("effect", {}).get("rep_mult", 1.0)
+                            if f_mult > rep_multiplier:
+                                rep_multiplier = f_mult
 
-                # 🌟 [수정된 간략화 임베드 출력 영역]
+                # 🎣 [명성 계산] 기본 10점 * 시설 배율 (소수점은 int로 버림)
+                base_give_rep = int(10 * rep_multiplier)
+
+                # 📜 DB에 물고기 저장 및 계산된 명성 지급 처리
+                conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
+                
+                # 계산된 명성을 유저 정보에 추가
+                conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?", (base_give_rep, uid, gid))
+                
+                conn.commit()
+
+                # 🌟 [임베드 출력] 배율이 얼마가 적용되었는지 시각적으로 보여줍니다.
                 embed = discord.Embed(
                     title=f"🎉 {fish['name']}을(를) 잡았습니다!", 
                     description=(
                         f"📏 **길이:** `{length}cm` (등급: `{fish['rarity']}`)\n"
-                        f"⭐ **획득 명성:** `+10 P` (배율: 1.0배 적용)\n\n"
+                        f"⭐ **개인 명성:** `+{base_give_rep} P` (배율: {rep_multiplier:.1f}배 적용)\n\n"
                         f"_{fish['effect_desc']}_"
                     ), 
                     color=discord.Color.green()
