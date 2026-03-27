@@ -250,7 +250,23 @@ class TrashActionView(discord.ui.View):
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
         self._clear_session()
-        await interaction.response.edit_message(embed=discord.Embed(title="⚠️ 무단 투기", description="환경이 오염되었습니다.", color=discord.Color.red()), view=None)
+        
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        
+        # ✅ 무단 투기 시 해당 낚시터의 오염도를 5 상승시킵니다.
+        self.db.execute_query(
+            "UPDATE fishing_ground SET pollution = pollution + 5 WHERE channel_id = ? AND guild_id = ?", 
+            (chid, gid)
+        )
+
+        await interaction.response.edit_message(
+            embed=discord.Embed(
+                title="⚠️ 무단 투기", 
+                description="환경이 오염되었습니다! 이 낚시터에서 쓰레기가 잡힐 확률이 **5%** 상승합니다.", 
+                color=discord.Color.red()
+            ), 
+            view=None
+        )
 
 # 🏗️ [낚시터 공개/비공개 설정용 버튼 UI 뷰]
 class PublicSettingView(discord.ui.View):
@@ -457,25 +473,31 @@ class FishingGameView(discord.ui.View):
                 conn.execute("BEGIN")
                 conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 1) WHERE user_id = ? AND guild_id = ?", (uid, gid))
 
+                ground_info = self.db.execute_query(
+                    "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+                    (str(self.channel_id), gid), 'one'
+                )
+
+                current_pollution = ground_info['pollution'] if ground_info else 0
+
                 built_facilities = self.db.execute_query(
                     "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", 
                     (str(self.channel_id), gid), 'all'
                 )
 
-                # 2. 기본 쓰레기 확률 설정 (25%)
-                trash_chance = 0.25
+                # 2. 기본 쓰레기 확률 설정 (25%) + 🚨 오염도 반영 (오염도 1점당 1% 확률 상승)
+                trash_chance = 0.25 + (current_pollution / 100.0)
 
-                # 3. 설치된 시설들 중 '쓰레기 감소 효과(trash_rate)'가 있는 건물을 찾아 확률을 깎습니다.
+                # 3. 설치된 시설들 중 '쓰레기 감소 효과' 적용
                 if built_facilities:
                     for f in built_facilities:
                         f_name = f['facility_name']
                         if f_name in FACILITIES:
-                            # FACILITIES 딕셔너리에서 "trash_rate" 수치를 읽어옵니다.
                             trash_mod = FACILITIES[f_name].get("effect", {}).get("trash_rate", 0)
-                            trash_chance += trash_mod # 예: -0.05 더하기
+                            trash_chance += trash_mod
 
-                # 4. 음수 방지 (최소 0% 고정)
-                trash_chance = max(0.0, trash_chance)
+                # 4. 음수 방지 및 최대 100% 한계치 설정
+                trash_chance = max(0.0, min(1.0, trash_chance))
 
                 # 🗑️ [쓰레기 기믹 작동부]
                 if random.random() < trash_chance:
@@ -626,24 +648,40 @@ class GroundAccessView(discord.ui.View):
     @discord.ui.button(label="💳 이용권 구매", style=discord.ButtonStyle.success)
     async def buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 구매 가능합니다.", ephemeral=True)
-        uid, gid = str(self.user.id), str(interaction.guild_id)
+        uid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         current_cash = self.db.get_user_cash(uid) or 0
         if current_cash < self.fee: return await interaction.response.send_message("❌ 소지 금액이 부족합니다!", ephemeral=True)
 
         conn = self.db.get_connection()
         try:
             conn.execute("BEGIN")
+            
+            # 1️⃣ 구매자 돈 차감
             conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.fee, uid, gid))
             
+            # 🏪 매표소 시설이 있는지 확인
             has_booth = self.db.execute_query("SELECT 1 FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name = '매표소'", (str(interaction.channel_id), gid), 'one')
+            
+            # 🏷️ 수수료 계산 (예: 10% 수수료 적용 시 0.10)
+            FEE_RATE = 0.20  # 👈 원하는 수수료 비율로 수정하세요 (0.10 = 10%)
+            tax = int(self.fee * FEE_RATE)
+            owner_profit = self.fee - tax # 수수료를 제외하고 주인에게 갈 순수익
+
+            # 2️⃣ 소유주가 있고 매표소가 있다면, 수수료를 뗀 금액을 주인에게 지급
             if self.owner_id and has_booth:
-                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (self.fee, self.owner_id, gid))
+                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (owner_profit, self.owner_id, gid))
             
             expire = (datetime.now() + timedelta(hours=self.hours)).strftime('%Y-%m-%d %H:%M:%S')
             conn.execute("INSERT INTO fishing_passes (user_id, channel_id, guild_id, expire_time) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, channel_id, guild_id) DO UPDATE SET expire_time = excluded.expire_time",
                          (uid, str(interaction.channel_id), gid, expire))
             conn.commit()
-            msg = "낚시터 소유주에게 입장료가 전달되었습니다." if (self.owner_id and has_booth) else "입장이 승인되었습니다."
+
+            # 📩 유저에게 보여질 안내 메시지 분기
+            if self.owner_id and has_booth:
+                msg = f"낚시터 소유주에게 수수료 {FEE_RATE*100:.0f}%를 뗀 **{owner_profit:,}원**이 지급되었습니다."
+            else:
+                msg = "매표소 시설이 없거나 소유주가 없어 입장료가 증발(소각)되었습니다."
+
             await interaction.response.edit_message(embed=discord.Embed(title="🎫 구매 완료!", description=f"이용 가능 시간: {self.hours}시간\n{msg}", color=discord.Color.green()), view=None)
         except:
             conn.rollback()
@@ -690,6 +728,10 @@ class FishingSystemCog(commands.Cog):
         # 3. 낚시터 테이블 컬럼 누락 보정 (PRAGMA 조회)
         cols_g_res = db.execute_query("PRAGMA table_info(fishing_ground)", (), 'all')
         cols_g = [c['name'] for c in cols_g_res] if cols_g_res else []
+
+        if 'pollution' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN pollution INTEGER DEFAULT 0")
+            except: pass
 
         # ✅ 여기에 purchasable 자동 생성 로직을 추가합니다!
         if 'purchasable' not in cols_g:
@@ -791,7 +833,7 @@ class FishingSystemCog(commands.Cog):
 
             # 🔥 [핵심 수정] 조회할 때마다 수치를 0.0과 1.0(기본값)으로 엄격하게 초기화합니다.
             adj_fee = 0.0          # 🎫 매표소 수수료 조정
-            fish_rate = 0.0         # 📦 물고기 낚일 확률 증가
+            fish_rate = 0.0        # 📦 물고기 낚일 확률 증가
             base_fee = 0.0         # 📦 창고 기본 수수료
             trash_rate = 0.0       # 🧹 쓰레기 감소 확률
             upkeep_discount = 0.0  # ⚡ 유지비 감소율
@@ -1168,7 +1210,7 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="물고기 전량 판매", value="sell"), 
         app_commands.Choice(name="낚싯대 수리(1당 10원)", value="repair"),
         app_commands.Choice(name="초보자 세트 구매 (10,000원)", value="starter"),
-        app_commands.Choice(name="미끼 10개 구매 (5,000원)", value="buy_bait")
+        app_commands.Choice(name="미끼 개당 (300원)", value="buy_bait")
     ])
     async def fish_shop(self, interaction: discord.Interaction, 액션: str):
         db = self._get_db(interaction)
@@ -1281,19 +1323,29 @@ class FishingSystemCog(commands.Cog):
                 await interaction.response.send_message("❌ 구매 처리 실패!", ephemeral=True)
 
         elif 액션 == "buy_bait":
-            cost = 5000
+            # 낱개 가격 300원 설정
+            PRICE_PER_BAIT = 300
+
+            # 수량이 주어지지 않았거나 0 이하면 기본 1개로 설정
+            buy_count = 수량 if (수량 and 수량 > 0) else 1 
+            cost = PRICE_PER_BAIT * buy_count # 총비용 계산 (300원 * n개)
+
             if not db.execute_query("SELECT 1 FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one'):
                 return await interaction.response.send_message("❌ 낚싯대가 없습니다! 초보자 세트를 먼저 구매하세요.", ephemeral=True)
                 
-            if (db.get_user_cash(uid) or 0) < cost: return await interaction.response.send_message("❌ 자금이 부족합니다!", ephemeral=True)
+            if (db.get_user_cash(uid) or 0) < cost: 
+                return await interaction.response.send_message(f"❌ 자금이 부족합니다! (필요 자금: {cost:,}원)", ephemeral=True)
             
             conn = db.get_connection()
             try:
                 conn.execute("BEGIN")
                 conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
-                conn.execute("UPDATE fishing_gear SET bait_count = bait_count + 10 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                
+                # ✅ 계산된 buy_count만큼 미끼 개수를 증가시킵니다.
+                conn.execute("UPDATE fishing_gear SET bait_count = bait_count + ? WHERE user_id = ? AND guild_id = ?", (buy_count, uid, gid))
                 conn.commit()
-                await interaction.response.send_message("🐛 **미끼 10개**를 추가로 구매했습니다!")
+                
+                await interaction.response.send_message(f"🐛 **미끼 {buy_count}개**를 추가로 구매했습니다! (지출: {cost:,}원)")
             except:
                 conn.rollback()
                 await interaction.response.send_message("❌ 구매 처리 중 오류가 발생했습니다.", ephemeral=True)
