@@ -329,7 +329,8 @@ class TrashActionView(discord.ui.View):
             user_count = self.db.execute_query("SELECT illegal_dump_count FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')['illegal_dump_count']
             
             # 💰 직접 버리기 누적 10회 달성 시 5만원 과태료 징수
-            if user_count % 10 == 0:
+            # 직접 버리기 누적 30회 달성 시 5만원 과태료 징수
+            if user_count % 30 == 0:
                 conn.execute("UPDATE users SET cash = cash - 50000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                 fine_msg = f"\n\n🚨 **[무단투기 과태료 부과!]**\n쓰레기 무단투기가 누적 **{user_count}회** 적발되어 과태료 **50,000원이 징수되었습니다!**"
 
