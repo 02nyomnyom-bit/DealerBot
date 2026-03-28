@@ -228,15 +228,88 @@ async def get_usage_benefit(user_id, guild_id, db):
     count = result['cnt'] if result else 0
     return count * 0.1  # 1회당 0.5씩 이득 수치 반환
 
+active_trash_views = {}
+
+class Fishing(commands.Cog):
+    def __init__(self, bot, db):
+        self.bot = bot
+        self.db = db
+        # 🚨 [추가] 유저별 활성 쓰레기 세션 저장소
+        self.active_trash_sessions = {} 
+
+    async def _execute_fishing(self, interaction: discord.Interaction):
+        uid = str(interaction.user.id)
+        
+        # 1️⃣ [추가] 새 낚시 시작 전, 처리 안 된 쓰레기가 있는지 확인
+        if uid in self.active_trash_sessions:
+            old_view = self.active_trash_sessions[uid]
+            # 아직 결과가 안 나왔다면 강제로 방치 처리
+            if not old_view.is_finished():
+                await old_view.process_neglect()
+            # 세션 비우기
+            del self.active_trash_sessions[uid]
+
+        # ... (중간 로직 생략: 낚시 진행 및 결과 판정) ...
+
+        # 2️⃣ [추가] 쓰레기를 낚았을 때 세션에 등록 (pull 메서드 내부 등)
+        # trash_view = TrashActionView(self.db, uid, gid, chid, fish['name'], ...)
+        # self.active_trash_sessions[uid] = trash_view
+        # await interaction.followup.send(..., view=trash_view)
+
 # ==========================================
 # 👀 [UI 뷰 클래스 정의]
 # ==========================================
 
 class TrashActionView(discord.ui.View):
-    def __init__(self, user: discord.Member, penalty: int, db_manager: DatabaseManager):
-        super().__init__(timeout=60.0)
-        self.user, self.penalty, self.db = user, abs(penalty), db_manager
-        self.message, self.responded = None, False
+    def __init__(self, db, user_id, guild_id, channel_id, value_name, value):
+        super().__init__(timeout=40) # ⏱️ 기본 60초 (원하는 대로 수정 가능)
+        self.db = db
+        self.user_id = user_id
+        self.guild_id = guild_id
+        self.channel_id = channel_id
+        self.value_name = value_name
+        self.value = value
+        self.message = None
+
+    async def process_neglect(self):
+        """방치 투기 로직: 타임아웃 시 혹은 새 낚시 시작 시 강제 호출"""
+        try:
+            conn = self.db.get_connection()
+            # 오염도 계산
+            ground = conn.execute(
+                "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+                (str(self.channel_id), str(self.guild_id))
+            ).fetchone()
+            curr_p = ground['pollution'] if ground else 0.0
+            added_p = 0.5 + (curr_p * 0.1)
+            new_p = min(100.0, curr_p + added_p)
+
+            # DB 업데이트 및 커밋
+            conn.execute(
+                "UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", 
+                (new_p, str(self.channel_id), str(self.guild_id))
+            )
+            conn.commit()
+
+            # 메시지 업데이트
+            if self.message:
+                embed = discord.Embed(
+                    title="💤 방치 투기 발생",
+                    description=(
+                        f"처리를 기다리던 **[{self.value_name}]**이(가) 방치되어 떠내려갔습니다.\n"
+                        f"☣️ **오염도 상승:** `+{added_p:.2f} P` (현재: {new_p:.1f} P)"
+                    ),
+                    color=discord.Color.red()
+                )
+                await self.message.edit(embed=embed, view=None)
+            
+            self.stop() # 뷰 종료
+        except Exception as e:
+            print(f"[방치투기 처리 오류] {e}")
+
+    async def on_timeout(self):
+        """시간이 다 되면 자동으로 방치 처리"""
+        await self.process_neglect()
 
     # ⌛ [1] 시간 초과 (방치 투기) 시 벌금 징수 로직
     async def on_timeout(self):
