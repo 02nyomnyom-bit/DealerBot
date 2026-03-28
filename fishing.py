@@ -17,25 +17,25 @@ TRAPS = ["앗, 진동이 전혀 안 느껴진다!!", "앗! 오늘 날씨 진짜 
 REAL_BITES = ["!!! 찌가 강하게 가라앉았다 !!!", "어이쿠! 낚싯대가 부러질 듯 휜다!", "손끝에 묵직-한 느낌이 든다!"]
 
 TRASH_LIST = [
-    # 🥫 하찮은 쓰레기 (소량 압수)
-    {"name": "찌그러진 빈 캔", "type": "loss", "value": -2000, "weight": 40},
-    {"name": "찢어진 장화", "type": "loss", "value": -5000, "weight": 25},
-    {"name": "오래된 동전 주머니", "type": "profit", "value": 2000, "weight": 25},
-    # 🔞 특수 성인용품 쓰레기 (치명상)
-    {"name": "누군가가 쓴 애널 플러그", "type": "loss", "value": -30000, "weight": 7},
-    {"name": "야외플용 무선 진동기", "type": "loss", "value": -30000, "weight": 5},
-    {"name": "왕왕! 어떤 펫의 목줄", "type": "loss", "value": -50000, "weight": 3},
-    {"name": "헉... 멜섭의 니플 집게", "type": "loss", "value": -50000, "weight": 2},
+    # 🥫 하찮은 쓰레기 (자주 나옴)
+    {"name": "찌그러진 빈 캔", "min_value": -1000, "max_value": -3000, "weight": 40},
+    {"name": "찢어진 장화", "min_value": -3000, "max_value": -8000, "weight": 25},
+    {"name": "오염된 동전 주머니", "min_value": -5000, "max_value": -15000, "weight": 25},
+
+    # 🔞 특수 성인용품 (가끔 나옴)
+    {"name": "누군가가 쓴 애널 플러그", "min_value": -15000, "max_value": -45000, "weight": 7},
+    {"name": "야외플용 무선 진동기", "min_value": -15000, "max_value": -45000, "weight": 5},
+    {"name": "왕왕! 어떤 펫의 목줄", "min_value": -30000, "max_value": -80000, "weight": 3},
+    {"name": "헉... 멜섭의 니플 집게", "min_value": -30000, "max_value": -80000, "weight": 2},
 
     # 🏴‍☠️ 대형 및 중범죄 기구 (파산 유도)
-    {"name": "선물용이 였던 애널 테일", "type": "loss", "value": -100000, "weight": 1.5},
-    {"name": "하드하게 사용했던 패들", "type": "loss", "value": -150000, "weight": 0.7},
-    {"name": "으,,, 케인", "type": "loss", "value": -150000, "weight": 0.4},
-    {"name": "펨돔의 채찍", "type": "loss", "value": -200000, "weight": 0.2},
-    {"name": "누군가 쓰다버린 딜도", "type": "loss", "value": -200000, "weight": 0.1},
-    {"name": "폐업한다고 버린 SM 바", "type": "loss", "value": -300000, "weight": 0.1},
+    {"name": "선물용이였던 애널 테일", "min_value": -50000, "max_value": -150000, "weight": 1.5},
+    {"name": "하드하게 사용했던 패들", "min_value": -100000, "max_value": -200000, "weight": 0.7},
+    {"name": "으,,, 케인", "min_value": -100000, "max_value": -200000, "weight": 0.4},
+    {"name": "펨돔의 채찍", "min_value": -150000, "max_value": -250000, "weight": 0.2},
+    {"name": "누군가 쓰다버린 딜도", "min_value": -150000, "max_value": -250000, "weight": 0.1},
+    {"name": "폐업한다고 버린 SM 바", "min_value": -200000, "max_value": -400000, "weight": 0.1},
 ]
-
 
 FISHING_ECOLOGY = {
     "호수": [
@@ -254,7 +254,7 @@ class TrashActionView(discord.ui.View):
                     trigger_fine = True
 
                 if trigger_fine:
-                    fine_rate = 0.50 
+                    fine_rate = 0.45 
                     calculated_fine = max(5000, int(current_cash * fine_rate))
 
                     if current_cash < 50000:
@@ -271,7 +271,7 @@ class TrashActionView(discord.ui.View):
                         conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
                                      (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"무단방치 누적 {user_count}회 적발 과태료"))
 
-                        fine_msg = f"\n\n🚨 **[환경 방치 과태료 부과!]**\n방치가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(보유 자산의 50%)이 즉시 징수되었습니다!"
+                        fine_msg = f"\n\n🚨 **[환경 방치 과태료 부과!]**\n방치가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**이 즉시 징수되었습니다!"
                 
                 # ✅ [위치 수정] 어떤 상황이든 트랜잭션을 안전하게 커밋합니다.
                 conn.commit()
@@ -362,7 +362,7 @@ class TrashActionView(discord.ui.View):
                 trigger_fine = True
 
             if trigger_fine:
-                fine_rate = 0.50
+                fine_rate = 0.45
                 calculated_fine = max(5000, int(current_cash * fine_rate))
 
                 if current_cash < 50000:
@@ -375,7 +375,7 @@ class TrashActionView(discord.ui.View):
                     conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (calculated_fine, uid, gid))
                     conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
                                 (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"무단투기 누적 {user_count}회 적발 과태료"))
-                    fine_msg = f"\n\n🚨 **[무단 투기 과태료 부과!]**\n무단 투기가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(소지금의 50%)이 즉시 징수되었습니다!"
+                    fine_msg = f"\n\n🚨 **[무단 투기 과태료 부과!]**\n무단 투기가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**이 즉시 징수되었습니다!"
                     
             # ✅ [위치 수정] 조건문과 상관없이 트랜잭션을 끝내기 위해 바깥으로 이동
             conn.commit()
@@ -824,24 +824,35 @@ class FishingGameView(discord.ui.View):
                 # 🗑️ 쓰레기 기믹
                 if random.random() < trash_chance:
                     
-                    # 🎰 [수정] 단순 랜덤 추출 대신 가중치(weight)를 반영하여 추출!
                     trash_weights = [t.get("weight", 1) for t in TRASH_LIST]
                     trash = random.choices(TRASH_LIST, weights=trash_weights, k=1)[0]
 
-                    if trash["type"] == "loss":
-                        view = TrashActionView(self.user, trash["value"], self.db)
-                        active_sessions[self.user.id] = view
-                        msg = await interaction.edit_original_response(
-                            embed=discord.Embed(
-                                title="🚮 쓰레기가 걸려왔습니다!", 
-                                description=f"**[{trash['name']}]**\n적절한 조치가 필요합니다. (파손 추정액: {-trash['value']:,}원)", 
-                                color=discord.Color.orange()
+                    # 🎲 [하한가 ~ 상한가 랜덤 추출] (금액이 마이너스이므로 min이 더 큰 숫자임에 주의)
+                    # 예: random.randint(-3000, -1000)
+                    actual_fine = random.randint(trash["max_value"], trash["min_value"])
+                    
+                    # 📊 예상 파손액 (평균값 계산)
+                    avg_fine = (trash["min_value"] + trash["max_value"]) // 2
+
+                    view = TrashActionView(self.user, actual_fine, self.db)
+                    active_sessions[self.user.id] = view
+                    
+                    msg = await interaction.edit_original_response(
+                        embed=discord.Embed(
+                            title="🚮 쓰레기가 걸려왔습니다!", 
+                            description=(
+                                f"**[{trash['name']}]**\n\n"
+                                f"⚠️ **주의:** 이 물건을 수거하면 정해진 비율에 따라 **처리비**가 즉시 청구됩니다.\n"
+                                f"💸 *수거를 거부하고 무단 투기할 시 환경 오염도가 대폭 상승합니다.*"
                             ), 
-                            view=view
-                        )
-                        view.message = msg
-                        conn.commit()
-                        return
+                            color=discord.Color.orange()
+                        ), 
+                        view=view
+                    )
+                    view.message = msg
+                    conn.commit()
+                    self._clear_session() # 반려가 아니므로 세션 정리 후 완전히 종료
+                    return
 
                 # 🎣 물고기 기믹
                 ground = self.db.execute_query("SELECT ground_type, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
