@@ -720,6 +720,9 @@ class FishingGameView(discord.ui.View):
         self.cog = cog  # 세션 관리를 위해 cog 저장
         self.user = interaction.user
         self.is_pulled = False
+        self.responded = False
+        self.stage = "waiting"
+        self.is_real = False
 
     async def on_timeout(self):
         self._clear_session()
