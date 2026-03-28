@@ -1195,9 +1195,10 @@ class GroundAccessView(discord.ui.View):
             await interaction.followup.send("❌ 결제 처리 중 오류가 발생하여 금액이 차감되지 않았습니다.", ephemeral=True)
 
 class FishingSystemCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot, self.db_cog = bot, None
-        self.active_trash_sessions = {}
+    def __init__(self, bot, db):
+        self.bot = bot
+        self.db = db  # 👈 여기서 self.db로 정확히 저장되어 있는지 확인!
+        self.active_trash_sessions = {} # 지난번에 추가한 세션 변수
 
     async def cog_load(self):
         self.db_cog = self.bot.get_cog("DatabaseManager")
