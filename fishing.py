@@ -228,41 +228,13 @@ async def get_usage_benefit(user_id, guild_id, db):
     count = result['cnt'] if result else 0
     return count * 0.1  # 1회당 0.5씩 이득 수치 반환
 
-active_trash_views = {}
-
-class Fishing(commands.Cog):
-    def __init__(self, bot, db):
-        self.bot = bot
-        self.db = db
-        # 🚨 [추가] 유저별 활성 쓰레기 세션 저장소
-        self.active_trash_sessions = {} 
-
-    async def _execute_fishing(self, interaction: discord.Interaction):
-        uid = str(interaction.user.id)
-        
-        # 1️⃣ [추가] 새 낚시 시작 전, 처리 안 된 쓰레기가 있는지 확인
-        if uid in self.active_trash_sessions:
-            old_view = self.active_trash_sessions[uid]
-            # 아직 결과가 안 나왔다면 강제로 방치 처리
-            if not old_view.is_finished():
-                await old_view.process_neglect()
-            # 세션 비우기
-            del self.active_trash_sessions[uid]
-
-        # ... (중간 로직 생략: 낚시 진행 및 결과 판정) ...
-
-        # 2️⃣ [추가] 쓰레기를 낚았을 때 세션에 등록 (pull 메서드 내부 등)
-        # trash_view = TrashActionView(self.db, uid, gid, chid, fish['name'], ...)
-        # self.active_trash_sessions[uid] = trash_view
-        # await interaction.followup.send(..., view=trash_view)
-
 # ==========================================
 # 👀 [UI 뷰 클래스 정의]
 # ==========================================
 
 class TrashActionView(discord.ui.View):
     def __init__(self, db, user_id, guild_id, channel_id, value_name, value):
-        super().__init__(timeout=40) # ⏱️ 기본 60초 (원하는 대로 수정 가능)
+        super().__init__(timeout=40) # 방치 투기까지 40초
         self.db = db
         self.user_id = user_id
         self.guild_id = guild_id
@@ -270,46 +242,6 @@ class TrashActionView(discord.ui.View):
         self.value_name = value_name
         self.value = value
         self.message = None
-
-    async def process_neglect(self):
-        """방치 투기 로직: 타임아웃 시 혹은 새 낚시 시작 시 강제 호출"""
-        try:
-            conn = self.db.get_connection()
-            # 오염도 계산
-            ground = conn.execute(
-                "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
-                (str(self.channel_id), str(self.guild_id))
-            ).fetchone()
-            curr_p = ground['pollution'] if ground else 0.0
-            added_p = 0.5 + (curr_p * 0.1)
-            new_p = min(100.0, curr_p + added_p)
-
-            # DB 업데이트 및 커밋
-            conn.execute(
-                "UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", 
-                (new_p, str(self.channel_id), str(self.guild_id))
-            )
-            conn.commit()
-
-            # 메시지 업데이트
-            if self.message:
-                embed = discord.Embed(
-                    title="💤 방치 투기 발생",
-                    description=(
-                        f"처리를 기다리던 **[{self.value_name}]**이(가) 방치되어 떠내려갔습니다.\n"
-                        f"☣️ **오염도 상승:** `+{added_p:.2f} P` (현재: {new_p:.1f} P)"
-                    ),
-                    color=discord.Color.red()
-                )
-                await self.message.edit(embed=embed, view=None)
-            
-            self.stop() # 뷰 종료
-        except Exception as e:
-            print(f"[방치투기 처리 오류] {e}")
-
-    async def on_timeout(self):
-        """시간이 다 되면 자동으로 방치 처리"""
-        await self.process_neglect()
 
     # ⌛ [1] 시간 초과 (방치 투기) 시 벌금 징수 로직
     async def on_timeout(self):
@@ -981,22 +913,30 @@ class FishingGameView(discord.ui.View):
                 # 쓰레기 확률 상한선을 0.9999 (99.99%)로 설정합니다!
                 trash_chance = max(0.0, min(0.9999, trash_chance))
 
-                # 🗑️ 쓰레기 기믹
+                # 🗑️ 쓰레기 기믹 부분 (기존 로직 유지)
                 if random.random() < trash_chance:
-                    
                     trash_weights = [t.get("weight", 1) for t in TRASH_LIST]
                     trash = random.choices(TRASH_LIST, weights=trash_weights, k=1)[0]
 
-                    # 🎲 [하한가 ~ 상한가 랜덤 추출] (금액이 마이너스이므로 min이 더 큰 숫자임에 주의)
-                    # 예: random.randint(-3000, -1000)
+                    # 🎲 이미 actual_fine으로 잘 뽑고 계시네요! 이 변수를 그대로 씁니다.
                     actual_fine = random.randint(trash["max_value"], trash["min_value"])
-                    
-                    # 📊 예상 파손액 (평균값 계산)
-                    avg_fine = (trash["min_value"] + trash["max_value"]) // 2
+    
+                    # 🚨 [수정 부분] 인자 6개를 TrashActionView 정의에 맞게 넣어줍니다.
+                    # self.db, 유저ID, 길드ID, 채널ID, 쓰레기이름, 실제금액
+                    view = TrashActionView(
+                        self.db, 
+                        str(interaction.user.id), 
+                        str(interaction.guild_id), 
+                        str(interaction.channel_id), 
+                        trash['name'], 
+                        actual_fine
+                    )
+    
+                    # 💤 방치 투기 세션 등록 (ㄴㅅ 연타 방지용)
+                    if hasattr(self.cog, 'active_trash_sessions'):
+                        self.cog.active_trash_sessions[str(interaction.user.id)] = view
 
-                    view = TrashActionView(self.user, actual_fine, self.db)
-                    active_sessions[self.user.id] = view
-                    
+                    # 메시지 전송 및 저장
                     msg = await interaction.edit_original_response(
                         embed=discord.Embed(
                             title="🚮 쓰레기가 걸려왔습니다!", 
@@ -1009,7 +949,7 @@ class FishingGameView(discord.ui.View):
                         ), 
                         view=view
                     )
-                    view.message = msg
+                    view.message = msg # 시간 초과 시 메시지 수정을 위해 저장
                     conn.commit()
                     self._clear_session() # 반려가 아니므로 세션 정리 후 완전히 종료
                     return
