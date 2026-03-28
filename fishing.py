@@ -131,6 +131,14 @@ CATEGORY_MAPPING = {
         "school": "🏫 학교 관련 (방해요소)"
     }
 
+RARITY_CONFIG = {
+    "흔함": {"color": discord.Color.light_grey(), "emoji": "🐟"},
+    "희귀": {"color": discord.Color.blue(), "emoji": "✨"},
+    "신종": {"color": discord.Color.purple(), "emoji": "🧬"},
+    "전설": {"color": discord.Color.gold(), "emoji": "🏆"},
+    "환상": {"color": discord.Color.from_rgb(255, 0, 127), "emoji": "🌈"}
+}
+
 CATEGORY_FACILITIES = {
     "ticketing": ["간이매표소", "매표소", "일반매표소", "중형매표소", "대형매표소", "거대한매표소"],
     "warehouse": ["창고", "소형창고", "중형창고", "대형창고", "초거대한창고"],
@@ -1009,17 +1017,29 @@ class FishingGameView(discord.ui.View):
                     base_give_rep = int(10 * rep_multiplier)
                     conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?", (base_give_rep, uid, gid))
 
+                    # 등급 정보와 설정 가져오기 (fish 변수 사용)
+                    rarity = fish.get("rarity", "흔함")
+                    r_set = RARITY_CONFIG.get(rarity, RARITY_CONFIG["흔함"])
+
+                    # 기존 event_embed 생성 코드를 아래 내용으로 교체
                     event_embed = discord.Embed(
-                        title=f"🎉 {fish['name']}을(를) 잡았습니다!", 
+                        title=f"{r_set['emoji']} {rarity} 등급! {fish['name']}을(를) 잡았습니다!", 
                         description=(
-                            f"📏 **길이:** `{length}cm` (등급: `{fish['rarity']}`)\n"
+                            f"📏 **길이:** `{length}cm`\n"
                             f"⭐ **개인 명성:** `+{base_give_rep} P` (배율: {rep_multiplier:.1f}배 적용)\n\n"
                             f"_{fish['effect_desc']}_"
                         ), 
-                        color=discord.Color.green()
+                        color=r_set["color"]  # 등급별 색상 적용
                     )
 
-                # 🏁 모든 처리가 끝난 후 커밋을 딱 한 번만 수행합니다!
+                    # 전설/환상 등급일 때 상단 축하 문구 추가
+                    if rarity == "전설":
+                        event_embed.set_author(name="🎊 축하합니다! 전설적인 손맛! 🎊")
+                    elif rarity == "환상":
+                        event_embed.set_author(name="🌌 기적 발생! 환상의 생명체 등장! 🌌")
+
+                            # 🏁 모든 처리가 끝난 후 커밋을 딱 한 번만 수행합니다!
+                
                 conn.commit()
                 
                 # 💬 최종적으로 한 번만 유저에게 메시지를 편집해서 보여줍니다.
@@ -1072,38 +1092,62 @@ class GroundAccessView(discord.ui.View):
 
         conn = self.db.get_connection()
         try:
-            conn.execute("BEGIN")
-            
-            # 1️⃣ 구매자 돈 차감
+            conn = self.db.get_connection()
+            conn.execute("BEGIN") # 🔒 안전한 거래를 위해 트랜잭션 시작
+
+            # 1️⃣ 구매자 돈 차감 (현재 잔액 확인 로직은 상단에 있다고 가정)
             conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.fee, uid, gid))
             
-            # 🏪 매표소 시설이 있는지 확인
-            has_booth = self.db.execute_query("SELECT 1 FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name = '매표소'", (str(interaction.channel_id), gid), 'one')
+            # 🏪 매표소 시설이 설치되어 있는지 확인
+            # self.db.execute_query 대신 트랜잭션 내의 conn을 사용해야 데이터 꼬임이 없습니다.
+            has_booth = conn.execute(
+                "SELECT 1 FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name = '매표소'", 
+                (str(interaction.channel_id), gid)
+            ).fetchone()
             
-            # 🏷️ 수수료 계산 (예: 10% 수수료 적용 시 0.10)
-            FEE_RATE = 0.20  # 👈 원하는 수수료 비율로 수정하세요 (0.10 = 10%)
+            # 🏷️ 수수료 및 순수익 계산
+            FEE_RATE = 0.20  # 20% 수수료 (운영진/서버 회수분)
             tax = int(self.fee * FEE_RATE)
-            owner_profit = self.fee - tax # 수수료를 제외하고 주인에게 갈 순수익
+            owner_profit = self.fee - tax 
 
-            # 2️⃣ 소유주가 있고 매표소가 있다면, 수수료를 뗀 금액을 주인에게 지급
-            if self.owner_id and has_booth:
-                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (owner_profit, self.owner_id, gid))
+            # 2️⃣ 소유주가 있고 매표소가 있다면, 주인에게 순수익 입금
+            # owner_id가 본인이 아닐 때만 주도록 예외 처리를 하면 더 좋습니다.
+            if self.owner_id and has_booth and self.owner_id != uid:
+                conn.execute(
+                    "UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", 
+                    (owner_profit, self.owner_id, gid)
+                )
             
+            # 🎫 이용권 발급 (또는 갱신)
             expire = (datetime.now() + timedelta(hours=self.hours)).strftime('%Y-%m-%d %H:%M:%S')
-            conn.execute("INSERT INTO fishing_passes (user_id, channel_id, guild_id, expire_time) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, channel_id, guild_id) DO UPDATE SET expire_time = excluded.expire_time",
-                         (uid, str(interaction.channel_id), gid, expire))
-            conn.commit()
+            conn.execute(
+                "INSERT INTO fishing_passes (user_id, channel_id, guild_id, expire_time) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(user_id, channel_id, guild_id) DO UPDATE SET expire_time = excluded.expire_time",
+                (uid, str(interaction.channel_id), gid, expire)
+            )
+            
+            conn.commit() # ✅ 모든 과정 성공 시 DB 반영
 
-            # 📩 유저에게 보여질 안내 메시지 분기
+            # 📩 결과 안내 메시지
             if self.owner_id and has_booth:
-                msg = f"낚시터 소유주에게 수수료 {FEE_RATE*100:.0f}%를 뗀 **{owner_profit:,}원**이 지급되었습니다."
+                if self.owner_id == uid:
+                    msg = "본인 소유 낚시터이므로 입장료가 발생하지 않았습니다."
+                else:
+                    msg = f"낚시터 소유주에게 수수료 {int(FEE_RATE*100)}%를 뗀 **{owner_profit:,}원**이 정산되었습니다."
             else:
-                msg = "매표소 시설이 없거나 소유주가 없어 입장료가 증발(소각)되었습니다."
+                msg = "⚠️ **매표소** 시설이 없거나 소유주가 없어 입장료가 서버로 귀속(소각)되었습니다."
 
-            await interaction.response.edit_message(embed=discord.Embed(title="🎫 구매 완료!", description=f"이용 가능 시간: {self.hours}시간\n{msg}", color=discord.Color.green()), view=None)
-        except:
-            conn.rollback()
-            await interaction.response.send_message("❌ 결제 실패!", ephemeral=True)
+            embed = discord.Embed(
+                title="🎫 입장권 구매 완료", 
+                description=f"✅ 이용 가능 시간: **{self.hours}시간**\n{msg}", 
+                color=discord.Color.green()
+            )
+            await interaction.response.edit_message(embed=embed, view=None)
+
+        except Exception as e:
+            conn.rollback() # ❌ 에러 발생 시 돈 차감 취소
+            print(f"[결제 오류] {e}")
+            await interaction.followup.send("❌ 결제 처리 중 오류가 발생하여 금액이 차감되지 않았습니다.", ephemeral=True)
 
 class FishingSystemCog(commands.Cog):
     def __init__(self, bot):
