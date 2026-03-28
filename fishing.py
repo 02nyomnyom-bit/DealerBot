@@ -231,7 +231,7 @@ class TrashActionView(discord.ui.View):
                 current_pollution = current_data['pollution'] if current_data else 0
 
                 added_pollution = 1.0 + (current_pollution * 0.2)
-                new_pollution = min(50.0, current_pollution + added_pollution)
+                new_pollution = min(100.0, current_pollution + added_pollution)
 
                 conn = self.db.get_connection()
                 fine_msg = ""
@@ -339,7 +339,7 @@ class TrashActionView(discord.ui.View):
         current_pollution = current_data['pollution'] if current_data else 0
 
         added_pollution = 0.5 + (current_pollution * 0.1)
-        new_pollution = min(50.0, current_pollution + added_pollution)
+        new_pollution = min(100.0, current_pollution + added_pollution)
 
         conn = self.db.get_connection()
         fine_msg = ""
@@ -768,6 +768,7 @@ class FishingGameView(discord.ui.View):
                     ),
                     color=discord.Color.red()
                 )
+                self._clear_session() # 🚨 [추가] 낚시를 반려할 때 메모리 세션(중복 낚시 잠금)을 풀어줍니다.
                 return await interaction.response.send_message(embed=embed, ephemeral=True)
         
         if interaction.user != self.user: 
@@ -803,6 +804,13 @@ class FishingGameView(discord.ui.View):
                 built_facilities = self.db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'all')
 
                 trash_chance = 0.25 + (current_pollution / 100.0)
+                if current_pollution >= 100.0:
+                    trash_chance = 0.9999
+                else:
+                    # 오염도가 100 미만일 때는 기존 오염도 비례 공식을 사용합니다.
+                    trash_chance = 0.25 + (current_pollution * 0.007499) 
+
+                # 시설 효과가 있다면 마저 계산해 줍니다.
                 if built_facilities:
                     for f in built_facilities:
                         f_name = f['facility_name']
@@ -810,7 +818,8 @@ class FishingGameView(discord.ui.View):
                             trash_mod = FACILITIES[f_name].get("effect", {}).get("trash_rate", 0)
                             trash_chance += trash_mod
 
-                trash_chance = max(0.0, min(0.80, trash_chance))
+                # 쓰레기 확률 상한선을 0.9999 (99.99%)로 설정합니다!
+                trash_chance = max(0.0, min(0.9999, trash_chance))
 
                 # 🗑️ 쓰레기 기믹
                 if random.random() < trash_chance:
@@ -913,11 +922,10 @@ class FishingGameView(discord.ui.View):
 
                 elif fish["name"] == "황소개구리":
                     conn.execute("UPDATE users SET cash = cash + 10000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    new_pollution = min(50.0, current_pollution + 2.0)
+                    new_pollution = min(100.0, current_pollution + 2.0)
                     conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, str(self.channel_id), gid))
                     event_embed = discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold())
                     special_event = True
-
 
                 # 🎣 [수정] 특수 이벤트가 아닐 때만 일반 물고기 인벤토리에 한 번만 저장
                 if not special_event:
@@ -1048,7 +1056,7 @@ class FishingSystemCog(commands.Cog):
 
     def _init_db_schema(self, db):
         # 1. 기본 테이블 생성
-        db.create_table("fishing_ground", "channel_id TEXT, guild_id TEXT, owner_id TEXT, channel_name TEXT, ground_type TEXT DEFAULT '호수', tier INTEGER DEFAULT 1, ground_reputation INTEGER DEFAULT 0, ground_price INTEGER DEFAULT 100000, purchasable INTEGER DEFAULT 1, is_public INTEGER DEFAULT 1, entry_fee INTEGER DEFAULT 0, usage_time_limit INTEGER DEFAULT 1, PRIMARY KEY(channel_id, guild_id)")
+        db.create_table("fishing_ground", "channel_id TEXT, guild_id TEXT, owner_id TEXT, channel_name TEXT, ground_type TEXT DEFAULT '호수', tier INTEGER DEFAULT 1, ground_reputation INTEGER DEFAULT 0, ground_price INTEGER DEFAULT 100000, purchasable INTEGER DEFAULT 1, is_public INTEGER DEFAULT 1, entry_fee INTEGER DEFAULT 0, usage_time_limit INTEGER DEFAULT 6, PRIMARY KEY(channel_id, guild_id)")
         db.create_table("fishing_gear", "user_id TEXT, guild_id TEXT, rod_level INTEGER DEFAULT 0, rod_durability INTEGER DEFAULT 100, bait_level INTEGER DEFAULT 0, bait_count INTEGER DEFAULT 0, PRIMARY KEY(user_id, guild_id)")
         db.create_table("fishing_inventory", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, guild_id TEXT, fish_name TEXT, length REAL, price_per_cm INTEGER")
         db.create_table("fishing_passes", "user_id TEXT, channel_id TEXT, guild_id TEXT, expire_time TEXT, PRIMARY KEY(user_id, channel_id, guild_id)")
@@ -1093,9 +1101,11 @@ class FishingSystemCog(commands.Cog):
         if 'is_public' not in cols_g:
             try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN is_public INTEGER DEFAULT 1")
             except: pass
+        
         if 'usage_time_limit' not in cols_g:
-            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN usage_time_limit INTEGER DEFAULT 1")
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN usage_time_limit INTEGER DEFAULT 6")
             except: pass
+
         if 'entry_fee' not in cols_g:
             try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN entry_fee INTEGER DEFAULT 0")
             except: pass
@@ -1112,7 +1122,8 @@ class FishingSystemCog(commands.Cog):
     def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
         ground = db.execute_query("SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         if not ground:
-            db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", (chid, gid, channel_name))
+            # 🚨 usage_time_limit을 6으로 명시하여 삽입
+            db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name, usage_time_limit) VALUES (?, ?, ?, 6)", (chid, gid, channel_name))
 
     def _process_illegal_dump_fine(self, db, uid: str, gid: str) -> Optional[int]:
         """무단투기 횟수를 1 올리고, 10의 배수가 되면 벌금 50,000원을 부과합니다."""
@@ -1185,10 +1196,11 @@ class FishingSystemCog(commands.Cog):
         if gear['bait_count'] <= 0: return await interaction.response.send_message("❌ 미끼가 없습니다!", ephemeral=True)
         if gear['rod_durability'] <= 0: return await interaction.response.send_message("❌ 낚싯대가 고장 났습니다! 수리 후 이용하세요.", ephemeral=True)
 
-        ground = db.execute_query("SELECT owner_id, is_public, entry_fee, usage_time_limit FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+        ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         if not ground:
-            db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name, is_public) VALUES (?, ?, ?, 1)", (chid, gid, interaction.channel.name))
-            ground = db.execute_query("SELECT owner_id, is_public, entry_fee, usage_time_limit FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+            # 🚨 usage_time_limit을 6으로 명시하여 삽입
+            db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name, usage_time_limit) VALUES (?, ?, ?, 6)", (chid, gid, interaction.channel.name))
+            ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
 
         if ground['owner_id'] and ground['owner_id'] != uid and ground['is_public'] != 1:
             p = db.execute_query("SELECT expire_time FROM fishing_passes WHERE user_id = ? AND channel_id = ? AND guild_id = ?", (uid, chid, gid), 'one')
@@ -1299,7 +1311,7 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="🌍 자연 환경", value=ground['ground_type'], inline=True)
             ground_rep = ground['ground_reputation'] if ground['ground_reputation'] is not None else 0
             embed.add_field(name="📈 낚시터 명성", value=f"`{ground_rep:,} P`", inline=True)
-            embed.add_field(name="🚨 채널 오염도", value=f"`{current_pollution} P`", inline=True) # 오염도 표시 추가
+            embed.add_field(name="🚨 채널 오염도", value=f"`{current_pollution:.1f} P`", inline=True) # 오염도 표시 추가
             embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=False)
 
             # 📊 9대 카테고리 효과 종합 리포트 출력
