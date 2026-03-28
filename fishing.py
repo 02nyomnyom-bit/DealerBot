@@ -1197,6 +1197,7 @@ class GroundAccessView(discord.ui.View):
 class FishingSystemCog(commands.Cog):
     def __init__(self, bot):
         self.bot, self.db_cog = bot, None
+        self.active_trash_sessions = {}
 
     async def cog_load(self):
         self.db_cog = self.bot.get_cog("DatabaseManager")
