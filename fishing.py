@@ -292,8 +292,8 @@ class TrashActionView(discord.ui.View):
                 embed = discord.Embed(
                     title="⌛ 선택 시간 초과 (방치 투기)", 
                     description=(
-                        f"쓰레기를 치우지 않아 길가에 버려졌습니다!\n"
-                        f"방치 투기 페널티로 오염도가 가중 상승합니다.\n\n"
+                        f"저런.. 쓰레기를 치우지 않아 길가에 버려졌습니다!\n"
+                        f"CCTV에 찍혀 방치 투기 페널티로 오염도가 가중 상승합니다.\n\n"
                         f"🚨 오염도 상승: **+{added_pollution:.1f} P**\n"
                         f"현재 오염도: **{new_pollution:.1f} P**" + fine_msg
                     ), 
@@ -338,9 +338,14 @@ class TrashActionView(discord.ui.View):
 
     @discord.ui.button(label="🚮 그냥 버리기", style=discord.ButtonStyle.danger)
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
-        if self.responded: return
-        self.responded = True 
+        if interaction.user != self.user:
+            return await interaction.response.send_message("자신의 쓰레기만 처리할 수 있습니다!", ephemeral=True)
+
+        # 1. 실제 데이터베이스 오염도 수치 증가 (핵심 로직)
+        self.db.execute_query(
+            "UPDATE fishing_ground SET pollution = pollution + 1 WHERE channel_id = ? AND guild_id = ?",
+            (str(interaction.channel_id), str(interaction.guild_id))
+        )
 
         chid, gid = str(interaction.channel_id), str(interaction.guild_id)
         uid = str(self.user.id)
@@ -393,17 +398,15 @@ class TrashActionView(discord.ui.View):
             # ✅ [위치 수정] 조건문과 상관없이 트랜잭션을 끝내기 위해 바깥으로 이동
             conn.commit()
 
-            await interaction.response.edit_message(
-                embed=discord.Embed(
-                    title="⚠️ 무단 투기", 
-                    description=(
-                        f"환경이 오염되었습니다! (오염도: +{added_pollution:.1f})\n"
-                        f"현재 오염도: **{new_pollution:.1f} P**" + fine_msg
-                    ), 
-                    color=discord.Color.red()
-                ), 
-                view=None
+            # 2. 전송할 임베드 메시지 구성
+            embed = discord.Embed(
+                title="⚠️ 무단 투기 완료", 
+                description="우... 쓰레기...\n를 그냥 바닥에 버렸습니다.\n당신의 양심도 낚시터도 **오염도가 상승**합니다", 
+                color=discord.Color.red()
             )
+
+            # 3. 화면 업데이트 (한 번만 호출)
+            await interaction.response.edit_message(embed=embed, view=None)
 
         except Exception as e:
             conn.rollback()
