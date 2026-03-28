@@ -233,15 +233,10 @@ async def get_usage_benefit(user_id, guild_id, db):
 # ==========================================
 
 class TrashActionView(discord.ui.View):
-    def __init__(self, db, user_id, guild_id, channel_id, value_name, value):
-        super().__init__(timeout=40) # 방치 투기까지 40초
-        self.db = db
-        self.user_id = user_id
-        self.guild_id = guild_id
-        self.channel_id = channel_id
-        self.value_name = value_name
-        self.value = value
-        self.message = None
+    def __init__(self, user: discord.Member, penalty: int, db_manager: DatabaseManager):
+        super().__init__(timeout=60.0)
+        self.user, self.penalty, self.db = user, abs(penalty), db_manager
+        self.message, self.responded = None, False
 
     # ⌛ [1] 시간 초과 (방치 투기) 시 벌금 징수 로직
     async def on_timeout(self):
@@ -670,42 +665,11 @@ class CleanConfirmView(discord.ui.View):
         await interaction.response.edit_message(embed=discord.Embed(title="⏹️ 청소 취소", description="청소 요청을 취소했습니다. 돈이 차감되지 않았습니다.", color=discord.Color.light_gray()), view=None)
         self.stop()
 
-class BuyConfirmView(discord.ui.View):
-    def __init__(self, db, price, chid, gid, buyer_id):
-        super().__init__(timeout=30)
-        self.db = db
-        self.price = price
-        self.chid = chid
-        self.gid = gid
-        self.buyer_id = buyer_id
-
-    @discord.ui.button(label="✅ 최종 매입 승인", style=discord.ButtonStyle.danger)
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if str(interaction.user.id) != self.buyer_id:
-            return await interaction.response.send_message("구매 당사자만 결정할 수 있습니다.", ephemeral=True)
-
-        try:
-            conn = self.db.get_connection()
-            # 실제 매입 로직 수행 (기존 로직 그대로)
-            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.price, self.buyer_id, self.gid))
-            conn.execute("UPDATE fishing_ground SET owner_id = ?, purchasable = 0, is_public = 0 WHERE channel_id = ? AND guild_id = ?", (self.buyer_id, self.chid, self.gid))
-            conn.commit()
-            await interaction.response.edit_message(content=f"🎉 성공적으로 낚시터를 매입했습니다! (총 {self.price:,}원 지출)", embed=None, view=None)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ 매입 처리 중 오류 발생: {e}", ephemeral=True)
-
-    @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(content="매입을 취소했습니다.", embed=None, view=None)
-
 class FishingGameView(discord.ui.View):
-    def __init__(self, interaction, db, cog): # cog 인자 추가
-        super().__init__(timeout=60)
-        self.interaction = interaction
-        self.db = db
-        self.cog = cog  # 세션 관리를 위해 cog 저장
-        self.user = interaction.user
-        self.is_pulled = False
+    def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
+        super().__init__(timeout=60.0)
+        self.user, self.db, self.channel_id = user, db_manager, channel_id
+        self.stage, self.is_real, self.responded, self.message = "waiting", False, False, None
 
     async def on_timeout(self):
         self._clear_session()
@@ -916,39 +880,37 @@ class FishingGameView(discord.ui.View):
                 # 쓰레기 확률 상한선을 0.9999 (99.99%)로 설정합니다!
                 trash_chance = max(0.0, min(0.9999, trash_chance))
 
-                # 🗑️ 쓰레기 기믹 부분
+                # 🗑️ 쓰레기 기믹
                 if random.random() < trash_chance:
+                    
                     trash_weights = [t.get("weight", 1) for t in TRASH_LIST]
                     trash = random.choices(TRASH_LIST, weights=trash_weights, k=1)[0]
 
-                    # 기존에 잘 짜두신 랜덤 금액 로직 그대로 사용
+                    # 🎲 [하한가 ~ 상한가 랜덤 추출] (금액이 마이너스이므로 min이 더 큰 숫자임에 주의)
+                    # 예: random.randint(-3000, -1000)
                     actual_fine = random.randint(trash["max_value"], trash["min_value"])
-            
-                    # 🚨 [인자 6개 채우기] 에러 해결을 위해 모든 정보 전달
-                    view = TrashActionView(
-                        self.db, 
-                        str(self.user.id), 
-                        str(interaction.guild_id), 
-                        str(interaction.channel_id), 
-                        trash['name'], 
-                        actual_fine
-                    )
-            
-                    # 세션 등록 (self.cog를 통해 부모 Cog의 딕셔너리에 접근)
-                    self.cog.active_trash_sessions[str(self.user.id)] = view
+                    
+                    # 📊 예상 파손액 (평균값 계산)
+                    avg_fine = (trash["min_value"] + trash["max_value"]) // 2
 
-                    embed = discord.Embed(
-                        title="🚮 쓰레기가 걸려왔습니다!", 
-                        description=(
-                            f"**[{trash['name']}]**\n\n"
-                            f"⚠️ **주의:** 수거 시 처리비가 청구됩니다.\n"
-                            f"💸 **방치 시 오염도가 대폭 상승합니다.**"
+                    view = TrashActionView(self.user, actual_fine, self.db)
+                    active_sessions[self.user.id] = view
+                    
+                    msg = await interaction.edit_original_response(
+                        embed=discord.Embed(
+                            title="🚮 쓰레기가 걸려왔습니다!", 
+                            description=(
+                                f"**[{trash['name']}]**\n\n"
+                                f"⚠️ **주의:** 이 물건을 수거하면 정해진 비율에 따라 **처리비**가 즉시 청구됩니다.\n"
+                                f"💸 *수거를 거부하고 무단 투기할 시 환경 오염도가 대폭 상승합니다.*"
+                            ), 
+                            color=discord.Color.orange()
                         ), 
-                        color=discord.Color.orange()
+                        view=view
                     )
-            
-                    msg = await interaction.edit_original_response(embed=embed, view=view)
-                    view.message = msg # 타임아웃/방치 처리를 위해 메시지 저장
+                    view.message = msg
+                    conn.commit()
+                    self._clear_session() # 반려가 아니므로 세션 정리 후 완전히 종료
                     return
 
                 # 🎣 물고기 기믹
@@ -1197,10 +1159,9 @@ class GroundAccessView(discord.ui.View):
 class FishingSystemCog(commands.Cog):
     def __init__(self, bot, db):
         self.bot = bot
-        self.db = db  # database_manager 객체 저장
-        self.active_trash_sessions = {}  # 🚨 쓰레기 세션 저장소
-        # 만약 기존에 active_sessions = {} 가 있었다면 그것도 유지하는 게 좋습니다.
-        self.active_sessions = {}
+        self.db = db  # database_manager 객체
+        self.active_trash_sessions = {}  # 🚨 쓰레기 세션 (ㄴㅅ 연타 방치 처리용)
+        self.active_sessions = {}        # 🎣 낚시 중복 방지용
 
     async def cog_load(self):
         self.db_cog = self.bot.get_cog("DatabaseManager")
@@ -1329,26 +1290,22 @@ class FishingSystemCog(commands.Cog):
         
     async def _execute_fishing(self, interaction: discord.Interaction):
         uid = str(interaction.user.id)
-        chid = str(interaction.channel_id)
-        gid = str(interaction.guild_id)
         
-        # 1️⃣ [방치 투기 자동 처리] 이전 쓰레기 세션이 있다면 즉시 종료
+        # 🚨 [방치 투기 자동 처리]
+        # 유저가 버튼을 안 누르고 다시 /ㄴㅅ를 치면 이전 쓰레기를 즉시 방치 처리합니다.
         if uid in self.active_trash_sessions:
             old_view = self.active_trash_sessions[uid]
-            # 이미 결과가 처리된 뷰가 아니라면(버튼 안 누름) 방치 처리 진행
             if not old_view.is_finished():
-                await old_view.process_neglect()
-            del self.active_trash_sessions[uid]
+                await old_view.process_neglect() # 방치투기 메서드 실행
+            if uid in self.active_trash_sessions: # 안전하게 삭제
+                del self.active_trash_sessions[uid]
 
-        # 2️⃣ [중복 실행 방지] 현재 낚시 중인지 체크
-        # (active_sessions가 Cog 멤버 변수라고 가정합니다)
-        if hasattr(self, 'active_sessions'):
-            if interaction.user.id in self.active_sessions: 
-                return await interaction.response.send_message("⏳ 이미 낚시를 진행 중입니다!", ephemeral=True)
+        if interaction.user.id in active_sessions: 
+            return await interaction.response.send_message("⏳ 이미 낚시를 진행 중입니다!", ephemeral=True)
         
-        # 3️⃣ DB 연결 및 구역 체크
-        db = self.db # _get_db 대신 직접 참조하거나 self._get_db(interaction) 사용
-        
+        db = self._get_db(interaction)
+        uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
+
         ground_check = db.execute_query(
             "SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
             (chid, gid), 'one'
@@ -1364,37 +1321,28 @@ class FishingSystemCog(commands.Cog):
                 ),
                 color=discord.Color.red()
             )
-            return await interaction.response.send_message(embed=embed, ephemeral=True)
+            return await interaction.response.send_message(embed=embed, ephemeral=True) # 본인에게만 메시지 노출
         
-        # 4️⃣ 장비 및 미끼 체크
         gear = db.execute_query("SELECT bait_count, rod_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
-        if not gear: 
-            return await interaction.response.send_message("❌ 장비가 없습니다! `/낚시가게`에서 초보자 세트를 구매하세요.", ephemeral=True)
-        if gear['bait_count'] <= 0: 
-            return await interaction.response.send_message("❌ 미끼가 없습니다!", ephemeral=True)
-        if gear['rod_durability'] <= 0: 
-            return await interaction.response.send_message("❌ 낚싯대가 고장 났습니다! 수리 후 이용하세요.", ephemeral=True)
+        if not gear: return await interaction.response.send_message("❌ 장비가 없습니다! `/낚시가게`에서 초보자 세트를 구매하세요.", ephemeral=True)
+        if gear['bait_count'] <= 0: return await interaction.response.send_message("❌ 미끼가 없습니다!", ephemeral=True)
+        if gear['rod_durability'] <= 0: return await interaction.response.send_message("❌ 낚싯대가 고장 났습니다! 수리 후 이용하세요.", ephemeral=True)
 
-        # 5️⃣ 낚시터 정보 로드 및 입장권 체크
         ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         if not ground:
+            # 🚨 usage_time_limit을 6으로 명시하여 삽입
             db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name, usage_time_limit) VALUES (?, ?, ?, 6)", (chid, gid, interaction.channel.name))
             ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
 
-        # 사유지 입장 제한 로직
         if ground['owner_id'] and ground['owner_id'] != uid and ground['is_public'] != 1:
             p = db.execute_query("SELECT expire_time FROM fishing_passes WHERE user_id = ? AND channel_id = ? AND guild_id = ?", (uid, chid, gid), 'one')
             if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S') <= datetime.now():
                 view = GroundAccessView(interaction.user, ground['entry_fee'], ground['usage_time_limit'], ground['owner_id'], db)
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
-        # 6️⃣ 게임 뷰 생성 및 시작
-        # FishingGameView(interaction, db, cog) 순서 준수
+        # 🎣 게임 시작 시 self(cog)와 db를 정확히 전달
         view = FishingGameView(interaction, self.db, self)
-        
-        if hasattr(self, 'active_sessions'):
-            self.active_sessions[interaction.user.id] = view
-            
+        self.active_sessions[interaction.user.id] = view
         await view.start_game(interaction)
 
     @app_commands.command(name="낚시", description="낚시 게임을 시작합니다.")
@@ -1515,56 +1463,91 @@ class FishingSystemCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
 
         # 🛒 [2] 낚시터 구매 (매입 / 약탈) 기능
-        # 🛒 2. 구매용 (buy)
         elif 액션 == "buy":
-            # 1️⃣ 기본 매입가 정의 (이미 코드에 있다면 그 값을 쓰시고, 없다면 여기서 선언)
-            base_buy_price = 100000 
+            is_hostile_takeover = False
+            owner_id = ground['owner_id']
+            base_land_price = ground['ground_price'] or 100000
+
+            is_purchasable = ground['purchasable'] if 'purchasable' in ground.keys() else 1
+            if is_purchasable == 0 and not owner_id:
+                return await interaction.response.send_message("❌ 이 채널은 관리자에 의해 **공용 전용 낚시터**로 지정되어 구매할 수 없습니다.", ephemeral=True)
+
+            # 🏗️ 현재 지어진 시설들의 가치를 합산합니다.
+            facilities_value = self._get_facilities_value(db, chid, gid)
             
-            # 2️⃣ 실시간 시설 조회 및 FACILITIES 참조하여 80% 가치 계산
-            facilities = db.execute_query(
-                "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", 
-                (chid, gid), 'all'
-            )
+            # 실제 낚시터의 가치 = 기본 땅값 + 시설 가치
+            current_property_value = base_land_price + facilities_value
 
-            total_facility_original = 0
-            if facilities:
-                for f in facilities:
-                    f_name = f['facility_name']
-                    # 상단 FACILITIES 딕셔너리에서 해당 시설의 req_cash(정가)를 가져옵니다.
-                    if f_name in FACILITIES:
-                        total_facility_original += FACILITIES[f_name].get('req_cash', 0)
-                    else:
-                        # FACILITIES에 정의되지 않은 시설일 경우 예외 처리용 (기본값)
-                        total_facility_original += 1
+            if owner_id:
+                if owner_id == uid:
+                    return await interaction.response.send_message("❌ 이미 본인이 소유하고 있는 낚시터입니다.", ephemeral=True)
+                
+                is_hostile_takeover = True
+                cost = int(current_property_value * 1.1) # 시설값 포함 전체 금액의 1.1배
+            else:
+                cost = current_property_value
 
-            # 📉 시설 정가의 80%만 매입가에 가산
-            facility_value_80 = int(total_facility_original * 0.8)
-            total_buy_price = base_buy_price + facility_value_80
-            
-            # 3️⃣ 잔액 체크
-            if user_cash < total_buy_price:
-                return await interaction.followup.send(
-                    f"❌ 매입 자금이 부족합니다!\n"
-                    f"💰 최종 매입가: {total_buy_price:,}원 (보유: {user_cash:,}원)", 
-                    ephemeral=True
-                )
+            user_cash = db.get_user_cash(uid) or 0
 
-            # 4️⃣ 2단계 확인창 전송
-            confirm_embed = discord.Embed(
-                title="🏗️ 낚시터 매입 최종 확인",
-                description=(
-                    f"현재 채널(<#{chid}>)을 매입하시겠습니까?\n\n"
-                    f"💵 기본 토지 가치: `{base_buy_price:,}원` \n"
-                    f"🏗️ 시설 가치(80% 반영): `{facility_value_80:,}원` \n"
-                    f"└ *시설 정가 총액: {total_facility_original:,}원*\n"
-                    f"───\n"
-                    f"💰 **최종 매입가: {total_buy_price:,}원**"
-                ),
-                color=discord.Color.gold()
-            )
-            view = BuyConfirmView(db, total_buy_price, chid, gid, uid)
-            await interaction.followup.send(embed=confirm_embed, view=view, ephemeral=True)
-            return
+            if user_cash < cost: 
+                msg = f"❌ 소지금이 부족합니다! (필요: {cost:,}원 / 보유: {user_cash:,}원)"
+                if is_hostile_takeover:
+                    msg = f"❌ 다른 사람의 땅을 인수하려면 시설 가치가 포함된 **{cost:,}원**이 필요합니다! (보유: {user_cash:,}원)"
+                return await interaction.response.send_message(msg, ephemeral=True)
+
+            conn = db.get_connection()
+            try:
+                conn.execute("BEGIN")
+                conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
+                
+                # 강제 인수 시 다음 땅값도 시설비가 누적된 가격으로 갱신됩니다.
+                conn.execute("UPDATE fishing_ground SET owner_id = ?, purchasable = 0, ground_price = ? WHERE channel_id = ? AND guild_id = ?", (uid, cost, chid, gid))
+
+                if is_hostile_takeover:
+                    conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (cost, owner_id, gid))
+
+                if is_hostile_takeover:
+                    # 🏛️ [세금 시스템 도입] 전 주인에게 100% 주지 않고 70%만 지급 (30%는 서버 소각)
+                    payout_rate = 0.70 
+                    owner_payout = int(cost * payout_rate)
+                    tax_burnt = cost - owner_payout
+
+                    conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (owner_payout, owner_id, gid))
+                    
+                    # 📜 전 주인에게 정산 알림용 변수 세팅
+                    takeover_msg = (
+                        f"⚔️ **[낚시터 강제 인수 성공!]**\n"
+                        f"<@{uid}> 유저님이 기존 소유주인 <@{owner_id}>님의 땅을 **{cost:,}원**에 뺏었습니다!\n"
+                        f"이 중 서버 양도세 30%(`{tax_burnt:,}원`)를 제외한 **{owner_payout:,}원**이 전 주인에게 보상금으로 지급되었습니다."
+                    )
+                else:
+                    takeover_msg = f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!"
+
+                conn.commit()
+                
+                # 채널명 변경 로직 (기존 코드 유지)
+                async def safe_rename_buy():
+                    try:
+                        clean_name = interaction.user.display_name.replace(" ", "_")
+                        new_name = f"🎣｜{clean_name}의_낚시터"
+                        await interaction.channel.edit(name=new_name)
+                    except discord.HTTPException as e:
+                        print(f"[경고] 채널명 변경 속도 제한에 걸렸습니다: {e}")
+
+                asyncio.create_task(safe_rename_buy())
+                await interaction.response.send_message(takeover_msg)
+
+                if is_hostile_takeover:
+                    await interaction.response.send_message(
+                        f"⚔️ **[낚시터 강제 인수 성공!]**\n"
+                        f"<@{uid}> 유저님이 기존 소유주인 <@{owner_id}>님에게 시설비를 포함한 **{cost:,}원**을 지불하고 이 낚시터를 뺏었습니다!"
+                    )
+                else:
+                    await interaction.response.send_message(f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!")
+                
+            except Exception as e:
+                conn.rollback()
+                await interaction.response.send_message(f"❌ 구매/인수 중 오류가 발생했습니다: {e}", ephemeral=True)
 
         # ⚙️ [3] 설정 변경 기능 (입장료 상한선 제제 강화)
         elif 액션 == "edit":
