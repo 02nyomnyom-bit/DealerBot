@@ -719,6 +719,7 @@ class FishingGameView(discord.ui.View):
         self.db = db
         self.cog = cog  # 세션 관리를 위해 cog 저장
         self.user = interaction.user
+        self.channel_id = interaction.channel_id # 추가
         self.is_pulled = False
         self.responded = False
         self.stage = "waiting"
@@ -910,10 +911,10 @@ class FishingGameView(discord.ui.View):
                 conn.execute("BEGIN")
                 conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 1) WHERE user_id = ? AND guild_id = ?", (uid, gid))
 
-                ground_info = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
+                ground_info = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
                 current_pollution = ground_info['pollution'] if ground_info else 0
 
-                built_facilities = self.db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'all')
+                built_facilities = self.db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
 
                 trash_chance = 0.25 + (current_pollution / 100.0)
                 if current_pollution >= 100.0:
@@ -969,7 +970,7 @@ class FishingGameView(discord.ui.View):
                     return
 
                 # 🎣 물고기 기믹
-                ground = self.db.execute_query("SELECT ground_type, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (str(self.channel_id), gid), 'one')
+                ground = self.db.execute_query("SELECT ground_type, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
                 location = ground['ground_type'] if ground else "호수"
                 current_ground_tier = ground['tier'] if ground else 1
 
@@ -1048,7 +1049,7 @@ class FishingGameView(discord.ui.View):
                 elif fish["name"] == "황소개구리":
                     conn.execute("UPDATE users SET cash = cash + 10000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     new_pollution = min(100.0, current_pollution + 2.0)
-                    conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, str(self.channel_id), gid))
+                    conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
                     event_embed = discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold())
                     special_event = True
 
