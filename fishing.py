@@ -1197,8 +1197,8 @@ class GroundAccessView(discord.ui.View):
 class FishingSystemCog(commands.Cog):
     def __init__(self, bot, db):
         self.bot = bot
-        self.db = db  # 👈 여기서 self.db로 정확히 저장되어 있는지 확인!
-        self.active_trash_sessions = {} # 지난번에 추가한 세션 변수
+        self.db = db  # database_manager 객체 저장
+        self.active_trash_sessions = {}  # 🚨 쓰레기 세션 저장소 (필수 추가)
 
     async def cog_load(self):
         self.db_cog = self.bot.get_cog("DatabaseManager")
@@ -1327,20 +1327,26 @@ class FishingSystemCog(commands.Cog):
         
     async def _execute_fishing(self, interaction: discord.Interaction):
         uid = str(interaction.user.id)
+        chid = str(interaction.channel_id)
+        gid = str(interaction.guild_id)
         
-        # 🚨 [방치 투기 자동 처리] 이전 세션이 남아있다면 즉시 종료
+        # 1️⃣ [방치 투기 자동 처리] 이전 쓰레기 세션이 있다면 즉시 종료
         if uid in self.active_trash_sessions:
             old_view = self.active_trash_sessions[uid]
+            # 이미 결과가 처리된 뷰가 아니라면(버튼 안 누름) 방치 처리 진행
             if not old_view.is_finished():
                 await old_view.process_neglect()
             del self.active_trash_sessions[uid]
 
-        if interaction.user.id in active_sessions: 
-            return await interaction.response.send_message("⏳ 이미 낚시를 진행 중입니다!", ephemeral=True)
+        # 2️⃣ [중복 실행 방지] 현재 낚시 중인지 체크
+        # (active_sessions가 Cog 멤버 변수라고 가정합니다)
+        if hasattr(self, 'active_sessions'):
+            if interaction.user.id in self.active_sessions: 
+                return await interaction.response.send_message("⏳ 이미 낚시를 진행 중입니다!", ephemeral=True)
         
-        db = self._get_db(interaction)
-        uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
-
+        # 3️⃣ DB 연결 및 구역 체크
+        db = self.db # _get_db 대신 직접 참조하거나 self._get_db(interaction) 사용
+        
         ground_check = db.execute_query(
             "SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
             (chid, gid), 'one'
@@ -1356,27 +1362,37 @@ class FishingSystemCog(commands.Cog):
                 ),
                 color=discord.Color.red()
             )
-            return await interaction.response.send_message(embed=embed, ephemeral=True) # 본인에게만 메시지 노출
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
         
+        # 4️⃣ 장비 및 미끼 체크
         gear = db.execute_query("SELECT bait_count, rod_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
-        if not gear: return await interaction.response.send_message("❌ 장비가 없습니다! `/낚시가게`에서 초보자 세트를 구매하세요.", ephemeral=True)
-        if gear['bait_count'] <= 0: return await interaction.response.send_message("❌ 미끼가 없습니다!", ephemeral=True)
-        if gear['rod_durability'] <= 0: return await interaction.response.send_message("❌ 낚싯대가 고장 났습니다! 수리 후 이용하세요.", ephemeral=True)
+        if not gear: 
+            return await interaction.response.send_message("❌ 장비가 없습니다! `/낚시가게`에서 초보자 세트를 구매하세요.", ephemeral=True)
+        if gear['bait_count'] <= 0: 
+            return await interaction.response.send_message("❌ 미끼가 없습니다!", ephemeral=True)
+        if gear['rod_durability'] <= 0: 
+            return await interaction.response.send_message("❌ 낚싯대가 고장 났습니다! 수리 후 이용하세요.", ephemeral=True)
 
+        # 5️⃣ 낚시터 정보 로드 및 입장권 체크
         ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         if not ground:
-            # 🚨 usage_time_limit을 6으로 명시하여 삽입
             db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name, usage_time_limit) VALUES (?, ?, ?, 6)", (chid, gid, interaction.channel.name))
             ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
 
+        # 사유지 입장 제한 로직
         if ground['owner_id'] and ground['owner_id'] != uid and ground['is_public'] != 1:
             p = db.execute_query("SELECT expire_time FROM fishing_passes WHERE user_id = ? AND channel_id = ? AND guild_id = ?", (uid, chid, gid), 'one')
             if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S') <= datetime.now():
                 view = GroundAccessView(interaction.user, ground['entry_fee'], ground['usage_time_limit'], ground['owner_id'], db)
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
+        # 6️⃣ 게임 뷰 생성 및 시작
+        # FishingGameView(interaction, db, cog) 순서 준수
         view = FishingGameView(interaction, self.db, self)
-        active_sessions[interaction.user.id] = view
+        
+        if hasattr(self, 'active_sessions'):
+            self.active_sessions[interaction.user.id] = view
+            
         await view.start_game(interaction)
 
     @app_commands.command(name="낚시", description="낚시 게임을 시작합니다.")
