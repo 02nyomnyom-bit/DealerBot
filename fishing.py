@@ -1,6 +1,7 @@
 # fishing.py
 import discord
 from discord import app_commands
+from discord import embeds
 from discord.ext import commands
 import asyncio
 import random
@@ -206,6 +207,18 @@ FACILITIES = {
 
 active_sessions = {}
 user_locks = {}
+
+async def get_usage_benefit(user_id, guild_id, db):
+    """최근 24시간 내 이용 횟수를 조회하여 0.5씩 이득 수치를 계산합니다."""
+    now = datetime.now()
+    one_day_ago = (now - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # 해당 길드(서버) 전체 또는 특정 낚시터의 24시간 내 이용 횟수 카운트
+    query = "SELECT COUNT(*) as cnt FROM fishing_logs WHERE guild_id = ? AND timestamp > ?"
+    result = db.execute_query(query, (str(guild_id), one_day_ago), 'one')
+    
+    count = result['cnt'] if result else 0
+    return count * 0.1  # 1회당 0.5씩 이득 수치 반환
 
 # ==========================================
 # 👀 [UI 뷰 클래스 정의]
@@ -720,6 +733,45 @@ class FishingGameView(discord.ui.View):
             )
         except: 
             return
+        
+    async def resolve_fishing(self, interaction: discord.Interaction):
+        if self.responded: return
+        self.responded = True
+
+        # [A] 24시간 이용 횟수에 따른 '이득' 계산 (0.5씩)
+        benefit = await get_usage_benefit(self.user.id, interaction.guild_id, self.db)
+        
+        # 기본 수수료 500원에 활성화 보너스 합산
+        owner_profit = 500 + benefit 
+        
+        # [B] 이번 이용 기록 저장 (이게 있어야 다음 사람이 낚시할 때 횟수에 포함됨)
+        log_query = "INSERT INTO fishing_logs (user_id, guild_id, timestamp) VALUES (?, ?, ?)"
+        self.db.execute_query(
+            log_query, 
+            (str(self.user.id), str(interaction.guild_id), datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        )
+
+        # [C] 낚시터 주인에게 수익금 실제로 지급 (DB 업데이트)
+        # 낚시터 정보에서 주인 ID(owner_id)를 가져와 해당 유저의 돈을 늘려줍니다.
+        update_profit_query = """
+            UPDATE users 
+            SET money = money + ? 
+            WHERE user_id = (SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?)
+        """
+        self.db.execute_query(update_profit_query, (owner_profit, str(interaction.channel_id), str(interaction.guild_id)))
+
+        # [D] 결과 메시지 출력
+        embed = discord.Embed(
+            title="🎣 낚시 완료!",
+            description=(
+                f"성공적으로 낚시를 마쳤습니다!\n\n"
+                f"💰 **낚시터 수익 발생**: `{owner_profit:,.1f}`원\n"
+                f"✨ **활성화 보너스**: `+{benefit:,.1f}`원 (최근 24시간 기준)"
+            ),
+            color=discord.Color.green()
+        )
+        
+        await interaction.edit_original_response(embed=embed, view=None)
 
     @discord.ui.button(label="🎣 낚싯줄 당기기", style=discord.ButtonStyle.danger)
     async def pull(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -975,6 +1027,7 @@ class FishingGameView(discord.ui.View):
                 await interaction.edit_original_response(embed=discord.Embed(title="❌ 시스템 오류", description=f"데이터 처리 중 오류가 발생했습니다. (에러: {e})", color=discord.Color.red()), view=None)
             finally:
                 self._clear_session()
+
 
     # === 2. [추가할 코드] 옆에 나란히 붙을 [🛑 낚시 중지] 버튼 ===
     @discord.ui.button(label="🛑 낚시 중지", style=discord.ButtonStyle.secondary)
