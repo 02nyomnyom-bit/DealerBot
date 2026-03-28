@@ -699,10 +699,13 @@ class BuyConfirmView(discord.ui.View):
         await interaction.response.edit_message(content="매입을 취소했습니다.", embed=None, view=None)
 
 class FishingGameView(discord.ui.View):
-    def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
-        super().__init__(timeout=60.0)
-        self.user, self.db, self.channel_id = user, db_manager, channel_id
-        self.stage, self.is_real, self.responded, self.message = "waiting", False, False, None
+    def __init__(self, interaction, db, cog): # cog 인자 추가
+        super().__init__(timeout=60)
+        self.interaction = interaction
+        self.db = db
+        self.cog = cog  # 세션 관리를 위해 cog 저장
+        self.user = interaction.user
+        self.is_pulled = False
 
     async def on_timeout(self):
         self._clear_session()
@@ -913,45 +916,39 @@ class FishingGameView(discord.ui.View):
                 # 쓰레기 확률 상한선을 0.9999 (99.99%)로 설정합니다!
                 trash_chance = max(0.0, min(0.9999, trash_chance))
 
-                # 🗑️ 쓰레기 기믹 부분 (기존 로직 유지)
+                # 🗑️ 쓰레기 기믹 부분
                 if random.random() < trash_chance:
                     trash_weights = [t.get("weight", 1) for t in TRASH_LIST]
                     trash = random.choices(TRASH_LIST, weights=trash_weights, k=1)[0]
 
-                    # 🎲 이미 actual_fine으로 잘 뽑고 계시네요! 이 변수를 그대로 씁니다.
+                    # 기존에 잘 짜두신 랜덤 금액 로직 그대로 사용
                     actual_fine = random.randint(trash["max_value"], trash["min_value"])
-    
-                    # 🚨 [수정 부분] 인자 6개를 TrashActionView 정의에 맞게 넣어줍니다.
-                    # self.db, 유저ID, 길드ID, 채널ID, 쓰레기이름, 실제금액
+            
+                    # 🚨 [인자 6개 채우기] 에러 해결을 위해 모든 정보 전달
                     view = TrashActionView(
                         self.db, 
-                        str(interaction.user.id), 
+                        str(self.user.id), 
                         str(interaction.guild_id), 
                         str(interaction.channel_id), 
                         trash['name'], 
                         actual_fine
                     )
-    
-                    # 💤 방치 투기 세션 등록 (ㄴㅅ 연타 방지용)
-                    if hasattr(self.cog, 'active_trash_sessions'):
-                        self.cog.active_trash_sessions[str(interaction.user.id)] = view
+            
+                    # 세션 등록 (self.cog를 통해 부모 Cog의 딕셔너리에 접근)
+                    self.cog.active_trash_sessions[str(self.user.id)] = view
 
-                    # 메시지 전송 및 저장
-                    msg = await interaction.edit_original_response(
-                        embed=discord.Embed(
-                            title="🚮 쓰레기가 걸려왔습니다!", 
-                            description=(
-                                f"**[{trash['name']}]**\n\n"
-                                f"⚠️ **주의:** 이 물건을 수거하면 정해진 비율에 따라 **처리비**가 즉시 청구됩니다.\n"
-                                f"💸 *수거를 거부하고 무단 투기할 시 환경 오염도가 대폭 상승합니다.*"
-                            ), 
-                            color=discord.Color.orange()
+                    embed = discord.Embed(
+                        title="🚮 쓰레기가 걸려왔습니다!", 
+                        description=(
+                            f"**[{trash['name']}]**\n\n"
+                            f"⚠️ **주의:** 수거 시 처리비가 청구됩니다.\n"
+                            f"💸 **방치 시 오염도가 대폭 상승합니다.**"
                         ), 
-                        view=view
+                        color=discord.Color.orange()
                     )
-                    view.message = msg # 시간 초과 시 메시지 수정을 위해 저장
-                    conn.commit()
-                    self._clear_session() # 반려가 아니므로 세션 정리 후 완전히 종료
+            
+                    msg = await interaction.edit_original_response(embed=embed, view=view)
+                    view.message = msg # 타임아웃/방치 처리를 위해 메시지 저장
                     return
 
                 # 🎣 물고기 기믹
@@ -1327,6 +1324,15 @@ class FishingSystemCog(commands.Cog):
         return total_value
         
     async def _execute_fishing(self, interaction: discord.Interaction):
+        uid = str(interaction.user.id)
+        
+        # 🚨 [방치 투기 자동 처리] 이전 세션이 남아있다면 즉시 종료
+        if uid in self.active_trash_sessions:
+            old_view = self.active_trash_sessions[uid]
+            if not old_view.is_finished():
+                await old_view.process_neglect()
+            del self.active_trash_sessions[uid]
+
         if interaction.user.id in active_sessions: 
             return await interaction.response.send_message("⏳ 이미 낚시를 진행 중입니다!", ephemeral=True)
         
@@ -1367,7 +1373,7 @@ class FishingSystemCog(commands.Cog):
                 view = GroundAccessView(interaction.user, ground['entry_fee'], ground['usage_time_limit'], ground['owner_id'], db)
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
-        view = FishingGameView(interaction.user, db, interaction.channel_id)
+        view = FishingGameView(interaction, self.db, self)
         active_sessions[interaction.user.id] = view
         await view.start_game(interaction)
 
