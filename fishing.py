@@ -665,6 +665,34 @@ class CleanConfirmView(discord.ui.View):
         await interaction.response.edit_message(embed=discord.Embed(title="⏹️ 청소 취소", description="청소 요청을 취소했습니다. 돈이 차감되지 않았습니다.", color=discord.Color.light_gray()), view=None)
         self.stop()
 
+class BuyConfirmView(discord.ui.View):
+    def __init__(self, db, price, chid, gid, buyer_id):
+        super().__init__(timeout=30)
+        self.db = db
+        self.price = price
+        self.chid = chid
+        self.gid = gid
+        self.buyer_id = buyer_id
+
+    @discord.ui.button(label="✅ 최종 매입 승인", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.buyer_id:
+            return await interaction.response.send_message("구매 당사자만 결정할 수 있습니다.", ephemeral=True)
+
+        try:
+            conn = self.db.get_connection()
+            # 실제 매입 로직 수행 (기존 로직 그대로)
+            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.price, self.buyer_id, self.gid))
+            conn.execute("UPDATE fishing_ground SET owner_id = ?, purchasable = 0, is_public = 0 WHERE channel_id = ? AND guild_id = ?", (self.buyer_id, self.chid, self.gid))
+            conn.commit()
+            await interaction.response.edit_message(content=f"🎉 성공적으로 낚시터를 매입했습니다! (총 {self.price:,}원 지출)", embed=None, view=None)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ 매입 처리 중 오류 발생: {e}", ephemeral=True)
+
+    @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="매입을 취소했습니다.", embed=None, view=None)
+
 class FishingGameView(discord.ui.View):
     def __init__(self, user: discord.Member, db_manager: DatabaseManager, channel_id: int):
         super().__init__(timeout=60.0)
@@ -1448,91 +1476,56 @@ class FishingSystemCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
 
         # 🛒 [2] 낚시터 구매 (매입 / 약탈) 기능
+        # 🛒 2. 구매용 (buy)
         elif 액션 == "buy":
-            is_hostile_takeover = False
-            owner_id = ground['owner_id']
-            base_land_price = ground['ground_price'] or 100000
-
-            is_purchasable = ground['purchasable'] if 'purchasable' in ground.keys() else 1
-            if is_purchasable == 0 and not owner_id:
-                return await interaction.response.send_message("❌ 이 채널은 관리자에 의해 **공용 전용 낚시터**로 지정되어 구매할 수 없습니다.", ephemeral=True)
-
-            # 🏗️ 현재 지어진 시설들의 가치를 합산합니다.
-            facilities_value = self._get_facilities_value(db, chid, gid)
+            # 1️⃣ 기본 매입가 정의 (이미 코드에 있다면 그 값을 쓰시고, 없다면 여기서 선언)
+            base_buy_price = 100000 
             
-            # 실제 낚시터의 가치 = 기본 땅값 + 시설 가치
-            current_property_value = base_land_price + facilities_value
+            # 2️⃣ 실시간 시설 조회 및 FACILITIES 참조하여 80% 가치 계산
+            facilities = db.execute_query(
+                "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", 
+                (chid, gid), 'all'
+            )
 
-            if owner_id:
-                if owner_id == uid:
-                    return await interaction.response.send_message("❌ 이미 본인이 소유하고 있는 낚시터입니다.", ephemeral=True)
-                
-                is_hostile_takeover = True
-                cost = int(current_property_value * 1.1) # 시설값 포함 전체 금액의 1.1배
-            else:
-                cost = current_property_value
+            total_facility_original = 0
+            if facilities:
+                for f in facilities:
+                    f_name = f['facility_name']
+                    # 상단 FACILITIES 딕셔너리에서 해당 시설의 req_cash(정가)를 가져옵니다.
+                    if f_name in FACILITIES:
+                        total_facility_original += FACILITIES[f_name].get('req_cash', 0)
+                    else:
+                        # FACILITIES에 정의되지 않은 시설일 경우 예외 처리용 (기본값)
+                        total_facility_original += 1
 
-            user_cash = db.get_user_cash(uid) or 0
+            # 📉 시설 정가의 80%만 매입가에 가산
+            facility_value_80 = int(total_facility_original * 0.8)
+            total_buy_price = base_buy_price + facility_value_80
+            
+            # 3️⃣ 잔액 체크
+            if user_cash < total_buy_price:
+                return await interaction.followup.send(
+                    f"❌ 매입 자금이 부족합니다!\n"
+                    f"💰 최종 매입가: {total_buy_price:,}원 (보유: {user_cash:,}원)", 
+                    ephemeral=True
+                )
 
-            if user_cash < cost: 
-                msg = f"❌ 소지금이 부족합니다! (필요: {cost:,}원 / 보유: {user_cash:,}원)"
-                if is_hostile_takeover:
-                    msg = f"❌ 다른 사람의 땅을 인수하려면 시설 가치가 포함된 **{cost:,}원**이 필요합니다! (보유: {user_cash:,}원)"
-                return await interaction.response.send_message(msg, ephemeral=True)
-
-            conn = db.get_connection()
-            try:
-                conn.execute("BEGIN")
-                conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
-                
-                # 강제 인수 시 다음 땅값도 시설비가 누적된 가격으로 갱신됩니다.
-                conn.execute("UPDATE fishing_ground SET owner_id = ?, purchasable = 0, ground_price = ? WHERE channel_id = ? AND guild_id = ?", (uid, cost, chid, gid))
-
-                if is_hostile_takeover:
-                    conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (cost, owner_id, gid))
-
-                if is_hostile_takeover:
-                    # 🏛️ [세금 시스템 도입] 전 주인에게 100% 주지 않고 70%만 지급 (30%는 서버 소각)
-                    payout_rate = 0.70 
-                    owner_payout = int(cost * payout_rate)
-                    tax_burnt = cost - owner_payout
-
-                    conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (owner_payout, owner_id, gid))
-                    
-                    # 📜 전 주인에게 정산 알림용 변수 세팅
-                    takeover_msg = (
-                        f"⚔️ **[낚시터 강제 인수 성공!]**\n"
-                        f"<@{uid}> 유저님이 기존 소유주인 <@{owner_id}>님의 땅을 **{cost:,}원**에 뺏었습니다!\n"
-                        f"이 중 서버 양도세 30%(`{tax_burnt:,}원`)를 제외한 **{owner_payout:,}원**이 전 주인에게 보상금으로 지급되었습니다."
-                    )
-                else:
-                    takeover_msg = f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!"
-
-                conn.commit()
-                
-                # 채널명 변경 로직 (기존 코드 유지)
-                async def safe_rename_buy():
-                    try:
-                        clean_name = interaction.user.display_name.replace(" ", "_")
-                        new_name = f"🎣｜{clean_name}의_낚시터"
-                        await interaction.channel.edit(name=new_name)
-                    except discord.HTTPException as e:
-                        print(f"[경고] 채널명 변경 속도 제한에 걸렸습니다: {e}")
-
-                asyncio.create_task(safe_rename_buy())
-                await interaction.response.send_message(takeover_msg)
-
-                if is_hostile_takeover:
-                    await interaction.response.send_message(
-                        f"⚔️ **[낚시터 강제 인수 성공!]**\n"
-                        f"<@{uid}> 유저님이 기존 소유주인 <@{owner_id}>님에게 시설비를 포함한 **{cost:,}원**을 지불하고 이 낚시터를 뺏었습니다!"
-                    )
-                else:
-                    await interaction.response.send_message(f"🎊 성공적으로 <#{chid}> 낚시터를 **{cost:,}원**에 구매했습니다!")
-                
-            except Exception as e:
-                conn.rollback()
-                await interaction.response.send_message(f"❌ 구매/인수 중 오류가 발생했습니다: {e}", ephemeral=True)
+            # 4️⃣ 2단계 확인창 전송
+            confirm_embed = discord.Embed(
+                title="🏗️ 낚시터 매입 최종 확인",
+                description=(
+                    f"현재 채널(<#{chid}>)을 매입하시겠습니까?\n\n"
+                    f"💵 기본 토지 가치: `{base_buy_price:,}원` \n"
+                    f"🏗️ 시설 가치(80% 반영): `{facility_value_80:,}원` \n"
+                    f"└ *시설 정가 총액: {total_facility_original:,}원*\n"
+                    f"───\n"
+                    f"💰 **최종 매입가: {total_buy_price:,}원**"
+                ),
+                color=discord.Color.gold()
+            )
+            view = BuyConfirmView(db, total_buy_price, chid, gid, uid)
+            await interaction.followup.send(embed=confirm_embed, view=view, ephemeral=True)
+            return
 
         # ⚙️ [3] 설정 변경 기능 (입장료 상한선 제제 강화)
         elif 액션 == "edit":
