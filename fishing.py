@@ -1198,7 +1198,9 @@ class FishingSystemCog(commands.Cog):
     def __init__(self, bot, db):
         self.bot = bot
         self.db = db  # database_manager 객체 저장
-        self.active_trash_sessions = {}  # 🚨 쓰레기 세션 저장소 (필수 추가)
+        self.active_trash_sessions = {}  # 🚨 쓰레기 세션 저장소
+        # 만약 기존에 active_sessions = {} 가 있었다면 그것도 유지하는 게 좋습니다.
+        self.active_sessions = {}
 
     async def cog_load(self):
         self.db_cog = self.bot.get_cog("DatabaseManager")
