@@ -294,23 +294,18 @@ class TrashActionView(discord.ui.View):
 
                         fine_msg = f"\n\n🚨 **[환경 방치 과태료 부과!]**\n방치가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**이 즉시 징수되었습니다!"
                 
-                # ✅ [위치 수정] 어떤 상황이든 트랜잭션을 안전하게 커밋합니다.
-                conn.commit()
-
-                embed = discord.Embed(
-                    title="⌛ 선택 시간 초과 (방치 투기)", 
-                    description=(
-                        f"저런.. 쓰레기를 치우지 않아 길가에 버려졌습니다!\n"
-                        f"CCTV에 찍혀 방치 투기 페널티로 오염도가 가중 상승합니다.\n\n"
-                        f"🚨 오염도 상승: **+{added_pollution:.1f} P**\n"
-                        f"현재 오염도: **{new_pollution:.1f} P**" + fine_msg
-                    ), 
-                    color=discord.Color.dark_red()
-                )
-                await self.message.edit(embed=embed, view=None)
-
+                if self.message:
+                    embed = discord.Embed(
+                        title="💤 방치 투기 발생",
+                        description=(
+                            f"쓰레기 **[{self.value_name}]**이(가) 방치되어 강물로 떠내려갔습니다.\n"
+                            f"☣️ **오염도 상승:** `+{added_pollution:.2f} P` (현재: {new_pollution:.1f} P)"
+                        ),
+                        color=discord.Color.red()
+                    )
+                    await self.message.edit(embed=embed, view=None)
             except Exception as e:
-                print(f"[경고] 타임아웃 오염도 및 벌금 처리 오류: {e}")
+                print(f"[방치투기 처리 오류] {e}")
 
         self._clear_session()
 
@@ -344,7 +339,7 @@ class TrashActionView(discord.ui.View):
             await interaction.response.send_message("❌ 처리 중 오류 발생!", ephemeral=True)
         finally: self._clear_session()
 
-    @discord.ui.button(label="🚮 그냥 버리기", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="🗑️ 그냥 버리기", style=discord.ButtonStyle.grey)
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user:
             return await interaction.response.send_message("자신의 쓰레기만 처리할 수 있습니다!", ephemeral=True)
@@ -406,10 +401,11 @@ class TrashActionView(discord.ui.View):
             # ✅ [위치 수정] 조건문과 상관없이 트랜잭션을 끝내기 위해 바깥으로 이동
             conn.commit()
 
+            
             # 2. 전송할 임베드 메시지 구성
             embed = discord.Embed(
                 title="⚠️ 무단 투기 완료", 
-                description="우... 쓰레기...\n를 그냥 바닥에 버렸습니다.\n당신의 양심도 낚시터도 **오염도가 상승**합니다", 
+                description="우... 쓰레기...\n를 그냥 바닥에 버렸습니다.\n당신의 양심도 낚시터도 **오염도가 상승**합니다\n**오염도 상승:** `+{added_pollution:.2f} P` (현재: {new_pollution:.1f} P)",
                 color=discord.Color.red()
             )
 
@@ -1077,48 +1073,57 @@ class FishingGameView(discord.ui.View):
 
 class GroundAccessView(discord.ui.View):
     def __init__(self, user: discord.Member, fee: int, hours: int, owner_id: str, db_manager: DatabaseManager):
-        super().__init__(timeout=60.0)
+        super().__init__(timeout=360.0)
         self.user, self.fee, self.hours, self.owner_id, self.db = user, fee, hours, owner_id, db_manager
 
-    @discord.ui.button(label="💳 이용권 구매", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🎫 이용권 구매", style=discord.ButtonStyle.primary)
     async def buy(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user: return await interaction.response.send_message("본인만 구매 가능합니다.", ephemeral=True)
+        uid = str(interaction.user.id)
+        gid = str(interaction.guild_id)
         
-        # 👈 chid 변수를 추가해 좌우 변수 개수(3개)를 똑같이 맞춥니다.
-        uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
+        # 1. 사용자 잔액 확인
+        user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+        user_cash = user_data['cash'] if user_data else 0
         
-        current_cash = self.db.get_user_cash(uid) or 0
-        if current_cash < self.fee: return await interaction.response.send_message("❌ 소지 금액이 부족합니다!", ephemeral=True)
+        if user_cash < self.fee:
+            return await interaction.response.send_message(f"❌ 잔액이 부족합니다! (필요: {self.fee:,}원)", ephemeral=True)
 
-        conn = self.db.get_connection()
         try:
             conn = self.db.get_connection()
-            conn.execute("BEGIN") # 🔒 안전한 거래를 위해 트랜잭션 시작
+            conn.execute("BEGIN")
 
-            # 1️⃣ 구매자 돈 차감 (현재 잔액 확인 로직은 상단에 있다고 가정)
-            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.fee, uid, gid))
-            
-            # 🏪 매표소 시설이 설치되어 있는지 확인
-            # self.db.execute_query 대신 트랜잭션 내의 conn을 사용해야 데이터 꼬임이 없습니다.
-            has_booth = conn.execute(
-                "SELECT 1 FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name = '매표소'", 
+            # 🏪 [체크] 매표소 시설 등급 확인 (LIKE 문 사용으로 간이/고급 모두 체크)
+            facility_row = conn.execute(
+                "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ? AND facility_name LIKE '%매표소%'", 
                 (str(interaction.channel_id), gid)
             ).fetchone()
-            
-            # 🏷️ 수수료 및 순수익 계산
-            FEE_RATE = 0.20  # 20% 수수료 (운영진/서버 회수분)
-            tax = int(self.fee * FEE_RATE)
-            owner_profit = self.fee - tax 
 
-            # 2️⃣ 소유주가 있고 매표소가 있다면, 주인에게 순수익 입금
-            # owner_id가 본인이 아닐 때만 주도록 예외 처리를 하면 더 좋습니다.
-            if self.owner_id and has_booth and self.owner_id != uid:
-                conn.execute(
-                    "UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", 
-                    (owner_profit, self.owner_id, gid)
-                )
+            # 🏷️ [로직] 시설 등급에 따른 가변 수수료 결정
+            if facility_row:
+                f_name = facility_row['facility_name']
+                if "고급" in f_name:
+                    FEE_RATE = 0.05  # 고급매표소: 수수료 5%
+                elif "간이" in f_name:
+                    FEE_RATE = 0.15  # 간이매표소: 수수료 15%
+                else:
+                    FEE_RATE = 0.10  # 일반매표소: 수수료 10%
+                has_booth = True
+            else:
+                FEE_RATE = 1.0   # 매표소 없으면 수수료 100% (주인 수익 0)
+                has_booth = False
+
+            # 💸 [계산] 수수료 및 주인 순수익
+            tax = int(self.fee * FEE_RATE)
+            owner_profit = self.fee - tax
+
+            # 📉 [차감] 구매자 돈 차감
+            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.fee, uid, gid))
             
-            # 🎫 이용권 발급 (또는 갱신)
+            # 💰 [정산] 주인에게 수익 지급 (주인이 존재하고, 매표소가 있으며, 본인이 아닐 때)
+            if self.owner_id and has_booth and str(self.owner_id) != uid:
+                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (owner_profit, str(self.owner_id), gid))
+            
+            # 🎫 [발급] 이용권 데이터 저장
             expire = (datetime.now() + timedelta(hours=self.hours)).strftime('%Y-%m-%d %H:%M:%S')
             conn.execute(
                 "INSERT INTO fishing_passes (user_id, channel_id, guild_id, expire_time) VALUES (?, ?, ?, ?) "
@@ -1126,23 +1131,25 @@ class GroundAccessView(discord.ui.View):
                 (uid, str(interaction.channel_id), gid, expire)
             )
             
-            conn.commit() # ✅ 모든 과정 성공 시 DB 반영
+            conn.commit()
 
-            # 📩 결과 안내 메시지
+            # 📩 결과 안내 메시지 분기
             if self.owner_id and has_booth:
-                if self.owner_id == uid:
-                    msg = "본인 소유 낚시터이므로 입장료가 발생하지 않았습니다."
+                if str(self.owner_id) == uid:
+                    msg = "본인 소유 낚시터이므로 별도의 정산이 발생하지 않았습니다."
                 else:
-                    msg = f"낚시터 소유주에게 수수료 {int(FEE_RATE*100)}%를 뗀 **{owner_profit:,}원**이 정산되었습니다."
+                    msg = f"낚시터 소유주에게 수수료 {int(FEE_RATE*100)}%를 제외한 **{owner_profit:,}원**이 정산되었습니다."
             else:
-                msg = "⚠️ **매표소** 시설이 없거나 소유주가 없어 입장료가 서버로 귀속(소각)되었습니다."
+                msg = "⚠️ 매표소 시설이 없거나 소유주가 없어 입장료가 서버로 귀속(소각)되었습니다."
 
-            embed = discord.Embed(
-                title="🎫 입장권 구매 완료", 
-                description=f"✅ 이용 가능 시간: **{self.hours}시간**\n{msg}", 
-                color=discord.Color.green()
+            await interaction.response.edit_message(
+                embed=discord.Embed(title="🎫 구매 완료!", description=f"✅ 이용 가능 시간: {self.hours}시간\n{msg}", color=discord.Color.green()), 
+                view=None
             )
-            await interaction.response.edit_message(embed=embed, view=None)
+        except Exception as e:
+            if 'conn' in locals(): conn.rollback()
+            print(f"[결제 오류] {e}")
+            await interaction.followup.send("❌ 결제 처리 중 오류가 발생했습니다.", ephemeral=True)
 
         except Exception as e:
             conn.rollback() # ❌ 에러 발생 시 돈 차감 취소
