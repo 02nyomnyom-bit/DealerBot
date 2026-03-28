@@ -17,19 +17,23 @@ TRAPS = ["앗, 진동이 전혀 안 느껴진다!!", "앗! 오늘 날씨 진짜 
 REAL_BITES = ["!!! 찌가 강하게 가라앉았다 !!!", "어이쿠! 낚싯대가 부러질 듯 휜다!", "손끝에 묵직-한 느낌이 든다!"]
 
 TRASH_LIST = [
-    {"name": "찌그러진 빈 캔", "type": "neutral", "value": -100},
-    {"name": "찢어진 장화", "type": "loss", "value": -1000},
+    # 🥫 하찮은 쓰레기 (소량 압수)
+    {"name": "찌그러진 빈 캔", "type": "loss", "value": -2000},
+    {"name": "찢어진 장화", "type": "loss", "value": -5000},
     {"name": "오래된 동전 주머니", "type": "profit", "value": 2000},
-    {"name": "성인용품 딜도", "type": "loss", "value": -30000},
-    {"name": "패들", "type": "loss", "value": -35000},
-    {"name": "애널 테일", "type": "loss", "value": -20000},
-    {"name": "애널 플러그", "type": "loss", "value": -5000},
-    {"name": "목줄", "type": "loss", "value": -10000},
-    {"name": "케인", "type": "loss", "value": -35000},
-    {"name": "채찍", "type": "loss", "value": -35000},
-    {"name": "무선 진동기", "type": "loss", "value": -5000},
-    {"name": "SM 바", "type": "loss", "value": -50000},
-    {"name": "니플 집게", "type": "loss", "value": -10000},
+    # 🔞 특수 성인용품 쓰레기 (치명상)
+    {"name": "누군가가 쓴 애널 플러그", "type": "loss", "value": -30000},
+    {"name": "야외플용 무선 진동기", "type": "loss", "value": -30000},
+    {"name": "왕왕! 어떤 펫의 목줄", "type": "loss", "value": -50000},
+    {"name": "헉... 멜섭의 니플 집게", "type": "loss", "value": -50000},
+
+    # 🏴‍☠️ 대형 및 중범죄 기구 (파산 유도)
+    {"name": "선물용이 였던 애널 테일", "type": "loss", "value": -100000},
+    {"name": "하드하게 사용했던 패들", "type": "loss", "value": -150000},
+    {"name": "으,,, 케인", "type": "loss", "value": -150000},
+    {"name": "펨돔의 채찍", "type": "loss", "value": -200000},
+    {"name": "누군가 쓰다버린 딜도", "type": "loss", "value": -200000},
+    {"name": "폐업한다고 버린 SM 바", "type": "loss", "value": -300000},
 ]
 
 
