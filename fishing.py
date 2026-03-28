@@ -329,29 +329,31 @@ class TrashActionView(discord.ui.View):
         self._clear_session()
 
     def _clear_session(self):
-        active_sessions.pop(self.user.id, None)
-        user_locks.pop(self.user.id, None)
+        uid_int = int(self.user_id)
+        active_sessions.pop(uid_int, None)
+        user_locks.pop(uid_int, None)
 
     @discord.ui.button(label="🧹 쓰레기 치우기", style=discord.ButtonStyle.success)
     async def clean(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
+        if str(interaction.user.id) != self.user_id: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
         if self.responded: return
         self.responded = True
 
-        uid, gid = str(self.user.id), str(interaction.guild_id)
+        uid, gid = self.user_id, str(interaction.guild_id)
+        penalty = abs(self.value)
         current_cash = self.db.get_user_cash(uid) or 0
-        if current_cash < self.penalty:
+        if current_cash < penalty:
             self.responded = False
             return await interaction.response.send_message("❌ 현금 부족!", ephemeral=True)
 
         conn = self.db.get_connection()
         try:
             conn.execute("BEGIN")
-            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.penalty, uid, gid))
+            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (penalty, uid, gid))
             conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                         (uid, "낚시", -self.penalty, current_cash - self.penalty, "낚시 환경 정화 비용"))
+                         (uid, "낚시", -penalty, current_cash - penalty, "낚시 환경 정화 비용"))
             conn.commit()
-            await interaction.response.edit_message(embed=discord.Embed(title="✅ 정화 완료", description=f"**{self.penalty:,}원**을 지출했습니다.", color=discord.Color.green()), view=None)
+            await interaction.response.edit_message(embed=discord.Embed(title="✅ 정화 완료", description=f"**{penalty:,}원**을 지출했습니다.", color=discord.Color.green()), view=None)
         except:
             conn.rollback()
             self.responded = False
@@ -360,7 +362,7 @@ class TrashActionView(discord.ui.View):
 
     @discord.ui.button(label="🗑️ 그냥 버리기", style=discord.ButtonStyle.grey)
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user != self.user:
+        if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("자신의 쓰레기만 처리할 수 있습니다!", ephemeral=True)
 
         # 1. 실제 데이터베이스 오염도 수치 증가 (핵심 로직)
@@ -370,7 +372,7 @@ class TrashActionView(discord.ui.View):
         )
 
         chid, gid = str(interaction.channel_id), str(interaction.guild_id)
-        uid = str(self.user.id)
+        uid = self.user_id
         
         current_data = self.db.execute_query(
             "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
