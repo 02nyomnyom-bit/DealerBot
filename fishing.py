@@ -215,6 +215,7 @@ class TrashActionView(discord.ui.View):
         self.user, self.penalty, self.db = user, abs(penalty), db_manager
         self.message, self.responded = None, False
 
+    # ⌛ [1] 시간 초과 (방치 투기) 시 벌금 징수 로직
     async def on_timeout(self):
         if self.message and not self.responded:
             try:
@@ -235,23 +236,50 @@ class TrashActionView(discord.ui.View):
                 
                 conn.execute("BEGIN")
                 conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
-                
-                # 잠수로 인한 무단투기 카운트 올리기
                 conn.execute("UPDATE users SET illegal_dump_count = illegal_dump_count + 1 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                user_count = self.db.execute_query("SELECT illegal_dump_count FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')['illegal_dump_count']
                 
-                # 10회 달성 시 5만원 징수
-                if user_count % 10 == 0:
-                    conn.execute("UPDATE users SET cash = cash - 50000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    fine_msg = f"\n\n🚨 **[환경 방치 과태료 부과!]**\n쓰레기 방치가 누적 **{user_count}회** 적발되어 과태료 **50,000원이 징수되었습니다!**"
+                user_data = self.db.execute_query("SELECT illegal_dump_count, cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                user_count = user_data['illegal_dump_count'] if user_data else 0
+                current_cash = user_data['cash'] if user_data else 0
 
+                # 🚨 [가속형 벌금 주기 설정] 누적될수록 주기가 짧아짐 (30회 ➡️ 20회 ➡️ 10회)
+                trigger_fine = False
+
+                if user_count == 30:
+                    trigger_fine = True # 30회째 첫 벌금
+                elif 30 < user_count <= 90 and (user_count - 30) % 20 == 0:
+                    trigger_fine = True # 31~90회 구간은 20회마다 벌금
+                elif user_count > 90 and (user_count - 90) % 10 == 0:
+                    trigger_fine = True # 91회 이상부터는 10회마다 벌금
+
+                if trigger_fine:
+                    fine_rate = 0.50 
+                    calculated_fine = max(5000, int(current_cash * fine_rate))
+
+                    if current_cash < 50000:
+                        debt_fine = 50000 
+                        conn.execute("UPDATE users SET fine_debt = fine_debt + ? WHERE user_id = ? AND guild_id = ?", (debt_fine, uid, gid))
+                        
+                        fine_msg = (
+                            f"\n\n🚨 **[환경 방치 과태료 빚 적립]**\n"
+                            f"방치가 누적 **{user_count}회** 적발되었습니다.\n"
+                            f"현재 보유 자산이 5만 원 미만이므로, 앞으로 물고기 정산 시 `{debt_fine:,}원`이 자동 차감됩니다!"
+                        )
+                    else:
+                        conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (calculated_fine, uid, gid))
+                        conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                                     (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"무단방치 누적 {user_count}회 적발 과태료"))
+
+                        fine_msg = f"\n\n🚨 **[환경 방치 과태료 부과!]**\n방치가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(보유 자산의 50%)이 즉시 징수되었습니다!"
+                
+                # ✅ [위치 수정] 어떤 상황이든 트랜잭션을 안전하게 커밋합니다.
                 conn.commit()
 
                 embed = discord.Embed(
                     title="⌛ 선택 시간 초과 (방치 투기)", 
                     description=(
                         f"쓰레기를 치우지 않아 길가에 버려졌습니다!\n"
-                        f"방치 투기 페널티로 오염도가 **2배**로 상승합니다.\n\n"
+                        f"방치 투기 페널티로 오염도가 가중 상승합니다.\n\n"
                         f"🚨 오염도 상승: **+{added_pollution:.1f} P**\n"
                         f"현재 오염도: **{new_pollution:.1f} P**" + fine_msg
                     ), 
@@ -294,18 +322,14 @@ class TrashActionView(discord.ui.View):
             await interaction.response.send_message("❌ 처리 중 오류 발생!", ephemeral=True)
         finally: self._clear_session()
 
-    # fishing.py 내 TrashActionView 클래스의 dump 메서드 수정
-
-    # fishing.py 내 TrashActionView 클래스의 dump 메서드 수정
-
     @discord.ui.button(label="🚮 그냥 버리기", style=discord.ButtonStyle.danger)
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user != self.user: return await interaction.response.send_message("본인만 가능!", ephemeral=True)
         if self.responded: return
-        self.responded = True # 사용자가 직접 응답했으므로 on_timeout 이벤트 실행 방지
+        self.responded = True 
 
         chid, gid = str(interaction.channel_id), str(interaction.guild_id)
-        uid = str(self.user.id) # 👈 유저 ID 추출 추가
+        uid = str(self.user.id)
         
         current_data = self.db.execute_query(
             "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
@@ -313,27 +337,46 @@ class TrashActionView(discord.ui.View):
         )
         current_pollution = current_data['pollution'] if current_data else 0
 
-        # 📈 수동 투기 오염도 상승 (기본 0.5 체증형)
         added_pollution = 0.5 + (current_pollution * 0.1)
         new_pollution = min(50.0, current_pollution + added_pollution)
 
         conn = self.db.get_connection()
-        fine_msg = "" # 벌금 공지용 변수 초기화
+        fine_msg = ""
 
         try:
             conn.execute("BEGIN")
-            conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
-            
-            # 🚨 [추가] 그냥 버려도 무단투기 카운트 +1
             conn.execute("UPDATE users SET illegal_dump_count = illegal_dump_count + 1 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-            user_count = self.db.execute_query("SELECT illegal_dump_count FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')['illegal_dump_count']
             
-            # 💰 직접 버리기 누적 10회 달성 시 5만원 과태료 징수
-            # 직접 버리기 누적 30회 달성 시 5만원 과태료 징수
-            if user_count % 30 == 0:
-                conn.execute("UPDATE users SET cash = cash - 50000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                fine_msg = f"\n\n🚨 **[무단투기 과태료 부과!]**\n쓰레기 무단투기가 누적 **{user_count}회** 적발되어 과태료 **50,000원이 징수되었습니다!**"
+            user_data = self.db.execute_query("SELECT illegal_dump_count, cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+            user_count = user_data['illegal_dump_count'] if user_data else 0
+            current_cash = user_data['cash'] if user_data else 0
 
+            trigger_fine = False
+
+            if user_count == 30:
+                trigger_fine = True
+            elif 30 < user_count <= 90 and (user_count - 30) % 20 == 0:
+                trigger_fine = True
+            elif user_count > 90 and (user_count - 90) % 10 == 0:
+                trigger_fine = True
+
+            if trigger_fine:
+                fine_rate = 0.50
+                calculated_fine = max(5000, int(current_cash * fine_rate))
+
+                if current_cash < 50000:
+                    debt_fine = 50000 
+                    conn.execute("UPDATE users SET fine_debt = fine_debt + ? WHERE user_id = ? AND guild_id = ?", (debt_fine, uid, gid))
+                    
+                    # ✅ [메시지 수정] 실제 코드와 동일하게 50,000원 적립으로 안내 메시지를 통일합니다.
+                    fine_msg = f"\n\n🚨 **[무단 투기 과태료 빚 적립]**\n무단 투기가 누적 **{user_count}회** 적발되었습니다.\n소지금 부족으로 차후 정산 시 `{debt_fine:,}원`이 자동 차감됩니다!"
+                else:
+                    conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (calculated_fine, uid, gid))
+                    conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                                (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"무단투기 누적 {user_count}회 적발 과태료"))
+                    fine_msg = f"\n\n🚨 **[무단 투기 과태료 부과!]**\n무단 투기가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(소지금의 50%)이 즉시 징수되었습니다!"
+                    
+            # ✅ [위치 수정] 조건문과 무관하게 전체 트랜잭션을 끝내기 위해 바깥으로 이동
             conn.commit()
 
             await interaction.response.edit_message(
@@ -971,9 +1014,14 @@ class FishingSystemCog(commands.Cog):
             try: db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
             except: pass
 
-            # 🚨 [여기 추가됨!] 무단투기 누적 횟수 컬럼 자동 생성
+        # 📂 fishing.py 파일 하단 _init_db_schema 메서드 내부
         if 'illegal_dump_count' not in cols_u:
             try: db.execute_query("ALTER TABLE users ADD COLUMN illegal_dump_count INTEGER DEFAULT 0")
+            except: pass
+
+        # 🛡️ [뉴비 보호용 벌금 채무 컬럼 추가]
+        if 'fine_debt' not in cols_u:
+            try: db.execute_query("ALTER TABLE users ADD COLUMN fine_debt INTEGER DEFAULT 0")
             except: pass
 
         # 3. 낚시터 테이블 컬럼 누락 보정 (PRAGMA 조회)
@@ -1334,52 +1382,94 @@ class FishingSystemCog(commands.Cog):
             await interaction.response.send_message(embed=embed, view=view)
             view.message = await interaction.original_response()
 
-        # 🏢 [4] 낚시터 판매 기능
-        elif 액션 == "sell":
-            if ground['owner_id'] != uid: 
-                return await interaction.response.send_message("❌ 본인 소유의 낚시터만 매각할 수 있습니다.", ephemeral=True)
-
-            current_pollution = ground['pollution'] if ground['pollution'] is not None else 0
-            if current_pollution > 0:
-                embed = discord.Embed(
-                    title="🛑 매각 거부: 환경 오염",
-                    description=f"현재 낚시터의 오염도가 **{current_pollution:.1f} P**입니다. 정화 후 매각해 주세요.",
-                    color=discord.Color.red()
-                )
-                return await interaction.response.send_message(embed=embed, ephemeral=True)
-
-            # 🏗️ 건설된 시설의 가치를 환산합니다.
-            facilities_value = self._get_facilities_value(db, chid, gid)
-            base_price = ground['ground_price'] or 100000
+        if 액션 == "sell":
+            items = db.execute_query("SELECT length, price_per_cm, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid), 'all')
+            if not items: 
+                return await interaction.response.send_message("🎒 가방에 팔 물고기가 없습니다.", ephemeral=True)
             
-            # 최종 매각액 = 기존 땅 매매가 + 시설비 100% 환급
-            total_sell_price = base_price + facilities_value
+            user_data = db.get_user(uid)
+            user_rep = user_data.get('fishing_reputation', 0) if user_data else 0
+
+            # ⭐ [명성별 1회 최대 판매 한도 설정]
+            if user_rep < 1000:
+                max_limit = 50000        
+                tier_name = "초보 낚시꾼"
+            elif user_rep < 5000:
+                max_limit = 200000       
+                tier_name = "숙련된 낚시꾼"
+            elif user_rep < 20000:
+                max_limit = 1000000      
+                tier_name = "전문 낚시꾼"
+            else:
+                max_limit = 999999999    
+                tier_name = "전설의 낚시꾼"
+
+            built_facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
+            
+            best_multiplier = 1.0
+            if built_facilities:
+                for f in built_facilities:
+                    f_name = f['facility_name']
+                    if f_name in FACILITIES:
+                        f_mult = FACILITIES[f_name].get("effect", {}).get("fish_price_mult", 1.0)
+                        if f_mult > best_multiplier:
+                            best_multiplier = f_mult
+
+            calculated_total = sum([int(i['length'] * i['price_per_cm'] * best_multiplier) for i in items])
+            
+            actual_earn = min(calculated_total, max_limit)
+            is_capped = calculated_total > max_limit
 
             conn = db.get_connection()
             try:
                 conn.execute("BEGIN")
-                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (total_sell_price, uid, gid))
-                
-                # 땅 소유주 초기화 및 시설 완전 철거
-                conn.execute("UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1, pollution = 0 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
-                conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+
+                # 🛡️ [뉴비 보호 연동] 벌금 빚(fine_debt) 조회
+                debt_data = db.execute_query("SELECT fine_debt FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                current_debt = debt_data['fine_debt'] if debt_data else 0
+
+                debt_repayment = 0
+                earn_after_debt = actual_earn # 차감 후 유저가 실제로 받는 돈
+
+                if current_debt > 0:
+                    # 🤝 생활고 방지: 정산 대금의 최대 50%까지만 빚을 갚는 데 사용합니다.
+                    max_repayment = int(actual_earn * 0.5) 
+                    debt_repayment = min(current_debt, max_repayment)
+
+                    earn_after_debt = actual_earn - debt_repayment
+                    
+                    # DB에서 빚 삭감
+                    conn.execute("UPDATE users SET fine_debt = MAX(0, fine_debt - ?) WHERE user_id = ? AND guild_id = ?", (debt_repayment, uid, gid))
+
+                # 💰 실제 정산금 지급
+                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (earn_after_debt, uid, gid))
+                conn.execute("DELETE FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid))
                 conn.commit()
                 
-                async def safe_rename_sell():
-                    try:
-                        await interaction.channel.edit(name="🌊｜공용_낚시터")
-                    except discord.HTTPException as e:
-                        print(f"[경고] 채널명 변경 속도 제한에 걸렸습니다: {e}")
+                embed = discord.Embed(title="💰 물고기 일괄 정산", color=discord.Color.green())
+                embed.add_field(name="🎒 판매 수량", value=f"{len(items)}마리", inline=True)
+                embed.add_field(name="🏅 현재 등급", value=f"{tier_name} (명성: {user_rep:,}점)", inline=True)
+                
+                if is_capped:
+                    embed.add_field(name="⚠️ 정산 경고", value=f"정산 금액({calculated_total:,}원)이 현재 등급의 한도를 초과하여 **{max_limit:,}원**까지만 계산되었습니다!", inline=False)
+                
+                # 💸 빚 정산 여부에 따른 임베드 출력 분기
+                if debt_repayment > 0:
+                    embed.add_field(name="💵 정산 금액", value=f"{actual_earn:,}원", inline=True)
+                    embed.add_field(name="📉 벌금 채무 차감", value=f"-{debt_repayment:,}원", inline=True)
+                    embed.add_field(name="✅ 실제 입금액", value=f"**{earn_after_debt:,}원**", inline=False)
+                    embed.set_footer(text=f"남은 과태료 채무: {max(0, current_debt - debt_repayment):,}원")
+                else:
+                    embed.add_field(name="💸 입금 금액", value=f"**{actual_earn:,}원** 입금 완료", inline=True)
 
-                asyncio.create_task(safe_rename_sell())
+                if best_multiplier > 1.0 and debt_repayment == 0:
+                    embed.set_footer(text=f"상업 시설 효과로 판매 가격이 {best_multiplier}배 보너스 정산되었습니다.")
 
-                await interaction.response.send_message(
-                    f"🏢 낚시터 매각이 완료되었습니다!\n"
-                    f"기본 땅값 및 지어진 시설 가격을 합산한 **{total_sell_price:,}원**이 입금되었습니다. (시설은 자동 철거되었습니다.)"
-                )
+                await interaction.response.send_message(embed=embed)
+
             except Exception as e:
                 conn.rollback()
-                await interaction.response.send_message(f"❌ 매각 중 오류가 발생했습니다: {e}", ephemeral=True)
+                await interaction.response.send_message(f"❌ 판매 처리 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
 
     @app_commands.command(name="낚시터티어", description="[주인 전용] 낚시터 명성을 소모하여 땅 등급을 올리거나 내립니다.")
     @app_commands.choices(액션=[
