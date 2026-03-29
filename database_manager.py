@@ -318,6 +318,7 @@ class DatabaseManager:
             pollution INTEGER DEFAULT 0,       
             ground_reputation INTEGER DEFAULT 0, 
             tier INTEGER DEFAULT 1,            
+            last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (channel_id, guild_id)
             """
