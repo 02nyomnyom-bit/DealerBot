@@ -18,104 +18,128 @@ TRAPS = ["앗, 진동이 전혀 안 느껴진다!!", "앗! 오늘 날씨 진짜 
 REAL_BITES = ["!!! 찌가 강하게 가라앉았다 !!!", "어이쿠! 낚싯대가 부러질 듯 휜다!", "손끝에 묵직-한 느낌이 든다!"]
 
 TRASH_LIST = [
-    # 🥫 하찮은 쓰레기 (자주 나옴)
-    {"name": "찌그러진 빈 캔", "min_value": -1000, "max_value": -3000, "weight": 40},
-    {"name": "찢어진 장화", "min_value": -2000, "max_value": -5000, "weight": 25},
-    {"name": "오염된 동전 주머니", "min_value": -3000, "max_value": -8000, "weight": 25},
+    # 🥫 [Group 1] 1티어 쓰레기 (1~5% 현금 지출)
+    {"name": "찌그러진 빈 캔", "min_rate": 0.01, "max_rate": 0.05, "group": 1},
+    {"name": "찢어진 장화", "min_rate": 0.01, "max_rate": 0.05, "group": 1},
+    {"name": "오염된 동전 주머니", "min_rate": 0.01, "max_rate": 0.05, "group": 1},
+    {"name": "먹다만 핫바", "min_rate": 0.01, "max_rate": 0.05, "group": 1},
+    {"name": "신발에 붙은 껌", "min_rate": 0.01, "max_rate": 0.05, "group": 1},
 
-    # 🔞 특수 성인용품 (가끔 나옴)
-    {"name": "누군가가 쓴 애널 플러그", "min_value": -5000, "max_value": -15000, "weight": 7},
-    {"name": "야외플용 무선 진동기", "min_value": -5000, "max_value": -15000, "weight": 5},
-    {"name": "왕왕! 어떤 펫의 목줄", "min_value": -8000, "max_value": -20000, "weight": 3},
-    {"name": "헉... 멜섭의 니플 집게", "min_value": -8000, "max_value": -20000, "weight": 2},
+    # 🔞 [Group 2] 2티어 쓰레기 (5~8% 현금 지출)
+    {"name": "누군가가 쓴 애널 플러그", "min_rate": 0.05, "max_rate": 0.08, "group": 2},
+    {"name": "야외플용 무선 진동기", "min_rate": 0.05, "max_rate": 0.08, "group": 2},
+    {"name": "왕왕! 어떤 펫의 목줄", "min_rate": 0.05, "max_rate": 0.08, "group": 2},
+    {"name": "쓰다만 애널 비즈", "min_rate": 0.05, "max_rate": 0.08, "group": 2},
 
-    # 🏴‍☠️ 대형 및 중범죄 기구 (파산 유도)
-    {"name": "선물용이였던 애널 테일", "min_value": -10000, "max_value": -30000, "weight": 1.5},
-    {"name": "하드하게 사용했던 패들", "min_value": -20000, "max_value": -50000, "weight": 0.7},
-    {"name": "으,,, 케인", "min_value": -30000, "max_value": -60000, "weight": 0.4},
-    {"name": "펨돔의 채찍", "min_value": -40000, "max_value": -80000, "weight": 0.2},
-    {"name": "누군가 쓰다버린 딜도", "min_value": -50000, "max_value": -100000, "weight": 0.1},
-    {"name": "폐업한다고 버린 SM 바", "min_value": -100000, "max_value": -200000, "weight": 0.1},
+    # ⛓️ [Group 3] 3티어 쓰레기 (8~10% 현금 지출)
+    {"name": "헉.. 멜섭의 니플 집게", "min_rate": 0.08, "max_rate": 0.10, "group": 3},
+    {"name": "선물용이였던 애널테일", "min_rate": 0.08, "max_rate": 0.10, "group": 3},
+    {"name": "깍다만 패들", "min_rate": 0.08, "max_rate": 0.10, "group": 3},
+    {"name": "영화관에서 쓴 콘돔", "min_rate": 0.08, "max_rate": 0.10, "group": 3},
+
+    # 🖤 [Group 4] 4티어 쓰레기 (10~13% 현금 지출)
+    {"name": "하드하게 사용했던 패들", "min_rate": 0.10, "max_rate": 0.13, "group": 4},
+    {"name": "누군가 쓰다 버린 딜도", "min_rate": 0.10, "max_rate": 0.13, "group": 4},
+    {"name": "펨돔이 쓰다버린 페니반", "min_rate": 0.10, "max_rate": 0.13, "group": 4},
+    {"name": "펨돔이 쓰다버린 대왕딜도", "min_rate": 0.10, "max_rate": 0.13, "group": 4},
+
+    # 🏛️ [Group 5] 5티어 쓰레기 (14~20% 현금 지출)
+    {"name": "폐업하기 일보직전인 SM Bar", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
+    {"name": "로프 본디지에서 쓴 로프", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
+    {"name": "니니님의 직설적인 욕", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
+
+    # ❓ [Group 6] 히든 쓰레기 (1~80% 현금 지출)
+    {"name": "???", "min_rate": 0.01, "max_rate": 0.80, "group": 6},
 ]
 
 FISHING_ECOLOGY = {
     "호수": [
-        # --- 흔함 (비율 상승) ---
-        {"name": "피라미", "rarity": "흔함", "chance": 0.25, "min": 5, "max": 15, "price_per_cm": 10, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "가장 기초적인 민물 잡어입니다."},
-        {"name": "붕어", "rarity": "흔함", "chance": 0.20, "min": 15, "max": 30, "price_per_cm": 20, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "표준적인 민물 낚시의 손맛을 줍니다."},
-        {"name": "잉어", "rarity": "흔함", "chance": 0.15, "min": 30, "max": 80, "price_per_cm": 40, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "몸집이 커서 초반 돈벌이에 좋습니다."},
-        {"name": "메기", "rarity": "흔함", "chance": 0.15, "min": 30, "max": 70, "price_per_cm": 50, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 어종이며 탁한 물을 좋아합니다."},
-        {"name": "누치", "rarity": "흔함", "chance": 0.10, "min": 20, "max": 50, "price_per_cm": 30, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "흔하지만 은근히 힘이 좋은 물고기입니다."},
+        # --- 흔함 ---
+        {"name": "피라미", "rarity": "흔함", "chance": 0.20, "min": 5, "max": 15, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "가장 기초적인 민물 잡어입니다."},
+        {"name": "붕어", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 120, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "표준적인 민물 낚시의 손맛을 줍니다."},
+        {"name": "잉어", "rarity": "흔함", "chance": 0.12, "min": 30, "max": 80, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "몸집이 커서 초반 돈벌이에 좋습니다."},
+        {"name": "메기", "rarity": "흔함", "chance": 0.12, "min": 30, "max": 70, "price_per_cm": 60, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 어종이며 탁한 물을 좋아합니다."},
         
-        # --- 희귀 (비율 하락) ---
-        {"name": "쏘가리", "rarity": "희귀", "chance": 0.04, "min": 25, "max": 50, "price_per_cm": 150, "req_tier": 2, "water_quality": [1,2], "effect_desc": "깨끗한 돌 틈에 살며, 잡을 시 명성 +50"},
-        {"name": "무지개송어", "rarity": "희귀", "chance": 0.04, "min": 30, "max": 60, "price_per_cm": 180, "req_tier": 2, "water_quality": [1,2], "effect_desc": "화려한 무늬를 띱니다. 경험치 획득 +10%"},
-        {"name": "은어", "rarity": "희귀", "chance": 0.03, "min": 15, "max": 25, "price_per_cm": 200, "req_tier": 2, "water_quality": [1], "effect_desc": "맑은 물에만 살며 수박 향이 납니다."},
-        {"name": "향어", "rarity": "희귀", "chance": 0.03, "min": 40, "max": 70, "price_per_cm": 120, "req_tier": 2, "water_quality": [3,4], "effect_desc": "양식 기원 어종으로 묵직한 손맛을 줍니다."},
+        # --- 🚨 특수 동물/유해 생물 (호수) ---
+        {"name": "수달", "rarity": "희귀", "chance": 0.05, "min": 40, "max": 60, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "가방에서 가장 비싼 물고기를 훔쳐갑니다!"},
+        {"name": "자라", "rarity": "희귀", "chance": 0.06, "min": 20, "max": 35, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "물리면 치료비 5,000원이 지출됩니다."},
+        {"name": "붉은가위가재", "rarity": "흔함", "chance": 0.05, "min": 10, "max": 20, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "낚싯대 내구도를 -10 감소시킵니다."},
+
+        # --- 희귀 ---
+        {"name": "쏘가리", "rarity": "희귀", "chance": 0.04, "min": 25, "max": 50, "price_per_cm": 180, "req_tier": 2, "water_quality": [1,2], "effect_desc": "깨끗한 돌 틈에 살며, 잡을 시 명성 +50"},
+        {"name": "무지개송어", "rarity": "희귀", "chance": 0.04, "min": 30, "max": 60, "price_per_cm": 150, "req_tier": 2, "water_quality": [1,2], "effect_desc": "화려한 무늬를 띱니다. 경험치 획득 +10%"},
+        {"name": "은어", "rarity": "희귀", "chance": 0.03, "min": 15, "max": 25, "price_per_cm": 350, "req_tier": 2, "water_quality": [1], "effect_desc": "맑은 물에만 살며 수박 향이 납니다."},
+        {"name": "향어", "rarity": "희귀", "chance": 0.03, "min": 40, "max": 70, "price_per_cm": 130, "req_tier": 2, "water_quality": [3,4], "effect_desc": "양식 기원 어종으로 묵직한 손맛을 줍니다."},
         
-        # --- 신종 (비율 하락) ---
-        {"name": "아로와나", "rarity": "신종", "chance": 0.02, "min": 50, "max": 100, "price_per_cm": 400, "req_tier": 3, "water_quality": [1], "effect_desc": "살아있는 화석. 잡을 시 낚시터 명성 +100"},
-        {"name": "피라루쿠", "rarity": "신종", "chance": 0.015, "min": 100, "max": 250, "price_per_cm": 200, "req_tier": 3, "water_quality": [2,3], "effect_desc": "거대 민물 어종입니다. 낚싯대 내구도 -5"},
+        # --- 신종 ---
+        {"name": "아로와나", "rarity": "신종", "chance": 0.02, "min": 50, "max": 100, "price_per_cm": 280, "req_tier": 3, "water_quality": [1], "effect_desc": "살아있는 화석. 잡을 시 낚시터 명성 +100"},
+        {"name": "피라루쿠", "rarity": "신종", "chance": 0.015, "min": 100, "max": 250, "price_per_cm": 110, "req_tier": 3, "water_quality": [2,3], "effect_desc": "거대 민물 어종입니다. 낚싯대 내구도 -5"},
         
-        # --- 전설 (극도로 희귀) ---
-        {"name": "산천어", "rarity": "전설", "chance": 0.005, "min": 20, "max": 40, "price_per_cm": 400, "req_tier": 4, "water_quality": [1], "effect_desc": "1급수 청정 지표 어종입니다."},
-        {"name": "철갑상어", "rarity": "전설", "chance": 0.003, "min": 100, "max": 200, "price_per_cm": 350, "req_tier": 4, "water_quality": [1,2], "effect_desc": "고급 알(캐비아)을 품어 매우 비쌉니다."},
+        # --- 전설 ---
+        {"name": "산천어", "rarity": "전설", "chance": 0.005, "min": 20, "max": 40, "price_per_cm": 1100, "req_tier": 4, "water_quality": [1], "effect_desc": "1급수 청정 지표 어종입니다."},
+        {"name": "철갑상어", "rarity": "전설", "chance": 0.003, "min": 100, "max": 200, "price_per_cm": 220, "req_tier": 4, "water_quality": [1,2], "effect_desc": "고급 알(캐비아)을 품어 매우 비쌉니다."},
         
-        # --- 환상 (서버 알림감) ---
+        # --- 환상 ---
         {"name": "황금 잉어", "rarity": "환상", "chance": 0.001, "min": 80, "max": 150, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "영험한 영물. 잡을 시 모든 보유 시설 유지비 1회 면제"},
-        {"name": "천지 네시", "rarity": "환상", "chance": 0.0005, "min": 300, "max": 700, "price_per_cm": 150, "req_tier": 5, "water_quality": [1], "effect_desc": "호수의 지배자. 낚을 시 낚싯대 내구도 -30"},
+        {"name": "천지 네시", "rarity": "환상", "chance": 0.0005, "min": 300, "max": 700, "price_per_cm": 110, "req_tier": 5, "water_quality": [1], "effect_desc": "호수의 지배자. 낚을 시 낚싯대 내구도 -30"},
     ],
 
     "바다": [
         # --- 흔함 ---
-        {"name": "전갱이", "rarity": "흔함", "chance": 0.20, "min": 15, "max": 30, "price_per_cm": 5, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
-        {"name": "고등어", "rarity": "흔함", "chance": 0.20, "min": 20, "max": 40, "price_per_cm": 8, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
-        {"name": "전어", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 10, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
-        {"name": "숭어", "rarity": "흔함", "chance": 0.15, "min": 30, "max": 80, "price_per_cm": 10, "req_tier": 1, "water_quality": [2,3,4,5], "effect_desc": "연안에서 펄쩍 뛰어오르는 흔한 바다 물고기입니다."},
-        {"name": "농어", "rarity": "흔함", "chance": 0.10, "min": 40, "max": 100, "price_per_cm": 15, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "연안으로 거슬러 올라오는 힘센 어종입니다."},
+        {"name": "전갱이", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
+        {"name": "고등어", "rarity": "흔함", "chance": 0.15, "min": 20, "max": 40, "price_per_cm": 110, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
+        {"name": "전어", "rarity": "흔함", "chance": 0.12, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
         
+        # --- 🚨 특수 동물/유해 생물 (바다) ---
+        {"name": "바다거북", "rarity": "신종", "chance": 0.07, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
+        {"name": "보라성게", "rarity": "희귀", "chance": 0.08, "min": 5, "max": 15, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "가시에 찔려 낚싯대 내구도가 -10 감소합니다."},
+        {"name": "아무르불가사리", "rarity": "흔함", "chance": 0.08, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "줄이 엉켜 미끼가 2개 더 소모됩니다."},
+
         # --- 희귀 ---
-        {"name": "벵에돔", "rarity": "희귀", "chance": 0.04, "min": 25, "max": 50, "price_per_cm": 80, "req_tier": 2, "water_quality": [1,2], "effect_desc": "낚시꾼들의 로망 중 하나입니다. 잡을 시 개인 명성 +50"},
-        {"name": "감성돔", "rarity": "희귀", "chance": 0.04, "min": 25, "max": 60, "price_per_cm": 100, "req_tier": 2, "water_quality": [1,2], "effect_desc": "바다의 왕자. 경험치 획득 +15%"},
-        {"name": "우럭", "rarity": "희귀", "chance": 0.04, "min": 20, "max": 50, "price_per_cm": 60, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "바위 틈에 서식하는 대중적인 횟감입니다."},
+        {"name": "벵에돔", "rarity": "희귀", "chance": 0.04, "min": 25, "max": 50, "price_per_cm": 180, "req_tier": 2, "water_quality": [1,2], "effect_desc": "낚시꾼들의 로망 중 하나입니다. 잡을 시 개인 명성 +50"},
+        {"name": "감성돔", "rarity": "희귀", "chance": 0.04, "min": 25, "max": 60, "price_per_cm": 150, "req_tier": 2, "water_quality": [1,2], "effect_desc": "바다의 왕자. 경험치 획득 +15%"},
+        {"name": "우럭", "rarity": "희귀", "chance": 0.04, "min": 20, "max": 50, "price_per_cm": 180, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "바위 틈에 서식하는 대중적인 횟감입니다."},
         
         # --- 신종 ---
-        {"name": "고래상어", "rarity": "신종", "chance": 0.02, "min": 500, "max": 1200, "price_per_cm": 50, "req_tier": 3, "water_quality": [1,2], "effect_desc": "지구상에서 가장 큰 어류입니다. 낚을 시 낚시터 명성 +500"},
-        {"name": "타이거 샤크(뱀상어)", "rarity": "신종", "chance": 0.015, "min": 300, "max": 600, "price_per_cm": 70, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "무엇이든 먹어치우는 바다의 포식자입니다. 낚싯대 내구도 -15"},
-        {"name": "대왕 오징어", "rarity": "신종", "chance": 0.015, "min": 200, "max": 1000, "price_per_cm": 50, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "심해의 거대 괴수입니다. 낚싯대 내구도 -10"},
+        {"name": "고래상어", "rarity": "신종", "chance": 0.02, "min": 500, "max": 1200, "price_per_cm": 24, "req_tier": 3, "water_quality": [1,2], "effect_desc": "지구상에서 가장 큰 어류입니다. 낚을 시 낚시터 명성 +500"},
+        {"name": "타이거 샤크(뱀상어)", "rarity": "신종", "chance": 0.015, "min": 300, "max": 600, "price_per_cm": 45, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "무엇이든 먹어치우는 바다의 포식자입니다. 낚싯대 내구도 -15"},
+        {"name": "대왕 오징어", "rarity": "신종", "chance": 0.015, "min": 200, "max": 1000, "price_per_cm": 28, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "심해의 거대 괴수입니다. 낚싯대 내구도 -10"},
         
         # --- 전설 ---
-        {"name": "백상아리", "rarity": "전설", "chance": 0.005, "min": 300, "max": 600, "price_per_cm": 120, "req_tier": 4, "water_quality": [1,2], "effect_desc": "죠스의 주인공! 낚을 시 낚싯대 내구도 -35"},
-        {"name": "혹등고래", "rarity": "전설", "chance": 0.004, "min": 1200, "max": 1600, "price_per_cm": 40, "req_tier": 4, "water_quality": [1,2], "effect_desc": "화려한 점프를 선보이는 온순한 거인입니다. 낚을 시 명성 +1,000"},
+        {"name": "백상아리", "rarity": "전설", "chance": 0.005, "min": 300, "max": 600, "price_per_cm": 80, "req_tier": 4, "water_quality": [1,2], "effect_desc": "죠스의 주인공! 낚을 시 낚싯대 내구도 -35"},
+        {"name": "혹등고래", "rarity": "전설", "chance": 0.004, "min": 1200, "max": 1600, "price_per_cm": 30, "req_tier": 4, "water_quality": [1,2], "effect_desc": "화려한 점프를 선보이는 온순한 거인입니다. 낚을 시 명성 +1,000"},
         
         # --- 환상 ---
-        {"name": "돌고래", "rarity": "환상", "chance": 0.001, "min": 150, "max": 300, "price_per_cm": 200, "req_tier": 5, "water_quality": [1,2], "effect_desc": "바다의 천사. 잡을 시 다음 낚시 성공 확률 +15%"},
-        {"name": "메갈로돈", "rarity": "환상", "chance": 0.0005, "min": 1500, "max": 2000, "price_per_cm": 40, "req_tier": 5, "water_quality": [1,2], "effect_desc": "고대의 초대형 상어. 낚을 시 낚싯대 내구도 -80"},
+        {"name": "돌고래", "rarity": "환상", "chance": 0.001, "min": 150, "max": 300, "price_per_cm": 250, "req_tier": 5, "water_quality": [1,2], "effect_desc": "바다의 천사. 잡을 시 다음 낚시 성공 확률 +15%"},
+        {"name": "메갈로돈", "rarity": "환상", "chance": 0.0005, "min": 1500, "max": 2000, "price_per_cm": 38, "req_tier": 5, "water_quality": [1,2], "effect_desc": "고대의 초대형 상어. 낚을 시 낚싯대 내구도 -80"},
     ],
 
     "늪": [
         # --- 흔함 ---
-        {"name": "검정말", "rarity": "흔함", "chance": 0.25, "min": 10, "max": 50, "price_per_cm": 2, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "늪 바닥에 무성한 수초입니다."},
-        {"name": "부레옥잠", "rarity": "흔함", "chance": 0.20, "min": 10, "max": 30, "price_per_cm": 5, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "수질 정화 능력이 있는 흔한 수생식물입니다."},
-        {"name": "해캄", "rarity": "흔함", "chance": 0.20, "min": 5, "max": 20, "price_per_cm": 1, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "탁한 물에 끼는 녹조류 뭉덩이입니다."},
-        {"name": "가시연꽃", "rarity": "흔함", "chance": 0.15, "min": 30, "max": 100, "price_per_cm": 10, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "가시가 돋아난 연꽃잎입니다. 낚을 시 낚싯대 내구도 -2"},
+        {"name": "검정말", "rarity": "흔함", "chance": 0.15, "min": 10, "max": 50, "price_per_cm": 80, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "늪 바닥에 무성한 수초입니다."},
+        {"name": "부레옥잠", "rarity": "흔함", "chance": 0.15, "min": 10, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "수질 정화 능력이 있는 흔한 수생식물입니다."},
+        {"name": "해캄", "rarity": "흔함", "chance": 0.12, "min": 5, "max": 20, "price_per_cm": 200, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "탁한 물에 끼는 녹조류 뭉덩이입니다."},
         
+        # --- 🚨 특수 동물/유해 생물 (늪) ---
+        {"name": "너구리", "rarity": "희귀", "chance": 0.06, "min": 30, "max": 45, "price_per_cm": 0, "req_tier": 1, "water_quality": [2,3,4,5], "effect_desc": "가방을 털어 미끼 5개를 훔쳐 달아납니다!"},
+        {"name": "황소개구리", "rarity": "전설", "chance": 0.05, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "퇴치 포상금 10,000원을 얻지만 오염도가 상승합니다."},
+        {"name": "붉은가위가재", "rarity": "흔함", "chance": 0.05, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "낚싯대 내구도를 -10 감소시킵니다."},
+
         # --- 희귀 ---
-        {"name": "민물새우", "rarity": "희귀", "chance": 0.04, "min": 3, "max": 8, "price_per_cm": 100, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "작고 투명한 늪지 새우입니다."},
-        {"name": "말조개", "rarity": "희귀", "chance": 0.04, "min": 10, "max": 25, "price_per_cm": 80, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "진흙 바닥에 서식하는 거대 민물 조개입니다."},
-        {"name": "물방개", "rarity": "희귀", "chance": 0.03, "min": 2, "max": 5, "price_per_cm": 150, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "헤엄을 잘 치는 수서곤충입니다."},
+        {"name": "민물새우", "rarity": "희귀", "chance": 0.04, "min": 3, "max": 8, "price_per_cm": 1100, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "작고 투명한 늪지 새우입니다."},
+        {"name": "말조개", "rarity": "희귀", "chance": 0.04, "min": 10, "max": 25, "price_per_cm": 350, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "진흙 바닥에 서식하는 거대 민물 조개입니다."},
+        {"name": "물방개", "rarity": "희귀", "chance": 0.03, "min": 2, "max": 5, "price_per_cm": 1800, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "헤엄을 잘 치는 수서곤충입니다."},
         
         # --- 신종 ---
-        {"name": "누룩뱀", "rarity": "신종", "chance": 0.02, "min": 50, "max": 120, "price_per_cm": 400, "req_tier": 3, "water_quality": [3,4,5], "effect_desc": "늪 습지에서 보이는 뱀입니다."},
-        {"name": "메기", "rarity": "신종", "chance": 0.015, "min": 30, "max": 70, "price_per_cm": 250, "req_tier": 3, "water_quality": [3,4,5,6], "effect_desc": "탁한 수질에 도가 튼 야행성 포식자입니다."},
+        {"name": "누룩뱀", "rarity": "신종", "chance": 0.02, "min": 50, "max": 120, "price_per_cm": 220, "req_tier": 3, "water_quality": [3,4,5], "effect_desc": "늪 습지에서 보이는 뱀입니다."},
+        {"name": "메기", "rarity": "신종", "chance": 0.015, "min": 30, "max": 70, "price_per_cm": 400, "req_tier": 3, "water_quality": [3,4,5,6], "effect_desc": "탁한 수질에 도가 튼 야행성 포식자입니다."},
         
         # --- 전설 ---
-        {"name": "가물치", "rarity": "전설", "chance": 0.005, "min": 40, "max": 100, "price_per_cm": 600, "req_tier": 4, "water_quality": [3,4,5,6], "effect_desc": "늪지의 무법자이자 난폭한 최상위 어종입니다."},
-        {"name": "황소개구리", "rarity": "전설", "chance": 0.003, "min": 15, "max": 30, "price_per_cm": 300, "req_tier": 4, "water_quality": [4,5,6], "effect_desc": "생태계를 파괴하는 거대 양서류입니다."},
+        {"name": "가물치", "rarity": "전설", "chance": 0.005, "min": 40, "max": 100, "price_per_cm": 450, "req_tier": 4, "water_quality": [3,4,5,6], "effect_desc": "늪지의 무법자이자 난폭한 최상위 어종입니다."},
         
         # --- 환상 ---
-        {"name": "왜가리", "rarity": "환상", "chance": 0.001, "min": 80, "max": 110, "price_per_cm": 400, "req_tier": 5, "water_quality": [2,3,4], "effect_desc": "부동의 자세로 물고기를 사냥하는 새입니다."},
-        {"name": "악어", "rarity": "환상", "chance": 0.0005, "min": 150, "max": 400, "price_per_cm": 150, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "늪지의 최종 지배자. 엄청난 데스롤을 시전하여 낚싯대 내구도 -60"},
+        {"name": "왜가리", "rarity": "환상", "chance": 0.001, "min": 80, "max": 110, "price_per_cm": 650, "req_tier": 5, "water_quality": [2,3,4], "effect_desc": "부동의 자세로 물고기를 사냥하는 새입니다."},
+        {"name": "악어", "rarity": "환상", "chance": 0.0005, "min": 150, "max": 400, "price_per_cm": 180, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "늪지의 최종 지배자. 엄청난 데스롤을 시전하여 낚싯대 내구도 -60"},
     ]
 }
 
@@ -168,49 +192,49 @@ FACILITIES = {
     "초거대한창고": {"req_rep": 1500000, "req_cash": 20000000, "tier": 5, "effect": {"fish_rate": 0.30, "base_fee": 0.25, "upkeep_mult": 0.65}, "desc": "확률 +30%, 유지비 +65%"},
     
     # 🧹 [환경 정화] 쓰레기 낚일 확률 억제
-    "환경미화원": {"req_rep": 3000, "req_cash": 200000, "tier": 2, "effect": {"trash_rate": -0.05, "upkeep_mult": 0.05}, "desc": "쓰레기 5% 감소, 유지비 5% 증가"},
-    "청소용역업체": {"req_rep": 60000, "req_cash": 1500000, "tier": 3, "effect": {"trash_rate": -0.15, "upkeep_mult": 0.12}, "desc": "쓰레기 15% 감소, 유지비 12% 증가"},
-    "시설관리공단": {"req_rep": 750000, "req_cash": 10000000, "tier": 5, "effect": {"trash_rate": -0.30, "upkeep_mult": 0.25}, "desc": "쓰레기 30% 감소, 유지비 25% 증가"},
+    "환경미화원": {"req_rep": 3000, "req_cash": 50000, "tier": 2, "effect": {"trash_rate": -0.05, "upkeep_mult": 0.05}, "desc": "쓰레기 5% 감소, 유지비 5% 증가"},
+    "청소용역업체": {"req_rep": 50000, "req_cash": 250000, "tier": 3, "effect": {"trash_rate": -0.15, "upkeep_mult": 0.12}, "desc": "쓰레기 15% 감소, 유지비 12% 증가"},
+    "시설관리공단": {"req_rep": 250000, "req_cash": 920000, "tier": 5, "effect": {"trash_rate": -0.30, "upkeep_mult": 0.25}, "desc": "쓰레기 30% 감소, 유지비 25% 증가"},
 
     # ⚡ 유지비 관련 시설 (전략적 운영의 핵심)
-    "전기배터리": {"req_rep": 10000, "req_cash": 400000, "tier": 1, "effect": {"upkeep_discount": 0.05}, "desc": "유지비 5% 감소"},
-    "소형발전기": {"req_rep": 5000, "req_cash": 1500000, "tier": 2, "effect": {"upkeep_discount": 0.10}, "desc": "유지비 10% 감소"},
-    "중대형발전기": {"req_rep": 200000, "req_cash": 5000000, "tier": 3, "effect": {"upkeep_discount": 0.15}, "desc": "유지비 15% 감소"},
-    "화력발전소": {"req_rep": 700000, "req_cash": 15000000, "tier": 4, "effect": {"upkeep_discount": 0.25, "upkeep_mult": 0.10}, "desc": "유지비 25% 감소, 관리비 10% 증가"},
-    "수력발전소": {"req_rep": 2000000, "req_cash": 45000000, "tier": 5, "effect": {"upkeep_discount": 0.45, "upkeep_mult": 0.20}, "desc": "유지비 45% 감소, 관리비 20% 증가"},
+    "전기배터리": {"req_rep": 3000, "req_cash": 50000, "tier": 1, "effect": {"upkeep_discount": 0.05}, "desc": "유지비 5% 감소"},
+    "소형발전기": {"req_rep": 5000, "req_cash": 100000, "tier": 2, "effect": {"upkeep_discount": 0.10}, "desc": "유지비 10% 감소"},
+    "중대형발전기": {"req_rep": 50000, "req_cash": 500000, "tier": 3, "effect": {"upkeep_discount": 0.15}, "desc": "유지비 15% 감소"},
+    "화력발전소": {"req_rep": 120000, "req_cash": 300000, "tier": 4, "effect": {"upkeep_discount": 0.25, "upkeep_mult": 0.10}, "desc": "유지비 25% 감소, 관리비 10% 증가"},
+    "수력발전소": {"req_rep": 330000, "req_cash": 950000, "tier": 5, "effect": {"upkeep_discount": 0.45, "upkeep_mult": 0.20}, "desc": "유지비 45% 감소, 관리비 20% 증가"},
 
     # ✨ 명성 특화 (서버 랭킹 정복자용)
-    "길거리상인": {"req_rep": 1000, "req_cash": 80000, "tier": 1, "effect": {"rep_mult": 1.2, "upkeep_mult": 0.03}, "desc": "명성 1.2배, 유지비 3% 증가"},
-    "기념품상점": {"req_rep": 15000, "req_cash": 500000, "tier": 2, "effect": {"rep_mult": 1.5, "upkeep_mult": 0.06}, "desc": "명성 1.5배, 유지비 6% 증가"},
-    "기념품백화점": {"req_rep": 80000, "req_cash": 2000000, "tier": 3, "effect": {"rep_mult": 1.8, "upkeep_mult": 0.10}, "desc": "명성 1.8배, 유지비 10% 증가"},
-    "해외입점준비": {"req_rep": 350000, "req_cash": 7500000, "tier": 4, "effect": {"rep_mult": 2.2, "upkeep_mult": 0.15}, "desc": "명성 2.2배, 유지비 15% 증가"},
-    "해외유명기업": {"req_rep": 1200000, "req_cash": 25000000, "tier": 5, "effect": {"rep_mult": 3.0, "upkeep_mult": 0.25}, "desc": "명성 3.0배, 유지비 25% 증가"},
+    "길거리상인": {"req_rep": 1000, "req_cash": 30000, "tier": 1, "effect": {"rep_mult": 1.2, "upkeep_mult": 0.03}, "desc": "명성 1.2배, 유지비 3% 증가"},
+    "기념품상점": {"req_rep": 15000, "req_cash": 50000, "tier": 2, "effect": {"rep_mult": 1.5, "upkeep_mult": 0.06}, "desc": "명성 1.5배, 유지비 6% 증가"},
+    "기념품백화점": {"req_rep": 80000, "req_cash": 410000, "tier": 3, "effect": {"rep_mult": 1.8, "upkeep_mult": 0.10}, "desc": "명성 1.8배, 유지비 10% 증가"},
+    "해외입점준비": {"req_rep": 270000, "req_cash": 710000, "tier": 4, "effect": {"rep_mult": 2.2, "upkeep_mult": 0.15}, "desc": "명성 2.2배, 유지비 15% 증가"},
+    "해외유명기업": {"req_rep": 500000, "req_cash": 1200000, "tier": 5, "effect": {"rep_mult": 3.0, "upkeep_mult": 0.25}, "desc": "명성 3.0배, 유지비 25% 증가"},
 
     # ♻️ 복합 환경 시설 (쓰레기 차단 + 가격 보너스)
-    "재활용분리수거장": {"req_rep": 5000, "req_cash": 200000, "tier": 1, "effect": {"trash_rate": -0.10, "upkeep_mult": 0.08}, "desc": "쓰레기 10% 감소, 유지비 8% 증가"},
-    "쓰레기소각장": {"req_rep": 75000, "req_cash": 2500000, "tier": 3, "effect": {"fish_price_mult": 1.1, "trash_rate": -0.25, "upkeep_mult": 0.20}, "desc": "가격 1.1배, 쓰레기 25% 감소, 유지비 20% 증가"},
-    "환경부": {"req_rep": 1000000, "req_cash": 15000000, "tier": 5, "effect": {"fish_price_mult": 1.5, "trash_rate": -0.50, "upkeep_mult": 0.45}, "desc": "가격 1.5배, 쓰레기 50% 감소, 유지비 45% 증가"},
+    "재활용분리수거장": {"req_rep": 5000, "req_cash": 80000, "tier": 1, "effect": {"trash_rate": -0.10, "upkeep_mult": 0.08}, "desc": "쓰레기 10% 감소, 유지비 8% 증가"},
+    "쓰레기소각장": {"req_rep": 120000, "req_cash": 320000, "tier": 3, "effect": {"fish_price_mult": 1.1, "trash_rate": -0.25, "upkeep_mult": 0.20}, "desc": "가격 1.1배, 쓰레기 25% 감소, 유지비 20% 증가"},
+    "환경부": {"req_rep": 440000, "req_cash": 940000, "tier": 5, "effect": {"fish_price_mult": 1.5, "trash_rate": -0.50, "upkeep_mult": 0.45}, "desc": "가격 1.5배, 쓰레기 50% 감소, 유지비 45% 증가"},
 
     # 🛒 유틸리티 사업 (유지비 절감 + 명성 시너지)
-    "리안마켓": {"req_rep": 3000, "req_cash": 120000, "tier": 1, "effect": {"upkeep_discount": 0.05}, "desc": "유지비 5% 감소"},
-    "묵이편의점": {"req_rep": 20000, "req_cash": 600000, "tier": 2, "effect": {"upkeep_discount": 0.10}, "desc": "유지비 10% 감소"},
-    "할인마트": {"req_rep": 120000, "req_cash": 3500000, "tier": 3, "effect": {"upkeep_discount": 0.15, "rep_mult": 1.2}, "desc": "유지비 15% 감소, 명성 1.2배"},
-    "정E-마트": {"req_rep": 500000, "req_cash": 10000000, "tier": 4, "effect": {"upkeep_discount": 0.25, "rep_mult": 1.5}, "desc": "유지비 25% 감소, 명성 1.5배"},
-    "해외수출사업": {"req_rep": 1500000, "req_cash": 30000000, "tier": 5, "effect": {"upkeep_discount": 0.40, "rep_mult": 2.0}, "desc": "유지비 40% 감소, 명성 2.0배"},
+    "리안마켓": {"req_rep": 3000, "req_cash": 20000, "tier": 1, "effect": {"upkeep_discount": 0.05}, "desc": "유지비 5% 감소"},
+    "묵이편의점": {"req_rep": 20000, "req_cash": 70000, "tier": 2, "effect": {"upkeep_discount": 0.10}, "desc": "유지비 10% 감소"},
+    "할인마트": {"req_rep": 80000, "req_cash": 330000, "tier": 3, "effect": {"upkeep_discount": 0.15, "rep_mult": 1.2}, "desc": "유지비 15% 감소, 명성 1.2배"},
+    "정E-마트": {"req_rep": 150000, "req_cash": 700000, "tier": 4, "effect": {"upkeep_discount": 0.25, "rep_mult": 1.5}, "desc": "유지비 25% 감소, 명성 1.5배"},
+    "해외수출사업": {"req_rep": 800000, "req_cash": 1090000, "tier": 5, "effect": {"upkeep_discount": 0.40, "rep_mult": 2.0}, "desc": "유지비 40% 감소, 명성 2.0배"},
 
     # 🏪 상업 제국 (물고기 판매가 극대화)
-    "노상": {"req_rep": 5000, "req_cash": 250000, "tier": 1, "effect": {"fish_price_mult": 1.1}, "desc": "판매가 1.1배"},
-    "물사랑고기사랑가게": {"req_rep": 45000, "req_cash": 1500000, "tier": 2, "effect": {"fish_price_mult": 1.2, "upkeep_mult": 0.15}, "desc": "판매가 1.2배, 유지비 15% 증가"},
-    "5일장시장": {"req_rep": 200000, "req_cash": 6000000, "tier": 3, "effect": {"fish_price_mult": 1.4, "upkeep_mult": 0.30}, "desc": "판매가 1.4배, 유지비 30% 증가"},
-    "회전문공장": {"req_rep": 800000, "req_cash": 18000000, "tier": 4, "effect": {"fish_price_mult": 1.7, "upkeep_mult": 0.50}, "desc": "판매가 1.7배, 유지비 50% 증가"},
-    "세계1위기업": {"req_rep": 3000000, "req_cash": 80000000, "tier": 5, "effect": {"fish_price_mult": 2.0, "upkeep_mult": 0.85}, "desc": "판매가 2.0배, 유지비 85% 증가"},
+    "노상": {"req_rep": 5000, "req_cash": 50000, "tier": 1, "effect": {"fish_price_mult": 1.1}, "desc": "판매가 1.1배"},
+    "물고기사랑가게": {"req_rep": 45000, "req_cash": 320000, "tier": 2, "effect": {"fish_price_mult": 1.2, "upkeep_mult": 0.15}, "desc": "판매가 1.4배, 유지비 15% 증가"},
+    "5일장시장": {"req_rep": 200000, "req_cash": 650000, "tier": 3, "effect": {"fish_price_mult": 1.4, "upkeep_mult": 0.30}, "desc": "판매가 1.5배, 유지비 30% 증가"},
+    "회전문공장": {"req_rep": 800000, "req_cash": 980000, "tier": 4, "effect": {"fish_price_mult": 1.7, "upkeep_mult": 0.50}, "desc": "판매가 1.8배, 유지비 50% 증가"},
+    "세계1위기업": {"req_rep": 1000000, "req_cash": 1050000, "tier": 5, "effect": {"fish_price_mult": 2.0, "upkeep_mult": 0.85}, "desc": "판매가 2.0배, 유지비 85% 증가"},
 
     # 🏫 공공 시설 (실패 리스크 감수형 파격 유지비 절감)
-    "어린이집": {"req_rep": 1000, "req_cash": 100000, "tier": 1, "effect": {"fail_rate": 0.05, "upkeep_discount": 0.10}, "desc": "실패 5%, 유지비 10% 감소"},
-    "유치원": {"req_rep": 10000, "req_cash": 500000, "tier": 2, "effect": {"fail_rate": 0.08, "upkeep_discount": 0.20}, "desc": "실패 8%, 유지비 20% 감소"},
-    "초등학교": {"req_rep": 60000, "req_cash": 2000000, "tier": 3, "effect": {"fail_rate": 0.12, "upkeep_discount": 0.35}, "desc": "실패 12%, 유지비 35% 감소"},
-    "중학교": {"req_rep": 250000, "req_cash": 6000000, "tier": 4, "effect": {"fail_rate": 0.18, "upkeep_discount": 0.55}, "desc": "실패 18%, 유지비 55% 감소"},
-    "고등학교": {"req_rep": 1000000, "req_cash": 20000000, "tier": 5, "effect": {"fail_rate": 0.25, "upkeep_discount": 0.80}, "desc": "실패 25%, 유지비 80% 감소"},
+    "어린이집": {"req_rep": 1000, "req_cash": 30000, "tier": 1, "effect": {"fail_rate": 0.05, "upkeep_discount": 0.10}, "desc": "실패 5%, 유지비 10% 감소"},
+    "유치원": {"req_rep": 30000, "req_cash": 170000, "tier": 2, "effect": {"fail_rate": 0.08, "upkeep_discount": 0.20}, "desc": "실패 8%, 유지비 20% 감소"},
+    "초등학교": {"req_rep": 70000, "req_cash": 650000, "tier": 3, "effect": {"fail_rate": 0.12, "upkeep_discount": 0.35}, "desc": "실패 12%, 유지비 35% 감소"},
+    "중학교": {"req_rep": 150000, "req_cash": 990000, "tier": 4, "effect": {"fail_rate": 0.18, "upkeep_discount": 0.55}, "desc": "실패 18%, 유지비 55% 감소"},
+    "고등학교": {"req_rep": 870000, "req_cash": 2070000, "tier": 5, "effect": {"fail_rate": 0.25, "upkeep_discount": 0.80}, "desc": "실패 25%, 유지비 80% 감소"},
 }
 
 active_sessions = {}
@@ -435,11 +459,11 @@ class TrashActionView(discord.ui.View):
                                 (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"무단투기 누적 {user_count}회 적발 과태료"))
                     fine_msg = f"\n\n🚨 **[무단투기 과태료 부과!]**\n무단투기가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**이 즉시 징수되었습니다!"
             
-            # 🚫 50회당 30분 이용 제한 추가
-            if user_count % 50 == 0:
-                ban_until = (datetime.now() + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+            # 🚫 10회당 10분 이용 제한 추가
+            if user_count % 10 == 0:
+                ban_until = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute("UPDATE users SET fishing_ban_until = ? WHERE user_id = ? AND guild_id = ?", (ban_until, uid, gid))
-                ban_msg = f"\n\n🚫 **[낚시터 이용 제한]**\n무단투기 누적 **{user_count}회** 기록으로 인해 향후 **30분간** 낚시터 이용이 금지됩니다."
+                ban_msg = f"\n\n🚫 **[낚시터 이용 제한]**\n무단투기 누적 **{user_count}회** 기록으로 인해 향후 **10분간** 낚시터 이용이 금지됩니다."
 
             # ✅ [위치 수정] 조건문과 상관없이 트랜잭션을 끝내기 위해 바깥으로 이동
             conn.commit()
@@ -708,6 +732,69 @@ class CleanConfirmView(discord.ui.View):
         await interaction.response.edit_message(embed=discord.Embed(title="⏹️ 청소 취소", description="청소 요청을 취소했습니다. 돈이 차감되지 않았습니다.", color=discord.Color.light_gray()), view=None)
         self.stop()
 
+# ⚠️ [서버 데이터 초기화 확인 UI 뷰]
+class ResetConfirmView(discord.ui.View):
+    def __init__(self, admin: discord.Member, db_manager):
+        super().__init__(timeout=30)
+        self.admin = admin
+        self.db = db_manager
+        self.responded = False
+
+    @discord.ui.button(label="⚠️ 서버 데이터 전체 초기화 (복구 불가)", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.admin:
+            return await interaction.response.send_message("❌ 명령어를 실행한 관리자만 누를 수 있습니다.", ephemeral=True)
+        
+        if self.responded: return
+        self.responded = True
+        
+        gid = str(interaction.guild_id)
+        conn = self.db.get_connection()
+        try:
+            conn.execute("BEGIN")
+            # 1. 낚시터 정보 초기화 (모든 채널 초기화)
+            conn.execute(
+                "UPDATE fishing_ground SET owner_id = NULL, tier = 1, ground_reputation = 0, pollution = 0, is_public = 1, entry_fee = 0, purchasable = 1 WHERE guild_id = ?", 
+                (gid,)
+            )
+            # 2. 모든 유저 장비 삭제
+            conn.execute("DELETE FROM fishing_gear WHERE guild_id = ?", (gid,))
+            # 3. 모든 유저 인벤토리 삭제
+            conn.execute("DELETE FROM fishing_inventory WHERE guild_id = ?", (gid,))
+            # 4. 모든 입장권 삭제
+            conn.execute("DELETE FROM fishing_passes WHERE guild_id = ?", (gid,))
+            # 5. 모든 시설 삭제
+            conn.execute("DELETE FROM fishing_facilities WHERE guild_id = ?", (gid,))
+            # 6. 유저의 낚시 통계 및 명성 초기화
+            conn.execute(
+                "UPDATE users SET fishing_reputation = 0, max_fish_length = 0.0, illegal_dump_count = 0, neglect_dump_count = 0, fine_debt = 0, fishing_ban_until = NULL WHERE guild_id = ?", 
+                (gid,)
+            )
+            # 7. 낚시 로그 삭제
+            try: conn.execute("DELETE FROM fishing_logs WHERE guild_id = ?", (gid,))
+            except: pass
+            
+            conn.commit()
+            
+            # 실시간 메모리 세션 클리어 (현재 서버의 모든 유저 대상)
+            uids = list(active_sessions.keys())
+            for u_id in uids:
+                session = active_sessions.get(u_id)
+                if hasattr(session, 'interaction') and str(session.interaction.guild_id) == gid:
+                    active_sessions.pop(u_id, None)
+                    user_locks.pop(u_id, None)
+
+            await interaction.response.edit_message(content="✅ **서버의 모든 낚시 데이터가 성공적으로 초기화되었습니다.**", embed=None, view=None)
+        except Exception as e:
+            conn.rollback()
+            await interaction.response.edit_message(content=f"❌ 초기화 중 오류 발생: {e}", embed=None, view=None)
+
+    @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.responded = True
+        await interaction.response.edit_message(content="⏹️ 초기화 요청이 취소되었습니다.", embed=None, view=None)
+        self.stop()
+
 class BuyConfirmView(discord.ui.View):
     def __init__(self, db, price, chid, gid, buyer_id):
         super().__init__(timeout=30)
@@ -730,19 +817,24 @@ class BuyConfirmView(discord.ui.View):
         try:
             conn.execute("BEGIN")
             
-            # 1. 낚시터 상태 재검증 (이미 주인이 있거나 구매 불가 상태인지)
+            # 1. 낚시터 상태 재검증
             ground = conn.execute("SELECT owner_id, purchasable FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid)).fetchone()
             if not ground:
                 conn.rollback()
                 return await interaction.response.edit_message(content="❌ 오류: 존재하지 않는 낚시터 정보입니다.", embed=None, view=None)
             
-            if ground['owner_id'] is not None:
+            # 본인 소유 체크
+            if ground['owner_id'] == self.buyer_id:
                 conn.rollback()
-                return await interaction.response.edit_message(content="❌ 매입 실패: 이미 다른 주인이 소유하고 있는 땅입니다!", embed=None, view=None)
-            
-            if ground['purchasable'] != 1:
+                return await interaction.response.edit_message(content="❌ 매입 실패: 이미 본인이 소유하고 있는 땅입니다!", embed=None, view=None)
+
+            # 공용 낚시터 여부 체크
+            if ground['owner_id'] is None and ground['purchasable'] != 1:
                 conn.rollback()
-                return await interaction.response.edit_message(content="❌ 매입 실패: 이 채널은 현재 매입 가능한 상태가 아닙니다.", embed=None, view=None)
+                return await interaction.response.edit_message(content="❌ 매입 실패: 이 채널은 공용 낚시터로 지정되어 매입할 수 없습니다.", embed=None, view=None)
+
+            is_takeover = ground['owner_id'] is not None
+            old_owner_id = ground['owner_id']
 
             # 2. 사용자 잔액 재검증
             user = conn.execute("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (self.buyer_id, self.gid)).fetchone()
@@ -753,9 +845,32 @@ class BuyConfirmView(discord.ui.View):
                 return await interaction.response.edit_message(content=f"❌ 매입 실패: 잔액이 부족합니다! (필요: {self.price:,}원 / 보유: {current_cash:,}원)", embed=None, view=None)
 
             # 3. 실제 매입 처리
-            # 돈 차감
+            # 구매자 돈 차감
             conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.price, self.buyer_id, self.gid))
             
+            if is_takeover:
+                # 📉 [약탈 로직] 전 주인에게 80% 환불 처리
+                refund_amount = int(self.price * 0.8)
+                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (refund_amount, old_owner_id, self.gid))
+                
+                # 전 주인 시설물 철거
+                conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid))
+                
+                # 명성 및 티어 초기화 (약탈당한 땅은 황폐화됨)
+                conn.execute("UPDATE fishing_ground SET tier = 1, ground_reputation = 0 WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid))
+
+                log_desc = f"낚시터 채널({self.chid}) 약탈(매입) 지출"
+                old_owner_log = f"낚시터 채널({self.chid}) 약탈당함 (환불: {refund_amount:,}원)"
+                
+                # 전 주인 로그 기록
+                conn.execute(
+                    "INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) "
+                    "SELECT ?, ?, ?, cash, ? FROM users WHERE user_id = ? AND guild_id = ?",
+                    (old_owner_id, "낚시터강제매각", refund_amount, old_owner_log, old_owner_id, self.gid)
+                )
+            else:
+                log_desc = f"낚시터 채널({self.chid}) 매입 지출"
+
             # 낚시터 정보 업데이트 (소유권 이전 및 비공개 처리)
             conn.execute(
                 "UPDATE fishing_ground SET owner_id = ?, purchasable = 0, is_public = 0, last_activity = CURRENT_TIMESTAMP "
@@ -763,23 +878,27 @@ class BuyConfirmView(discord.ui.View):
                 (self.buyer_id, self.chid, self.gid)
             )
             
-            # 로그 기록
+            # 구매자 로그 기록
             conn.execute(
                 "INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                (self.buyer_id, "낚시터매입", -self.price, current_cash - self.price, f"낚시터 채널({self.chid}) 매입 지출")
+                (self.buyer_id, "낚시터매입", -self.price, current_cash - self.price, log_desc)
             )
             
             conn.commit()
             
+            title = "⚔️ 낚시터 약탈 성공!" if is_takeover else "🎊 낚시터 매입 성공!"
+            takeover_msg = f"\n⚠️ 기존 주인의 시설물은 철거되었으며, 땅의 등급과 명성이 초기화되었습니다." if is_takeover else ""
+
             embed = discord.Embed(
-                title="🎊 낚시터 매입 성공!",
+                title=title,
                 description=(
                     f"성공적으로 <#{self.chid}> 채널을 소유하게 되었습니다!\n\n"
                     f"💰 **지출 금액:** `{self.price:,}원`\n"
-                    f"🔒 **현재 상태:** `비공개 (입장권 필요)`\n\n"
+                    f"🔒 **현재 상태:** `비공개 (입장권 필요)`"
+                    f"{takeover_msg}\n\n"
                     f"💡 `/낚시터 액션: 설정 변경`을 통해 입장료와 공개 여부를 관리할 수 있습니다."
                 ),
-                color=discord.Color.green()
+                color=discord.Color.green() if not is_takeover else discord.Color.red()
             )
             await interaction.response.edit_message(content=None, embed=embed, view=None)
 
@@ -796,6 +915,83 @@ class BuyConfirmView(discord.ui.View):
         
         self.responded = True
         await interaction.response.edit_message(content="⏹️ 매입을 취소했습니다.", embed=None, view=None)
+
+class SellConfirmView(discord.ui.View):
+    def __init__(self, db, refund_price, chid, gid, owner_id):
+        super().__init__(timeout=30)
+        self.db = db
+        self.refund_price = refund_price
+        self.chid = chid
+        self.gid = gid
+        self.owner_id = owner_id
+        self.responded = False
+
+    @discord.ui.button(label="✅ 최종 매각 승인", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.owner_id:
+            return await interaction.response.send_message("소유자만 매각을 결정할 수 있습니다.", ephemeral=True)
+        
+        if self.responded: return
+        self.responded = True
+
+        conn = self.db.get_connection()
+        try:
+            conn.execute("BEGIN")
+            
+            # 낚시터 정보 및 소유권 재검증
+            ground = conn.execute("SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid)).fetchone()
+            if not ground or ground['owner_id'] != self.owner_id:
+                conn.rollback()
+                return await interaction.response.edit_message(content="❌ 오류: 낚시터 소유주가 아니거나 정보가 유효하지 않습니다.", embed=None, view=None)
+
+            # 1. 사용자에게 환불금 지급
+            conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (self.refund_price, self.owner_id, self.gid))
+            
+            # 2. 낚시터 정보 초기화
+            conn.execute(
+                "UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1, "
+                "entry_fee = 0, ground_reputation = 0, tier = 1 "
+                "WHERE channel_id = ? AND guild_id = ?", 
+                (self.chid, self.gid)
+            )
+            
+            # 3. 시설 철거
+            conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid))
+
+            # 4. 로그 기록
+            conn.execute(
+                "INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) "
+                "SELECT ?, ?, ?, cash, ? FROM users WHERE user_id = ? AND guild_id = ?",
+                (self.owner_id, "낚시터매각", self.refund_price, f"낚시터 채널({self.chid}) 매각 환불", self.owner_id, self.gid)
+            )
+            
+            conn.commit()
+            
+            embed = discord.Embed(
+                title="🏢 낚시터 매각 완료",
+                description=(
+                    f"<#{self.chid}> 채널의 소유권을 포기하고 매각을 완료했습니다.\n\n"
+                    f"💰 **환불 금액:** `{self.refund_price:,}원` (매입가 및 시설 가치 반영)\n"
+                    f"🔓 **현재 상태:** `공개 (구매 가능)`\n\n"
+                    f"시설물은 모두 철거되었으며, 기본 명성치와 티어가 초기화되었습니다."
+                ),
+                color=discord.Color.blue()
+            )
+            await interaction.response.edit_message(content=None, embed=embed, view=None)
+
+        except Exception as e:
+            try: conn.rollback()
+            except: pass
+            print(f"[매각 오류] {e}")
+            await interaction.response.edit_message(content=f"❌ 시스템 오류로 인해 매각에 실패했습니다. (에러: {e})", embed=None, view=None)
+
+    @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.owner_id:
+            return await interaction.response.send_message("본인만 취소할 수 있습니다.", ephemeral=True)
+        
+        self.responded = True
+        await interaction.response.edit_message(content="⏹️ 매각을 취소했습니다.", embed=None, view=None)
 
 class FishingGameView(discord.ui.View):
     def __init__(self, interaction, db, cog): # cog 인자 추가
@@ -996,8 +1192,10 @@ class FishingGameView(discord.ui.View):
                 conn.execute("BEGIN")
                 conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - 1) WHERE user_id = ? AND guild_id = ?", (uid, gid))
 
-                ground_info = self.db.execute_query("SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
-                current_pollution = ground_info['pollution'] if ground_info else 0
+                ground = self.db.execute_query("SELECT ground_type, tier, pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+                location = ground['ground_type'] if ground else "호수"
+                current_ground_tier = ground['tier'] if ground else 1
+                current_pollution = ground['pollution'] if ground else 0
 
                 built_facilities = self.db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
 
@@ -1021,11 +1219,69 @@ class FishingGameView(discord.ui.View):
 
                 # 🗑️ 쓰레기 기믹 부분
                 if random.random() < trash_chance:
-                    trash_weights = [t.get("weight", 1) for t in TRASH_LIST]
+                    # ⚖️ [티어별 그룹 가중치 계산]
+                    all_groups = range(1, 7)
+                    g_items = {i: [t for t in TRASH_LIST if t["group"] == i] for i in all_groups}
+                    
+                    # 5%는 무조건 ??? (Group 6)
+                    target_weights = {6: 0.05}
+                    
+                    if current_ground_tier == 1:
+                        target_weights[1] = 0.80
+                        others_weight = 0.15
+                    elif current_ground_tier == 2:
+                        target_weights[2] = 0.70
+                        others_weight = 0.25
+                    elif current_ground_tier == 3:
+                        target_weights[3] = 0.60
+                        others_weight = 0.35
+                    elif current_ground_tier == 4:
+                        target_weights[4] = 0.50
+                        others_weight = 0.45
+                    elif current_ground_tier == 5:
+                        target_weights[5] = 0.50
+                        others_weight = 0.45
+                    else: # 6티어 이상 예외 처리
+                        target_weights[5] = 0.50
+                        others_weight = 0.45
+                    
+                    # 나머지 그룹들에 others_weight를 균등 배분 (현재 티어 그룹 및 Group 6 제외)
+                    other_groups = [i for i in range(1, 6) if i != current_ground_tier]
+                    if other_groups:
+                        per_group_weight = others_weight / len(other_groups)
+                        for og in other_groups:
+                            target_weights[og] = per_group_weight
+
+                    trash_weights = []
+                    for t in TRASH_LIST:
+                        grp = t["group"]
+                        grp_total_weight = target_weights.get(grp, 0)
+                        items_in_grp = len(g_items[grp])
+                        trash_weights.append(grp_total_weight / items_in_grp if items_in_grp > 0 else 0)
+
                     trash = random.choices(TRASH_LIST, weights=trash_weights, k=1)[0]
 
-                    # 기존에 잘 짜두신 랜덤 금액 로직 그대로 사용
-                    actual_fine = random.randint(trash["max_value"], trash["min_value"])
+                    # 💰 소지금 기반 퍼센트 비용 계산
+                    current_cash = self.db.get_user_cash(uid) or 0
+                    rate = random.uniform(trash["min_rate"], trash["max_rate"])
+                    
+                    # 📈 [티어별 벌금 인상 로직 세분화]
+                    if trash["group"] == 1 and current_ground_tier >= 2:
+                        # Group 1: 2티어부터 3%씩 인상
+                        rate += (current_ground_tier - 1) * 0.03
+                    elif trash["group"] == 2 and current_ground_tier >= 3:
+                        # Group 2: 3티어부터 3%씩 인상
+                        rate += (current_ground_tier - 2) * 0.03
+                    elif trash["group"] == 3 and current_ground_tier >= 4:
+                        # Group 3: 4티어부터 4%씩 인상
+                        rate += (current_ground_tier - 3) * 0.04
+                    elif trash["group"] == 4 and current_ground_tier >= 5:
+                        # Group 4: 5티어부터 5%씩 인상
+                        rate += (current_ground_tier - 4) * 0.05
+                    
+                    # 계산된 금액이 1,000원보다 적으면 최소 1,000원 부과
+                    calculated_fine = int(current_cash * rate)
+                    actual_fine = -max(1000, calculated_fine) 
             
                     # 🚨 [인자 6개 채우기] 에러 해결을 위해 모든 정보 전달
                     view = TrashActionView(
@@ -1055,10 +1311,7 @@ class FishingGameView(discord.ui.View):
                     return
 
                 # 🎣 물고기 기믹
-                ground = self.db.execute_query("SELECT ground_type, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
-                location = ground['ground_type'] if ground else "호수"
-                current_ground_tier = ground['tier'] if ground else 1
-
+                # (이전 중복 조회 부분 제거됨)
                 pool = FISHING_ECOLOGY.get(location, FISHING_ECOLOGY["호수"])
                 valid_pool = [f for f in pool if f.get("req_tier", 1) <= current_ground_tier]
                 if not valid_pool: valid_pool = pool
@@ -1070,16 +1323,51 @@ class FishingGameView(discord.ui.View):
                         if f_name in FACILITIES:
                             fish_rate_bonus += FACILITIES[f_name].get("effect", {}).get("fish_rate", 0.0)
 
-                adjusted_weights = []
+                # ⚖️ [등급별 확률 캡 시스템]
+                raw_weights = []
                 for f in valid_pool:
                     base_chance = f["chance"]
                     if f["rarity"] in ["희귀", "신종", "전설", "환상"]:
-                        adjusted_chance = base_chance * current_ground_tier * (1 + fish_rate_bonus)
+                        # 티어 비례 상승 + 시설 버프 합산
+                        adj_w = base_chance * current_ground_tier * (1 + fish_rate_bonus)
                     else:
-                        adjusted_chance = base_chance
-                    adjusted_weights.append(adjusted_chance)
+                        adj_w = base_chance
+                    raw_weights.append(adj_w)
 
-                # ✅ 딱 한 번만 물고기 및 길이 추출
+                # 등급별 가중치 합 및 인덱스 분류
+                rarity_map = {"환상": [], "전설": [], "신종": [], "기타": []}
+                for i, f in enumerate(valid_pool):
+                    r = f["rarity"]
+                    if r in rarity_map: rarity_map[r].append(i)
+                    else: rarity_map["기타"].append(i)
+
+                def apply_cap(weights, indices, cap_percent):
+                    total_w = sum(weights)
+                    if total_w <= 0: return weights
+                    
+                    current_w_sum = sum(weights[i] for i in indices)
+                    current_ratio = current_w_sum / total_w
+                    
+                    if current_ratio > cap_percent:
+                        # 목표 확률을 맞추기 위한 새로운 가중치 합 계산
+                        # target / (other + target) = cap  =>  target = other * cap / (1 - cap)
+                        other_w_sum = total_w - current_w_sum
+                        if other_w_sum <= 0: return weights # 전체가 해당 등급이면 조정 불가
+                        
+                        target_w_sum = other_w_sum * (cap_percent / (1.0 - cap_percent))
+                        scale_factor = target_w_sum / current_w_sum
+                        
+                        for i in indices:
+                            weights[i] *= scale_factor
+                    return weights
+
+                # 캡 적용 (가장 희귀한 순서대로 조정하여 하위 등급의 비중을 확보)
+                adjusted_weights = list(raw_weights)
+                adjusted_weights = apply_cap(adjusted_weights, rarity_map["환상"], 0.10) # 환상 10%
+                adjusted_weights = apply_cap(adjusted_weights, rarity_map["전설"], 0.15) # 전설 15%
+                adjusted_weights = apply_cap(adjusted_weights, rarity_map["신종"], 0.30) # 신종 30%
+
+                # ✅ 최종 결정
                 fish = random.choices(valid_pool, weights=adjusted_weights, k=1)[0]
                 length = round(random.uniform(fish["min"], fish["max"]), 1)
 
@@ -1117,8 +1405,8 @@ class FishingGameView(discord.ui.View):
                     special_event = True
 
                 elif fish["name"] == "바다거북":
-                    conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + 500 WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    event_embed = discord.Embed(title="🐢 바다거북을 방생했습니다!", description="멸종위기 청정 보호종 바다거북을 안전하게 돌려보냈습니다.\n\n⭐ **개인 명성 +500**", color=discord.Color.green())
+                    conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + 50 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                    event_embed = discord.Embed(title="🐢 바다거북을 방생했습니다!", description="보호종 바다거북을 안전하게 돌려보냈습니다.\n\n⭐ **개인 명성 +50**", color=discord.Color.green())
                     special_event = True
 
                 elif fish["name"] == "보라성게":
@@ -1140,9 +1428,11 @@ class FishingGameView(discord.ui.View):
 
                 # 🎣 [수정] 특수 이벤트가 아닐 때만 일반 물고기 인벤토리에 한 번만 저장
                 if not special_event:
-                    conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm) VALUES (?, ?, ?, ?, ?)", (uid, gid, fish["name"], length, fish["price_per_cm"]))
+                    # ✅ [수정] rarity 컬럼 추가 저장
+                    conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm, rarity) VALUES (?, ?, ?, ?, ?, ?)", 
+                                 (uid, gid, fish["name"], length, fish["price_per_cm"], fish.get("rarity", "흔함")))
                     
-                    # ✨ 명성 및 특수 효과 계산
+                    # ✨ [명성 계산 시스템 개선]
                     rep_multiplier = 1.0
                     if built_facilities:
                         for f in built_facilities:
@@ -1152,73 +1442,70 @@ class FishingGameView(discord.ui.View):
                                 if f_mult > rep_multiplier:
                                     rep_multiplier = f_mult
 
-                    # 1. 개인 명성 (Fish specific or Default 10)
-                    fish_base_personal_rep = 10
-                    if fish["name"] == "쏘가리": fish_base_personal_rep = 50
-                    elif fish["name"] == "벵에돔": fish_base_personal_rep = 50
-                    elif fish["name"] == "혹등고래": fish_base_personal_rep = 1000
+                    # 1. 개인 명성 지급 (등급별 기본 점수 + 특정 어종 보너스)
+                    rarity_rep = {"흔함": 1, "희귀": 3, "신종": 10, "전설": 30, "환상": 100}
+                    fish_base_personal_rep = rarity_rep.get(fish.get("rarity", "흔함"), 1)
                     
+                    # 특정 어종 추가 보너스 (10% 하향 적용)
+                    if fish["name"] == "쏘가리": fish_base_personal_rep += 2
+                    elif fish["name"] == "벵에돔": fish_base_personal_rep += 2
+                    elif fish["name"] == "혹등고래": fish_base_personal_rep = 150 
+
                     base_give_rep = int(fish_base_personal_rep * rep_multiplier)
                     conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?", (base_give_rep, uid, gid))
 
-                    # 2. 낚시터 명성 (Ground Reputation)
-                    ground_rep_gain = 0
-                    if fish["name"] == "아로와나": ground_rep_gain = 100
-                    elif fish["name"] == "고래상어": ground_rep_gain = 500
+                    # 2. 낚시터 명성 지급 (모든 물고기 1점 기본 + 특수 어종 보너스)
+                    ground_rep_gain = 1 # 모든 물고기는 낚시터 명성 1점을 기본으로 기여
+                    if fish["name"] == "아로와나": ground_rep_gain += 100
+                    elif fish["name"] == "고래상어": ground_rep_gain += 500
+                    elif fish.get("rarity") == "전설": ground_rep_gain += 50
+                    elif fish.get("rarity") == "환상": ground_rep_gain += 200
                     
-                    if ground_rep_gain > 0:
-                        conn.execute("UPDATE fishing_ground SET ground_reputation = ground_reputation + ? WHERE channel_id = ? AND guild_id = ?", (ground_rep_gain, chid, gid))
+                    conn.execute("UPDATE fishing_ground SET ground_reputation = ground_reputation + ? WHERE channel_id = ? AND guild_id = ?", (ground_rep_gain, chid, gid))
 
-                    # 3. 낚싯대 내구도 차감 (Durability damage)
+                    # 3. 낚싯대 내구도 차감 (기존 로직 유지)
                     durability_damage = 0
-                    if fish["name"] == "피라루쿠": durability_damage = 5
-                    elif fish["name"] == "천지 네시": durability_damage = 30
-                    elif fish["name"] == "타이거 샤크(뱀상어)": durability_damage = 15
-                    elif fish["name"] == "대왕 오징어": durability_damage = 10
-                    elif fish["name"] == "백상아리": durability_damage = 35
-                    elif fish["name"] == "가시연꽃": durability_damage = 2
-                    elif fish["name"] == "악어": durability_damage = 60
-                    elif fish["name"] == "메갈로돈": durability_damage = 80
+                    damage_map = {
+                        "피라루쿠": 5, "천지 네시": 30, "타이거 샤크(뱀상어)": 15, 
+                        "대왕 오징어": 10, "백상아리": 35, "가시연꽃": 2, 
+                        "악어": 60, "메갈로돈": 80
+                    }
+                    durability_damage = damage_map.get(fish["name"], 0)
                     
                     if durability_damage > 0:
                         conn.execute("UPDATE fishing_gear SET rod_durability = MAX(0, rod_durability - ?) WHERE user_id = ? AND guild_id = ?", (durability_damage, uid, gid))
 
-                    # 등급 정보와 설정 가져오기 (fish 변수 사용)
+                    # 등급 정보와 설정 가져오기
                     rarity = fish.get("rarity", "흔함")
                     r_set = RARITY_CONFIG.get(rarity, RARITY_CONFIG["흔함"])
 
                     # 설명 구성
                     desc_lines = [
                         f"📏 **길이:** `{length}cm`",
-                        f"⭐ **개인 명성:** `+{base_give_rep} P` (배율: {rep_multiplier:.1f}배 적용)"
+                        f"⭐ **개인 명성:** `+{base_give_rep} P` (배율 적용)",
+                        f"🏞️ **낚시터 명성:** `+{ground_rep_gain} P` 기여"
                     ]
-                    
-                    if ground_rep_gain > 0:
-                        desc_lines.append(f"🏞️ **낚시터 명성:** `+{ground_rep_gain} P` 증진!")
                     
                     if durability_damage > 0:
                         desc_lines.append(f"💢 **내구도 감소:** `-{durability_damage}` 포인트")
                         
                     desc_lines.append(f"\n_{fish['effect_desc']}_")
 
-                    # 기존 event_embed 생성 코드를 아래 내용으로 교체
                     event_embed = discord.Embed(
                         title=f"{r_set['emoji']} {rarity} 등급! {fish['name']}을(를) 잡았습니다!", 
                         description="\n".join(desc_lines),
-                        color=r_set["color"]  # 등급별 색상 적용
+                        color=r_set["color"]
                     )
 
-                    # 전설/환상 등급일 때 상단 축하 문구 추가
                     if rarity == "전설":
                         event_embed.set_author(name="🎊 축하합니다! 전설적인 손맛! 🎊")
                     elif rarity == "환상":
                         event_embed.set_author(name="🌌 기적 발생! 환상의 생명체 등장! 🌌")
 
-                            # 🏁 모든 처리가 끝난 후 커밋을 딱 한 번만 수행합니다!
-                
+                # 🏁 모든 처리가 끝난 후 커밋을 수행합니다.
                 conn.commit()
                 
-                # 💬 최종적으로 한 번만 유저에게 메시지를 편집해서 보여줍니다.
+                # 💬 최종 메시지 전송
                 await interaction.edit_original_response(embed=event_embed, view=None)
 
             except Exception as e:
@@ -1355,7 +1642,7 @@ class FishingSystemCog(commands.Cog):
         # 1. 기본 테이블 생성
         db.create_table("fishing_ground", "channel_id TEXT, guild_id TEXT, owner_id TEXT, channel_name TEXT, ground_type TEXT DEFAULT '호수', tier INTEGER DEFAULT 1, ground_reputation INTEGER DEFAULT 0, ground_price INTEGER DEFAULT 100000, purchasable INTEGER DEFAULT 1, is_public INTEGER DEFAULT 1, entry_fee INTEGER DEFAULT 0, usage_time_limit INTEGER DEFAULT 6, PRIMARY KEY(channel_id, guild_id)")
         db.create_table("fishing_gear", "user_id TEXT, guild_id TEXT, rod_level INTEGER DEFAULT 0, rod_durability INTEGER DEFAULT 100, bait_level INTEGER DEFAULT 0, bait_count INTEGER DEFAULT 0, PRIMARY KEY(user_id, guild_id)")
-        db.create_table("fishing_inventory", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, guild_id TEXT, fish_name TEXT, length REAL, price_per_cm INTEGER")
+        db.create_table("fishing_inventory", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, guild_id TEXT, fish_name TEXT, length REAL, price_per_cm INTEGER, rarity TEXT DEFAULT '흔함'")
         db.create_table("fishing_passes", "user_id TEXT, channel_id TEXT, guild_id TEXT, expire_time TEXT, PRIMARY KEY(user_id, channel_id, guild_id)")
         db.create_table("fishing_facilities", "channel_id TEXT, guild_id TEXT, facility_name TEXT, PRIMARY KEY(channel_id, guild_id, facility_name)")
         db.create_table("point_history", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, transaction_type TEXT, amount INTEGER, balance_after INTEGER, description TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP")
@@ -1372,7 +1659,6 @@ class FishingSystemCog(commands.Cog):
             try: db.execute_query("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
             except: pass
 
-        # 📂 fishing.py 파일 하단 _init_db_schema 메서드 내부
         if 'illegal_dump_count' not in cols_u:
             try: db.execute_query("ALTER TABLE users ADD COLUMN illegal_dump_count INTEGER DEFAULT 0")
             except: pass
@@ -1381,13 +1667,19 @@ class FishingSystemCog(commands.Cog):
             try: db.execute_query("ALTER TABLE users ADD COLUMN neglect_dump_count INTEGER DEFAULT 0")
             except: pass
 
-        # 🛡️ [뉴비 보호용 벌금 채무 컬럼 추가]
         if 'fine_debt' not in cols_u:
             try: db.execute_query("ALTER TABLE users ADD COLUMN fine_debt INTEGER DEFAULT 0")
             except: pass
 
         if 'fishing_ban_until' not in cols_u:
             try: db.execute_query("ALTER TABLE users ADD COLUMN fishing_ban_until TEXT")
+            except: pass
+
+        # 📦 [추가] 인벤토리 rarity 컬럼 누락 체크
+        cols_i_res = db.execute_query("PRAGMA table_info(fishing_inventory)", (), 'all')
+        cols_i = [c['name'] for c in cols_i_res] if cols_i_res else []
+        if 'rarity' not in cols_i:
+            try: db.execute_query("ALTER TABLE fishing_inventory ADD COLUMN rarity TEXT DEFAULT '흔함'")
             except: pass
 
         # 3. 낚시터 테이블 컬럼 누락 보정 (PRAGMA 조회)
@@ -1599,7 +1891,13 @@ class FishingSystemCog(commands.Cog):
 
         # 🔍 [1] 정보 조회 기능 (수정본)
         if 액션 == "info":
-            owner = f"<@{ground['owner_id']}>" if ground['owner_id'] else "없음 (구매 가능)"
+            if ground['owner_id']:
+                owner = f"<@{ground['owner_id']}>"
+            elif ground['purchasable'] == 1:
+                owner = "없음 (구매 가능)"
+            else:
+                owner = "없음 (공용 낚시터)"
+
             facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
             f_list = ", ".join([f['facility_name'] for f in facilities]) if facilities else "없음"
 
@@ -1638,18 +1936,13 @@ class FishingSystemCog(commands.Cog):
 
             # ⚖️ [쓰레기 확률 최종 연동 계산]
             current_pollution = ground['pollution'] if ground['pollution'] is not None else 0
-            
-            base_trash_chance = 0.25 + (current_pollution / 100.0)
-            final_trash_chance = max(0.0, min(1.0, base_trash_chance + trash_rate))
-            
-            # 기본 25% + (오염도 1점당 1%) + 시설 버프(시설 감소량은 마이너스 값임)
             base_trash_chance = 0.25 + (current_pollution / 100.0)
             final_trash_chance = max(0.0, min(1.0, base_trash_chance + trash_rate))
 
             final_upkeep_mod = (upkeep_mult - upkeep_discount) * 100
 
             base_land_price = ground['ground_price'] or 100000
-            facilities_value = self._get_facilities_value(db, chid, gid) # 아까 만든 시설 가치 합산 헬퍼 함수 호출
+            facilities_value = self._get_facilities_value(db, chid, gid)
             current_property_value = base_land_price + facilities_value
 
             embed = discord.Embed(title=f"📍 낚시터 정보: {interaction.channel.name}", color=discord.Color.blue())
@@ -1661,15 +1954,14 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="🌍 자연 환경", value=ground['ground_type'], inline=True)
             ground_rep = ground['ground_reputation'] if ground['ground_reputation'] is not None else 0
             embed.add_field(name="📈 낚시터 명성", value=f"`{ground_rep:,} P`", inline=True)
-            embed.add_field(name="🚨 채널 오염도", value=f"`{current_pollution:.1f} P`", inline=True) # 오염도 표시 추가
+            embed.add_field(name="🚨 채널 오염도", value=f"`{current_pollution:.1f} P`", inline=True)
             embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=False)
 
-            # 📊 9대 카테고리 효과 종합 리포트 출력
             effect_summary = (
                 f"🎫 **수수료 조정 범위:** `±{adj_fee * 100:.1f}%` (매표소)\n"
                 f"📦 **희귀 물고기 확률:** `+{fish_rate * 100:.1f}%` (창고)\n"
                 f"💰 **창고 기본 수수료:** `+{base_fee * 100:.1f}%` (창고)\n"
-                f"🗑️ **현재 쓰레기 낚일 확률:** `{final_trash_chance * 100:.1f}%` (기본+오염도+시설합산)\n" # 연동 표기
+                f"🗑️ **현재 쓰레기 낚일 확률:** `{final_trash_chance * 100:.1f}%` (기본+오염도+시설합산)\n"
                 f"⚡ **최종 유지비 변동률:** `{final_upkeep_mod:+.1f}%` (발전소/사업체)\n"
                 f"✨ **명성 획득 배율:** `{rep_mult:.1f}배` (명성 시설)\n"
                 f"🏪 **물고기 판매가 보너스:** `{fish_price_mult:.1f}배` (상점/기업)\n"
@@ -1680,12 +1972,12 @@ class FishingSystemCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
 
         # 🛒 [2] 낚시터 구매 (매입 / 약탈) 기능
-        # 🛒 2. 구매용 (buy)
         elif 액션 == "buy":
-            # 1️⃣ 기본 매입가 정의 (이미 코드에 있다면 그 값을 쓰시고, 없다면 여기서 선언)
-            base_buy_price = 100000 
+            if ground['owner_id'] == uid:
+                return await interaction.response.send_message("❌ 이미 본인이 소유하고 있는 낚시터입니다.", ephemeral=True)
+
+            base_buy_price = ground['ground_price'] or 100000 
             
-            # 2️⃣ 실시간 시설 조회 및 FACILITIES 참조하여 80% 가치 계산
             facilities = db.execute_query(
                 "SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", 
                 (chid, gid), 'all'
@@ -1695,18 +1987,12 @@ class FishingSystemCog(commands.Cog):
             if facilities:
                 for f in facilities:
                     f_name = f['facility_name']
-                    # 상단 FACILITIES 딕셔너리에서 해당 시설의 req_cash(정가)를 가져옵니다.
                     if f_name in FACILITIES:
                         total_facility_original += FACILITIES[f_name].get('req_cash', 0)
-                    else:
-                        # FACILITIES에 정의되지 않은 시설일 경우 예외 처리용 (기본값)
-                        total_facility_original += 1
 
-            # 📉 시설 정가의 80%만 매입가에 가산
             facility_value_80 = int(total_facility_original * 0.8)
             total_buy_price = base_buy_price + facility_value_80
             
-            # 3️⃣ 잔액 체크
             user_data = db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             user_cash = user_data['cash'] if user_data else 0
             if user_cash < total_buy_price:
@@ -1716,24 +2002,25 @@ class FishingSystemCog(commands.Cog):
                     ephemeral=True
                 )
 
-            # 4️⃣ 2단계 확인창 전송
-            confirm_embed = discord.Embed(
-                title="🏗️ 낚시터 매입 최종 확인",
-                description=(
-                    f"현재 채널(<#{chid}>)을 매입하시겠습니까?\n\n"
-                    f"💵 기본 토지 가치: `{base_buy_price:,}원` \n"
-                    f"🏗️ 시설 가치(80% 반영): `{facility_value_80:,}원` \n"
-                    f"└ *시설 정가 총액: {total_facility_original:,}원*\n"
-                    f"───\n"
-                    f"💰 **최종 매입가: {total_buy_price:,}원**"
-                ),
-                color=discord.Color.gold()
+            is_takeover = ground['owner_id'] is not None
+            title = "⚔️ 낚시터 약탈(인수) 최종 확인" if is_takeover else "🏗️ 낚시터 매입 최종 확인"
+            desc = (
+                f"현재 채널(<#{chid}>)을 매입하시겠습니까?\n\n"
+                f"💵 기본 토지 가치: `{base_buy_price:,}원` \n"
+                f"🏗️ 시설 가치(80% 반영): `{facility_value_80:,}원` \n"
+                f"└ *시설 정가 총액: {total_facility_original:,}원*\n"
+                f"───\n"
+                f"💰 **최종 매입가: {total_buy_price:,}원**"
             )
+            if is_takeover:
+                desc += f"\n\n⚠️ **주의:** 이미 다른 주인이 있는 땅입니다. 매입 시 기존 주인의 시설은 철거되며 땅이 초기화됩니다."
+
+            confirm_embed = discord.Embed(title=title, description=desc, color=discord.Color.gold())
             view = BuyConfirmView(db, total_buy_price, chid, gid, uid)
             await interaction.response.send_message(embed=confirm_embed, view=view, ephemeral=True)
             return
 
-        # ⚙️ [3] 설정 변경 기능 (입장료 상한선 제제 강화)
+        # ⚙️ [3] 설정 변경 기능
         elif 액션 == "edit":
             if ground['owner_id'] != uid: 
                 return await interaction.response.send_message("❌ 소유자만 설정을 변경할 수 있습니다.", ephemeral=True)
@@ -1745,13 +2032,8 @@ class FishingSystemCog(commands.Cog):
                 if 입장료 < 0:
                     return await interaction.response.send_message("❌ 입장료는 음수로 설정할 수 없습니다.", ephemeral=True)
                 
-                # 🚨 [규제 1] 소지금 비례 상한선 (80%)
                 percent_limit = max(1000, int(user_cash * 0.8))
-                
-                # 🚨 [규제 2] 서버 절대 상한선 (예: 최대 100,000원)
                 ABSOLUTE_MAX_FEE = 100000 
-                
-                # 둘 중 더 작은 값을 최종 상한선으로 책정합니다.
                 final_limit = min(percent_limit, ABSOLUTE_MAX_FEE)
 
                 if 입장료 > final_limit:
@@ -1763,12 +2045,6 @@ class FishingSystemCog(commands.Cog):
                         ),
                         color=discord.Color.red()
                     )
-                    
-                    if final_limit == ABSOLUTE_MAX_FEE:
-                        embed.description += f"\n*(이 서버의 낚시터 입장료 절대 상한선은 {ABSOLUTE_MAX_FEE:,}원입니다.)*"
-                    else:
-                        embed.description += f"\n*(본인의 현재 소지금 {user_cash:,}원의 80% 기준)*"
-
                     return await interaction.response.send_message(embed=embed, ephemeral=True)
 
             if 입장료 is not None or 지형 is not None:
@@ -1789,118 +2065,32 @@ class FishingSystemCog(commands.Cog):
             view = PublicSettingView(interaction.user, db)
             await interaction.response.send_message(embed=embed, view=view)
             view.message = await interaction.original_response()
+            return
 
-        if 액션 == "sell":
-            items = db.execute_query("SELECT length, price_per_cm, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid), 'all')
-            if not items: 
-                return await interaction.response.send_message("🎒 가방에 팔 물고기가 없습니다.", ephemeral=True)
+        elif 액션 == "sell":
+            if not ground['owner_id'] or ground['owner_id'] != uid:
+                return await interaction.response.send_message("❌ 본인 소유의 낚시터만 매각할 수 있습니다.", ephemeral=True)
+
+            base_land_price = ground['ground_price'] or 100000
+            facilities_value = self._get_facilities_value(db, chid, gid)
             
-            user_data = db.get_user(uid)
-            user_rep = user_data.get('fishing_reputation', 0) if user_data else 0
-            daily_sell = user_data.get('daily_sell_amount', 0) if user_data else 0
-            last_date = user_data.get('last_sell_date', "") if user_data else ""
+            # 매각 시 환불 비율: 땅값 50% + 시설값 50%
+            refund_price = int((base_land_price + facilities_value) * 0.5)
 
-            # 📅 날짜가 바뀌었으면 일일 정산 한도 초기화
-            today_str = datetime.now().strftime('%Y-%m-%d')
-            if last_date != today_str:
-                daily_sell = 0
-                db.execute_query("UPDATE users SET daily_sell_amount = 0, last_sell_date = ? WHERE user_id = ? AND guild_id = ?", (today_str, uid, gid))
-
-            # ⭐ [명성별 일일 누적 판매 총 한도 설정]
-            if user_rep < 1000:
-                daily_limit = 50000       # 일일 최대 5만 원
-                tier_name = "초보 낚시꾼"
-            elif user_rep < 5000:
-                daily_limit = 150000      # 일일 최대 15만 원
-                tier_name = "숙련된 낚시꾼"
-            elif user_rep < 20000:
-                daily_limit = 250000      # 일일 최대 25만 원
-                tier_name = "전문 낚시꾼"
-            else:
-                daily_limit = 350000      # 일일 최대 35만 원
-                tier_name = "전설의 낚시꾼"
-
-            if daily_sell >= daily_limit:
-                return await interaction.response.send_message(
-                    f"❌ 오늘 정산 한도를 초과했습니다!\n"
-                    f"📅 **오늘 누적 정산액:** `{daily_sell:,}원` / **일일 최대 한도:** `{daily_limit:,}원`"
-                )
-
-            # 🏪 시설 배율 적용 (최대 상점 효과)
-            built_facilities = db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
-            best_multiplier = 1.0
-            if built_facilities:
-                for f in built_facilities:
-                    f_name = f['facility_name']
-                    if f_name in FACILITIES:
-                        f_mult = FACILITIES[f_name].get("effect", {}).get("fish_price_mult", 1.0)
-                        if f_mult > best_multiplier:
-                            best_multiplier = f_mult
-
-            calculated_total = sum([int(i['length'] * i['price_per_cm'] * best_multiplier) for i in items])
-            
-            # 🚨 [일일 한도 계산 브레이크] 오늘 남은 정산 가능액까지만 정산
-            remaining_limit = daily_limit - daily_sell
-            actual_earn = min(calculated_total, remaining_limit) # 세금 떼기 전 순수 정산액
-            is_capped = calculated_total > remaining_limit
-
-            # 💸 [세금 시스템 도입] 정산금의 20% 세금 징수 (서버 경제 인플레 방지)
-            TAX_RATE = 0.20
-            tax_amount = int(actual_earn * TAX_RATE)
-            earn_after_tax = actual_earn - tax_amount # 세금 뗀 후 유저가 실제로 받는 돈
-
-            conn = db.get_connection()
-            try:
-                conn.execute("BEGIN")
-
-                # 🧾 유저의 벌금 빚(채무) 조회
-                debt_data = db.execute_query("SELECT fine_debt FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
-                current_debt = debt_data['fine_debt'] if debt_data else 0
-
-                debt_repayment = 0
-                final_deposit = earn_after_tax # 세금 떼고 빚까지 갚고 남은 최종 입금액
-
-                if current_debt > 0:
-                    # 세금 떼고 남은 금액의 50%를 빚 갚는 데 씁니다
-                    max_repayment = int(earn_after_tax * 0.5)
-                    debt_repayment = min(current_debt, max_repayment)
-
-                    final_deposit = earn_after_tax - debt_repayment
-                    conn.execute("UPDATE users SET fine_debt = MAX(0, fine_debt - ?) WHERE user_id = ? AND guild_id = ?", (debt_repayment, uid, gid))
-
-                # 💰 DB 반영
-                conn.execute("UPDATE users SET cash = cash + ?, daily_sell_amount = daily_sell_amount + ? WHERE user_id = ? AND guild_id = ?", 
-                             (final_deposit, actual_earn, uid, gid)) # 한도에는 세금 떼기 전(actual_earn) 기준으로 누적
-                conn.execute("DELETE FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                conn.commit()
-                
-                # 📜 결과 임베드
-                embed = discord.Embed(title="💰 물고기 정산 영수증", color=discord.Color.green())
-                embed.add_field(name="🎒 정산 수량", value=f"{len(items)}마리", inline=True)
-                embed.add_field(name="🏅 정산 등급", value=f"{tier_name} (명성: {user_rep:,}점)", inline=True)
-                
-                # 가득 찬 한도 경고
-                if is_capped:
-                    embed.add_field(name="⚠️ 정산 한도 도달", value=f"총 금액({calculated_total:,}원)이 일일 잔여 한도를 초과하여 **{remaining_limit:,}원**어치만 계산되었습니다!", inline=False)
-
-                embed.add_field(name="🧾 총 정산액", value=f"{actual_earn:,}원", inline=True)
-                embed.add_field(name="🏛️ 서버 세금 (20%)", value=f"-{tax_amount:,}원", inline=True)
-
-                if debt_repayment > 0:
-                    embed.add_field(name="📉 과태료 빚 상환", value=f"-{debt_repayment:,}원", inline=True)
-                    embed.add_field(name="✅ 최종 입금액", value=f"**{final_deposit:,}원**", inline=False)
-                    embed.set_footer(text=f"남은 벌금 과태료 채무: {max(0, current_debt - debt_repayment):,}원")
-                else:
-                    embed.add_field(name="✅ 최종 입금액", value=f"**{final_deposit:,}원**", inline=False)
-
-                # 누적 일일 현황
-                embed.description = f"📊 **오늘의 정산 현황:** `{daily_sell + actual_earn:,}원` / `{daily_limit:,}원`"
-
-                await interaction.response.send_message(embed=embed)
-
-            except Exception as e:
-                conn.rollback()
-                await interaction.response.send_message(f"❌ 정산 중 오류 발생: {e}", ephemeral=True)
+            embed = discord.Embed(
+                title="🏢 낚시터 매각 최종 확인",
+                description=(
+                    f"현재 채널(<#{chid}>)의 소유권을 포기하고 매각하시겠습니까?\n\n"
+                    f"💰 **예상 환불 금액:** `{refund_price:,}원`\n"
+                    f"└ 땅 가치(50%): `{int(base_land_price*0.5):,}원`\n"
+                    f"└ 시설 가치(50%): `{int(facilities_value*0.5):,}원`\n\n"
+                    f"⚠️ **주의:** 매각 시 모든 시설물이 철거되며, 낚시터 명성과 티어가 초기화됩니다."
+                ),
+                color=discord.Color.red()
+            )
+            view = SellConfirmView(db, refund_price, chid, gid, uid)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            return
 
     @app_commands.command(name="낚시터티어", description="[주인 전용] 낚시터 명성을 소모하여 땅 등급을 올리거나 내립니다.")
     @app_commands.choices(액션=[
@@ -2241,7 +2431,8 @@ class FishingSystemCog(commands.Cog):
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
         if 액션 == "sell":
-            items = db.execute_query("SELECT length, price_per_cm, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid), 'all')
+            # ✅ [수정] rarity 컬럼을 명시적으로 가져와야 등급별 캡이 적용됩니다.
+            items = db.execute_query("SELECT length, price_per_cm, fish_name, rarity FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid), 'all')
             if not items: 
                 return await interaction.response.send_message("🎒 가방에 팔 물고기가 없습니다.", ephemeral=True)
             
@@ -2275,10 +2466,27 @@ class FishingSystemCog(commands.Cog):
                         if f_mult > best_multiplier:
                             best_multiplier = f_mult
 
-            # 💰 총액 정산
-            calculated_total = sum([int(i['length'] * i['price_per_cm'] * best_multiplier) for i in items])
+            # 💰 총액 정산 (등급별 최대 상한선 적용)
+            calculated_total = 0
+            # 등급별 상한선 정의
+            RARITY_CAPS = {
+                "흔함": 5000,
+                "희귀": 10000,
+                "신종": 30000,
+                "전설": 50000,
+                "환상": 80000
+            }
+
+            for i in items:
+                fish_price = int(i['length'] * i['price_per_cm'] * best_multiplier)
+                # 아이템 데이터에 저장된 rarity를 기준으로 캡 적용 (없으면 기본 5,000원)
+                fish_rarity = i.get('rarity', '흔함')
+                cap_limit = RARITY_CAPS.get(fish_rarity, 5000)
+                
+                # 개별 물고기 가격에 등급별 캡 적용
+                calculated_total += min(fish_price, cap_limit)
             
-            # 🚨 [한도 초과 검사] 계산된 금액이 한도를 넘으면 한도 금액으로 고정
+            # 🚨 [전체 한도 검사] 유저 명성 등급에 따른 1회 판매 총액 제한
             actual_earn = min(calculated_total, max_limit)
             is_capped = calculated_total > max_limit
 
@@ -2525,6 +2733,21 @@ class FishingSystemCog(commands.Cog):
             except Exception as e:
                 conn.rollback()
                 await interaction.response.send_message(f"❌ 채널 초기화 중 DB 오류가 발생했습니다. (에러: {e})", ephemeral=True)
+
+    @app_commands.command(name="낚시초기화", description="[관리자 전용] 이 서버의 모든 낚시 관련 데이터(장비, 인벤토리, 명성, 낚시터 등)를 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def reset_all_fishing_data(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="⚠️ 서버 낚시 데이터 전체 초기화 경고",
+            description=(
+                "이 명령어를 실행하면 서버 내 모든 유저의 **장비, 인벤토리, 낚시 명성, 소유한 낚시터 및 시설**이 완전히 삭제됩니다.\n"
+                "삭제된 데이터는 **절대 복구할 수 없습니다.**\n\n"
+                "정말로 초기화를 진행하시겠습니까?"
+            ),
+            color=discord.Color.red()
+        )
+        view = ResetConfirmView(interaction.user, self._get_db(interaction))
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
     def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
         """낚시터가 DB에 없을 경우 기본값으로 생성해주는 헬퍼 메서드"""
