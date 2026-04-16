@@ -177,64 +177,64 @@ CATEGORY_FACILITIES = {
 
 FACILITIES = {
     # 🎫 수수료 조정 매표소 (입장료 수익 최적화)
-    "간이매표소": {"req_rep": 2000, "req_cash": 150000, "tier": 1, "effect": {"fee_adj": 0.05}, "desc": "수수료 조정 범위 +-5%"},
-    "매표소": {"req_rep": 12000, "req_cash": 450000, "tier": 2, "effect": {"fee_adj": 0.10}, "desc": "수수료 조정 범위 +-10%"},
-    "일반매표소": {"req_rep": 40000, "req_cash": 1200000, "tier": 3, "effect": {"fee_adj": 0.15}, "desc": "수수료 조정 범위 +-15%"},
-    "중형매표소": {"req_rep": 150000, "req_cash": 3500000, "tier": 3, "effect": {"fee_adj": 0.20}, "desc": "수수료 조정 범위 +-20%"},
-    "대형매표소": {"req_rep": 500000, "req_cash": 8000000, "tier": 4, "effect": {"fee_adj": 0.25}, "desc": "수수료 조정 범위 +-25%"},
-    "거대한매표소": {"req_rep": 1500000, "req_cash": 25000000, "tier": 5, "effect": {"fee_adj": 0.35}, "desc": "수수료 조정 범위 +-35%"},
+    "간이매표소": {"req_rep": 2000, "req_cash": 150000, "tier": 1, "effect": {"fee_adj": 0.01}, "desc": "수수료 조정 범위 +-1%"},
+    "매표소": {"req_rep": 12000, "req_cash": 450000, "tier": 2, "effect": {"fee_adj": 0.03}, "desc": "수수료 조정 범위 +-3%"},
+    "일반매표소": {"req_rep": 40000, "req_cash": 1200000, "tier": 3, "effect": {"fee_adj": 0.05}, "desc": "수수료 조정 범위 +-5%"},
+    "중형매표소": {"req_rep": 150000, "req_cash": 3500000, "tier": 3, "effect": {"fee_adj": 0.10}, "desc": "수수료 조정 범위 +-10%"},
+    "대형매표소": {"req_rep": 500000, "req_cash": 8000000, "tier": 4, "effect": {"fee_adj": 0.15}, "desc": "수수료 조정 범위 +-15%"},
+    "거대한매표소": {"req_rep": 1500000, "req_cash": 25000000, "tier": 5, "effect": {"fee_adj": 0.30}, "desc": "수수료 조정 범위 +-30%"},
 
     # 📦 물고기 확률 조정 (희귀 어종 포획의 핵심)
-    "창고": {"req_rep": 5000, "req_cash": 250000, "tier": 1, "effect": {"fish_rate": 0.05, "base_fee": 0.05}, "desc": "확률 +5%, 유지비 +5%"},
-    "소형창고": {"req_rep": 25000, "req_cash": 800000, "tier": 2, "effect": {"fish_rate": 0.10, "base_fee": 0.08, "upkeep_mult": 0.15}, "desc": "확률 +10%, 유지비 +15%"},
-    "중형창고": {"req_rep": 100000, "req_cash": 2500000, "tier": 3, "effect": {"fish_rate": 0.15, "base_fee": 0.12, "upkeep_mult": 0.25}, "desc": "확률 +15%, 유지비 +25%"},
-    "대형창고": {"req_rep": 450000, "req_cash": 7000000, "tier": 4, "effect": {"fish_rate": 0.20, "base_fee": 0.18, "upkeep_mult": 0.40}, "desc": "확률 +20%, 유지비 +40%"},
-    "초거대한창고": {"req_rep": 1500000, "req_cash": 20000000, "tier": 5, "effect": {"fish_rate": 0.30, "base_fee": 0.25, "upkeep_mult": 0.65}, "desc": "확률 +30%, 유지비 +65%"},
+    "창고": {"req_rep": 5000, "req_cash": 250000, "tier": 1, "effect": {"fish_rate": 0.01, "base_fee": 0.01, "upkeep_mult": 0.05}, "desc": "확률 +1%, 유지비 +5%"},
+    "소형창고": {"req_rep": 25000, "req_cash": 800000, "tier": 2, "effect": {"fish_rate": 0.03, "base_fee": 0.03, "upkeep_mult": 0.10}, "desc": "확률 +3%, 유지비 +10%"},
+    "중형창고": {"req_rep": 100000, "req_cash": 2500000, "tier": 3, "effect": {"fish_rate": 0.05, "base_fee": 0.05, "upkeep_mult": 0.15}, "desc": "확률 +5%, 유지비 +15%"},
+    "대형창고": {"req_rep": 450000, "req_cash": 7000000, "tier": 4, "effect": {"fish_rate": 0.15, "base_fee": 0.10, "upkeep_mult": 0.30}, "desc": "확률 +15%, 유지비 +30%"},
+    "초거대한창고": {"req_rep": 1500000, "req_cash": 20000000, "tier": 5, "effect": {"fish_rate": 0.30, "base_fee": 0.15, "upkeep_mult": 0.50}, "desc": "확률 +30%, 유지비 +50%"},
     
     # 🧹 [환경 정화] 쓰레기 낚일 확률 억제
-    "환경미화원": {"req_rep": 3000, "req_cash": 50000, "tier": 2, "effect": {"trash_rate": -0.05, "upkeep_mult": 0.05}, "desc": "쓰레기 5% 감소, 유지비 5% 증가"},
-    "청소용역업체": {"req_rep": 50000, "req_cash": 250000, "tier": 3, "effect": {"trash_rate": -0.15, "upkeep_mult": 0.12}, "desc": "쓰레기 15% 감소, 유지비 12% 증가"},
-    "시설관리공단": {"req_rep": 250000, "req_cash": 920000, "tier": 5, "effect": {"trash_rate": -0.30, "upkeep_mult": 0.25}, "desc": "쓰레기 30% 감소, 유지비 25% 증가"},
+    "환경미화원": {"req_rep": 3000, "req_cash": 50000, "tier": 2, "effect": {"trash_rate": -0.01, "upkeep_mult": 0.05}, "desc": "쓰레기 1% 감소, 유지비 5% 증가"},
+    "청소용역업체": {"req_rep": 50000, "req_cash": 250000, "tier": 3, "effect": {"trash_rate": -0.05, "upkeep_mult": 0.10}, "desc": "쓰레기 5% 감소, 유지비 10% 증가"},
+    "시설관리공단": {"req_rep": 250000, "req_cash": 920000, "tier": 5, "effect": {"trash_rate": -0.10, "upkeep_mult": 0.15}, "desc": "쓰레기 10% 감소, 유지비 15% 증가"},
 
     # ⚡ 유지비 관련 시설 (전략적 운영의 핵심)
     "전기배터리": {"req_rep": 3000, "req_cash": 50000, "tier": 1, "effect": {"upkeep_discount": 0.05}, "desc": "유지비 5% 감소"},
     "소형발전기": {"req_rep": 5000, "req_cash": 100000, "tier": 2, "effect": {"upkeep_discount": 0.10}, "desc": "유지비 10% 감소"},
     "중대형발전기": {"req_rep": 50000, "req_cash": 500000, "tier": 3, "effect": {"upkeep_discount": 0.15}, "desc": "유지비 15% 감소"},
-    "화력발전소": {"req_rep": 120000, "req_cash": 300000, "tier": 4, "effect": {"upkeep_discount": 0.25, "upkeep_mult": 0.10}, "desc": "유지비 25% 감소, 관리비 10% 증가"},
-    "수력발전소": {"req_rep": 330000, "req_cash": 950000, "tier": 5, "effect": {"upkeep_discount": 0.45, "upkeep_mult": 0.20}, "desc": "유지비 45% 감소, 관리비 20% 증가"},
+    "화력발전소": {"req_rep": 120000, "req_cash": 300000, "tier": 4, "effect": {"upkeep_discount": 0.20, "upkeep_mult": 0.15}, "desc": "유지비 20% 감소, 관리비 15% 증가"},
+    "수력발전소": {"req_rep": 330000, "req_cash": 950000, "tier": 5, "effect": {"upkeep_discount": 0.25, "upkeep_mult": 0.30}, "desc": "유지비 25% 감소, 관리비 30% 증가"},
 
     # ✨ 명성 특화 (서버 랭킹 정복자용)
-    "길거리상인": {"req_rep": 1000, "req_cash": 30000, "tier": 1, "effect": {"rep_mult": 1.2, "upkeep_mult": 0.03}, "desc": "명성 1.2배, 유지비 3% 증가"},
-    "기념품상점": {"req_rep": 15000, "req_cash": 50000, "tier": 2, "effect": {"rep_mult": 1.5, "upkeep_mult": 0.06}, "desc": "명성 1.5배, 유지비 6% 증가"},
-    "기념품백화점": {"req_rep": 80000, "req_cash": 410000, "tier": 3, "effect": {"rep_mult": 1.8, "upkeep_mult": 0.10}, "desc": "명성 1.8배, 유지비 10% 증가"},
-    "해외입점준비": {"req_rep": 270000, "req_cash": 710000, "tier": 4, "effect": {"rep_mult": 2.2, "upkeep_mult": 0.15}, "desc": "명성 2.2배, 유지비 15% 증가"},
-    "해외유명기업": {"req_rep": 500000, "req_cash": 1200000, "tier": 5, "effect": {"rep_mult": 3.0, "upkeep_mult": 0.25}, "desc": "명성 3.0배, 유지비 25% 증가"},
+    "길거리상인": {"req_rep": 1000, "req_cash": 30000, "tier": 1, "effect": {"rep_mult": 0.5, "upkeep_mult": 0.03}, "desc": "명성 0.5배, 유지비 3% 증가"},
+    "기념품상점": {"req_rep": 15000, "req_cash": 50000, "tier": 2, "effect": {"rep_mult": 1.0, "upkeep_mult": 0.06}, "desc": "명성 1.0배, 유지비 6% 증가"},
+    "기념품백화점": {"req_rep": 80000, "req_cash": 410000, "tier": 3, "effect": {"rep_mult": 1.5, "upkeep_mult": 0.09}, "desc": "명성 1.5배, 유지비 9% 증가"},
+    "해외입점준비": {"req_rep": 270000, "req_cash": 710000, "tier": 4, "effect": {"rep_mult": 2.0, "upkeep_mult": 0.15}, "desc": "명성 2.0배, 유지비 15% 증가"},
+    "해외유명기업": {"req_rep": 500000, "req_cash": 1200000, "tier": 5, "effect": {"rep_mult": 2.5, "upkeep_mult": 0.18}, "desc": "명성 2.5배, 유지비 18% 증가"},
 
     # ♻️ 복합 환경 시설 (쓰레기 차단 + 가격 보너스)
-    "재활용분리수거장": {"req_rep": 5000, "req_cash": 80000, "tier": 1, "effect": {"trash_rate": -0.10, "upkeep_mult": 0.08}, "desc": "쓰레기 10% 감소, 유지비 8% 증가"},
-    "쓰레기소각장": {"req_rep": 120000, "req_cash": 320000, "tier": 3, "effect": {"fish_price_mult": 1.1, "trash_rate": -0.25, "upkeep_mult": 0.20}, "desc": "가격 1.1배, 쓰레기 25% 감소, 유지비 20% 증가"},
-    "환경부": {"req_rep": 440000, "req_cash": 940000, "tier": 5, "effect": {"fish_price_mult": 1.5, "trash_rate": -0.50, "upkeep_mult": 0.45}, "desc": "가격 1.5배, 쓰레기 50% 감소, 유지비 45% 증가"},
+    "재활용분리수거장": {"req_rep": 5000, "req_cash": 80000, "tier": 1, "effect": {"trash_rate": -0.05, "upkeep_mult": 0.10}, "desc": "쓰레기 5% 감소, 유지비 10% 증가"},
+    "쓰레기소각장": {"req_rep": 120000, "req_cash": 320000, "tier": 3, "effect": {"fish_price_mult": 1.0, "trash_rate": -0.10, "upkeep_mult": 0.20}, "desc": "가격 1.1배, 쓰레기 10% 감소, 유지비 20% 증가"},
+    "환경부": {"req_rep": 440000, "req_cash": 940000, "tier": 5, "effect": {"fish_price_mult": 1.5, "trash_rate": -0.25, "upkeep_mult": 0.30}, "desc": "가격 1.5배, 쓰레기 25% 감소, 유지비 30% 증가"},
 
     # 🛒 유틸리티 사업 (유지비 절감 + 명성 시너지)
-    "리안마켓": {"req_rep": 3000, "req_cash": 20000, "tier": 1, "effect": {"upkeep_discount": 0.05}, "desc": "유지비 5% 감소"},
-    "묵이편의점": {"req_rep": 20000, "req_cash": 70000, "tier": 2, "effect": {"upkeep_discount": 0.10}, "desc": "유지비 10% 감소"},
-    "할인마트": {"req_rep": 80000, "req_cash": 330000, "tier": 3, "effect": {"upkeep_discount": 0.15, "rep_mult": 1.2}, "desc": "유지비 15% 감소, 명성 1.2배"},
-    "정E-마트": {"req_rep": 150000, "req_cash": 700000, "tier": 4, "effect": {"upkeep_discount": 0.25, "rep_mult": 1.5}, "desc": "유지비 25% 감소, 명성 1.5배"},
-    "해외수출사업": {"req_rep": 800000, "req_cash": 1090000, "tier": 5, "effect": {"upkeep_discount": 0.40, "rep_mult": 2.0}, "desc": "유지비 40% 감소, 명성 2.0배"},
+    "리안마켓": {"req_rep": 3000, "req_cash": 20000, "tier": 1, "effect": {"upkeep_discount": 0.03}, "desc": "유지비 3% 감소"},
+    "묵이편의점": {"req_rep": 20000, "req_cash": 70000, "tier": 2, "effect": {"upkeep_discount": 0.06}, "desc": "유지비 6% 감소"},
+    "할인마트": {"req_rep": 80000, "req_cash": 330000, "tier": 3, "effect": {"upkeep_discount": 0.09, "rep_mult": 1.0}, "desc": "유지비 9% 감소, 명성 1.0배"},
+    "정E-마트": {"req_rep": 150000, "req_cash": 700000, "tier": 4, "effect": {"upkeep_discount": 0.12, "rep_mult": 1.5}, "desc": "유지비 12% 감소, 명성 1.5배"},
+    "해외수출사업": {"req_rep": 800000, "req_cash": 1090000, "tier": 5, "effect": {"upkeep_discount": 0.15, "rep_mult": 2.0}, "desc": "유지비 15% 감소, 명성 2.0배"},
 
     # 🏪 상업 제국 (물고기 판매가 극대화)
     "노상": {"req_rep": 5000, "req_cash": 50000, "tier": 1, "effect": {"fish_price_mult": 1.1}, "desc": "판매가 1.1배"},
-    "물고기사랑가게": {"req_rep": 45000, "req_cash": 320000, "tier": 2, "effect": {"fish_price_mult": 1.2, "upkeep_mult": 0.15}, "desc": "판매가 1.4배, 유지비 15% 증가"},
-    "5일장시장": {"req_rep": 200000, "req_cash": 650000, "tier": 3, "effect": {"fish_price_mult": 1.4, "upkeep_mult": 0.30}, "desc": "판매가 1.5배, 유지비 30% 증가"},
-    "회전문공장": {"req_rep": 800000, "req_cash": 980000, "tier": 4, "effect": {"fish_price_mult": 1.7, "upkeep_mult": 0.50}, "desc": "판매가 1.8배, 유지비 50% 증가"},
-    "세계1위기업": {"req_rep": 1000000, "req_cash": 1050000, "tier": 5, "effect": {"fish_price_mult": 2.0, "upkeep_mult": 0.85}, "desc": "판매가 2.0배, 유지비 85% 증가"},
+    "물고기사랑가게": {"req_rep": 45000, "req_cash": 320000, "tier": 2, "effect": {"fish_price_mult": 1.2, "upkeep_mult": 0.15}, "desc": "판매가 1.2배, 유지비 15% 증가"},
+    "5일장시장": {"req_rep": 200000, "req_cash": 650000, "tier": 3, "effect": {"fish_price_mult": 1.3, "upkeep_mult": 0.20}, "desc": "판매가 1.3배, 유지비 20% 증가"},
+    "회전문공장": {"req_rep": 800000, "req_cash": 980000, "tier": 4, "effect": {"fish_price_mult": 1.4, "upkeep_mult": 0.25}, "desc": "판매가 1.4배, 유지비 25% 증가"},
+    "세계1위기업": {"req_rep": 1000000, "req_cash": 1050000, "tier": 5, "effect": {"fish_price_mult": 1.5, "upkeep_mult": 0.30}, "desc": "판매가 1.5배, 유지비 30% 증가"},
 
     # 🏫 공공 시설 (실패 리스크 감수형 파격 유지비 절감)
     "어린이집": {"req_rep": 1000, "req_cash": 30000, "tier": 1, "effect": {"fail_rate": 0.05, "upkeep_discount": 0.10}, "desc": "실패 5%, 유지비 10% 감소"},
-    "유치원": {"req_rep": 30000, "req_cash": 170000, "tier": 2, "effect": {"fail_rate": 0.08, "upkeep_discount": 0.20}, "desc": "실패 8%, 유지비 20% 감소"},
-    "초등학교": {"req_rep": 70000, "req_cash": 650000, "tier": 3, "effect": {"fail_rate": 0.12, "upkeep_discount": 0.35}, "desc": "실패 12%, 유지비 35% 감소"},
-    "중학교": {"req_rep": 150000, "req_cash": 990000, "tier": 4, "effect": {"fail_rate": 0.18, "upkeep_discount": 0.55}, "desc": "실패 18%, 유지비 55% 감소"},
-    "고등학교": {"req_rep": 870000, "req_cash": 2070000, "tier": 5, "effect": {"fail_rate": 0.25, "upkeep_discount": 0.80}, "desc": "실패 25%, 유지비 80% 감소"},
+    "유치원": {"req_rep": 30000, "req_cash": 170000, "tier": 2, "effect": {"fail_rate": 0.10, "upkeep_discount": 0.15}, "desc": "실패 10%, 유지비 15% 감소"},
+    "초등학교": {"req_rep": 70000, "req_cash": 650000, "tier": 3, "effect": {"fail_rate": 0.15, "upkeep_discount": 0.20}, "desc": "실패 15%, 유지비 20% 감소"},
+    "중학교": {"req_rep": 150000, "req_cash": 990000, "tier": 4, "effect": {"fail_rate": 0.30, "upkeep_discount": 0.25}, "desc": "실패 30%, 유지비 25% 감소"},
+    "고등학교": {"req_rep": 870000, "req_cash": 2070000, "tier": 5, "effect": {"fail_rate": 0.50, "upkeep_discount": 0.30}, "desc": "실패 50%, 유지비 30% 감소"},
 }
 
 active_sessions = {}
