@@ -1016,7 +1016,7 @@ class SellConfirmView(discord.ui.View):
         await interaction.response.edit_message(content="⏹️ 매각을 취소했습니다.", embed=None, view=None)
 
 class FishingGameView(discord.ui.View):
-    def __init__(self, interaction, db, cog): # cog 인자 추가
+    def __init__(self, interaction, db, cog, force_trash=False): # force_trash 인자 추가
         super().__init__(timeout=60)
         self.interaction = interaction
         self.db = db
@@ -1027,6 +1027,7 @@ class FishingGameView(discord.ui.View):
         self.responded = False
         self.stage = "waiting"
         self.is_real = False
+        self.force_trash = force_trash # ✅ 추가: 연타 패널티용 플래그
 
     async def on_timeout(self):
         self._clear_session()
@@ -1221,26 +1222,33 @@ class FishingGameView(discord.ui.View):
 
                 built_facilities = self.db.execute_query("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'all')
 
-                trash_chance = 0.25 + (current_pollution / 100.0)
-                if current_pollution >= 100.0:
-                    trash_chance = 0.9999
+                # ✅ [연타 패널티 적용] force_trash가 활성화된 경우 무조건 쓰레기 낚시
+                if self.force_trash:
+                    trash_chance = 1.0
                 else:
-                    # 오염도가 100 미만일 때는 기존 오염도 비례 공식을 사용합니다.
-                    trash_chance = 0.25 + (current_pollution * 0.007499) 
+                    trash_chance = 0.25 + (current_pollution / 100.0)
+                    if current_pollution >= 100.0:
+                        trash_chance = 0.9999
+                    else:
+                        # 오염도가 100 미만일 때는 기존 오염도 비례 공식을 사용합니다.
+                        trash_chance = 0.25 + (current_pollution * 0.007499) 
 
-                # 시설 효과가 있다면 마저 계산해 줍니다.
-                if built_facilities:
+                # 시설 효과가 있다면 마저 계산해 줍니다. (패널티 중에는 적용 안 함)
+                if not self.force_trash and built_facilities:
                     for f in built_facilities:
                         f_name = f['facility_name']
                         if f_name in FACILITIES:
                             trash_mod = FACILITIES[f_name].get("effect", {}).get("trash_rate", 0)
                             trash_chance += trash_mod
 
-                # 쓰레기 확률 상한선을 0.9999 (99.99%)로 설정합니다!
-                trash_chance = max(0.0, min(0.9999, trash_chance))
+                # 쓰레기 확률 상한선을 0.9999 (99.99%)로 설정합니다! (단, 패널티 시는 1.0)
+                if not self.force_trash:
+                    trash_chance = max(0.0, min(0.9999, trash_chance))
 
                 # 🗑️ 쓰레기 기믹 부분
                 if random.random() < trash_chance:
+                    # ... (기존 쓰레기 결정 로직 중 가중치 계산 부분은 유지)
+                    
                     # ⚖️ [티어별 그룹 가중치 계산]
                     all_groups = range(1, 7)
                     g_items = {i: [t for t in TRASH_LIST if t["group"] == i] for i in all_groups}
@@ -1319,12 +1327,17 @@ class FishingGameView(discord.ui.View):
                     # 세션 등록 (self.cog를 통해 부모 Cog의 딕셔너리에 접근)
                     self.cog.active_trash_sessions[str(self.user.id)] = view
 
+                    penalty_warning = ""
+                    if self.force_trash:
+                        penalty_warning = "\n⚠️ **주의:** 너무 빠른 조작으로 집중력이 흐트러졌습니다!"
+
                     embed = discord.Embed(
                         title="🚮 쓰레기가 걸려왔습니다!", 
                         description=(
                             f"**[{trash['name']}]**\n\n"
                             f"⚠️ **주의:** 수거 시 처리비가 청구됩니다.\n"
                             f"💸 **방치 시 오염도가 대폭 상승합니다.**"
+                            f"{penalty_warning}"
                         ), 
                         color=discord.Color.orange()
                     )
@@ -1645,6 +1658,8 @@ class FishingSystemCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_trash_sessions = {}  # 🚨 쓰레기 세션 저장소 (필수 추가)
+        self.command_usage = {}          # 유저별 명령어 실행 시간 기록 {user_id: [timestamps]}
+        self.penalty_end = {}            # 유저별 쓰레기 패널티 종료 시간 {user_id: datetime}
 
     async def cog_load(self):
         self.db_cog = self.bot.get_cog("DatabaseManager")
@@ -1802,6 +1817,27 @@ class FishingSystemCog(commands.Cog):
         uid = str(interaction.user.id)
         chid = str(interaction.channel_id)
         gid = str(interaction.guild_id)
+        now = datetime.now()
+
+        # 🕒 [추가] 명령어 연타 감지 및 패널티 로직
+        if uid not in self.command_usage:
+            self.command_usage[uid] = []
+        
+        # 10초 이내의 기록만 유지
+        self.command_usage[uid] = [ts for ts in self.command_usage[uid] if now - ts < timedelta(seconds=10)]
+        self.command_usage[uid].append(now)
+
+        # 10초 이내 2번 이상 실행 시 패널티 부여 (이번 실행 포함)
+        if len(self.command_usage[uid]) >= 2:
+            self.penalty_end[uid] = now + timedelta(minutes=5)
+
+        # 현재 패널티 적용 중인지 확인
+        is_penalized = False
+        if uid in self.penalty_end:
+            if now < self.penalty_end[uid]:
+                is_penalized = True
+            else:
+                del self.penalty_end[uid]
 
         # 🚨 [추가] 국고 환수 및 연타 방지 로직
         if uid in self.active_trash_sessions:
@@ -1876,8 +1912,8 @@ class FishingSystemCog(commands.Cog):
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
         # 6️⃣ 게임 뷰 생성 및 시작
-        # FishingGameView(interaction, db, cog) 순서 준수
-        view = FishingGameView(interaction, db, self)
+        # FishingGameView(interaction, db, cog, force_trash) 순서 준수
+        view = FishingGameView(interaction, db, self, force_trash=is_penalized)
         
         active_sessions[interaction.user.id] = view
             
