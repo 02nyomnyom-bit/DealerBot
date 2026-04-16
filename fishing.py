@@ -1853,7 +1853,7 @@ class FishingSystemCog(commands.Cog):
             self.command_usage[uid] = []
         
         # 10초 이내의 기록만 유지
-        self.command_usage[uid] = [ts for ts in self.command_usage[uid] if now - ts < timedelta(seconds=10)]
+        self.command_usage[uid] = [ts for ts in self.command_usage[uid] if now - ts < timedelta(seconds=3)]
         self.command_usage[uid].append(now)
 
         # 10초 이내 2번 이상 실행 시 패널티 부여 (이번 실행 포함)
