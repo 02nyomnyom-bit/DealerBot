@@ -881,8 +881,7 @@ class BuyConfirmView(discord.ui.View):
                 refund_amount = int((ground['ground_price'] + facility_value) * 0.8)
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (refund_amount, old_owner_id, self.gid))
                 
-                # 전 주인 시설물 철거
-                conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid))
+                # 전 주인 시설물은 유지
                 
                 # 명성 및 티어 초기화
                 conn.execute("UPDATE fishing_ground SET tier = 1, ground_reputation = 0 WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid))
@@ -916,7 +915,7 @@ class BuyConfirmView(discord.ui.View):
             conn.commit()
             
             title = "⚔️ 낚시터 약탈 성공!" if is_takeover else "🎊 낚시터 매입 성공!"
-            takeover_msg = f"\n⚠️ 기존 주인의 시설물은 철거되었으며, 땅의 등급과 명성이 초기화되었습니다." if is_takeover else ""
+            takeover_msg = f"\n⚠️ 땅의 등급과 명성이 초기화되었습니다." if is_takeover else ""
 
             embed = discord.Embed(
                 title=title,
@@ -939,12 +938,13 @@ class BuyConfirmView(discord.ui.View):
                 print(f"[채널명 변경 실패] {e}")
 
             await interaction.response.send_message(embed=embed)
-            await interaction.message.delete()
+            # await interaction.message.delete() # 메시지 삭제 제거
         except Exception as e:
             try: conn.rollback()
             except: pass
             print(f"[매입 오류] {e}")
-            await interaction.response.edit_message(content=f"❌ 시스템 오류로 인해 매입에 실패했습니다. (에러: {e})", embed=None, view=None)
+            # 이미 응답했으므로 followup 사용
+            await interaction.followup.send(f"❌ 시스템 오류로 인해 매입에 실패했습니다. (에러: {e})")
 
     @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2031,7 +2031,7 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="👑 소유주", value=owner, inline=True)
             embed.add_field(name="💰 구매 가격", value=f"{ground['ground_price']:,}원", inline=True)
             embed.add_field(name="🎫 입장료", value=f"{ground['entry_fee']:,}원", inline=True)
-            embed.add_field(name="⌛ 이용시간", value="6시간 (고정)", inline=True)
+            embed.add_field(name="⌛ 이용시간", value="3시간", inline=True)
             embed.add_field(name="🔓 상태", value="공개" if ground['is_public'] == 1 else "비공개 (입장권 필요)", inline=True)
             embed.add_field(name="🌍 자연 환경", value=ground['ground_type'], inline=True)
             ground_rep = ground['ground_reputation'] if ground['ground_reputation'] is not None else 0
