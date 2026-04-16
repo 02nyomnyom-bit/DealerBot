@@ -2602,7 +2602,7 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="낚싯대 수리(1당 10원)", value="repair"),
         app_commands.Choice(name="초보자 세트 구매 (10,000원)", value="starter"),
         app_commands.Choice(name="미끼 개당 (300원)", value="buy_bait"),
-        app_commands.Choice(name="📜 나는 관리자들 공지를 잘 읽을게요 (100,000원 / 능력 미표기)", value="buy_award"),
+        app_commands.Choice(name="📜 나는 관리자들 공지를 잘 읽을게요 (300,000원 / 능력 미표기)", value="buy_award"),
         app_commands.Choice(name="🧤 낚시 장갑 (50,000원 / 3시간 쓰레기 -10%)", value="buy_gloves"),
         app_commands.Choice(name="🧪 냄새나는 입장권 (50,000원 / 다음 입장객 방해)", value="buy_sabotage")
     ])
