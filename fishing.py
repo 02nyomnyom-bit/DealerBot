@@ -2574,9 +2574,12 @@ class FishingSystemCog(commands.Cog):
             }
 
             for i in items:
-                fish_price = int(i['length'] * i['price_per_cm'] * best_multiplier)
+                # sqlite3.Row 객체는 .get()이 없으므로 dict로 변환하여 사용
+                fish_data = dict(i)
+                fish_price = int(fish_data['length'] * fish_data['price_per_cm'] * best_multiplier)
+                
                 # 아이템 데이터에 저장된 rarity를 기준으로 캡 적용 (없으면 기본 5,000원)
-                fish_rarity = i.get('rarity', '흔함')
+                fish_rarity = fish_data.get('rarity', '흔함')
                 cap_limit = RARITY_CAPS.get(fish_rarity, 5000)
                 
                 # 개별 물고기 가격에 등급별 캡 적용
