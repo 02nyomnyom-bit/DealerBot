@@ -92,6 +92,7 @@ FISHING_ECOLOGY = {
         
         # --- 🚨 특수 동물/유해 생물 (바다) ---
         {"name": "바다거북", "rarity": "신종", "chance": 0.07, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
+        {"name": "알비노바다거북", "rarity": "신종", "chance": 0.03, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
         {"name": "보라성게", "rarity": "희귀", "chance": 0.08, "min": 5, "max": 15, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "가시에 찔려 낚싯대 내구도가 -10 감소합니다."},
         {"name": "아무르불가사리", "rarity": "흔함", "chance": 0.08, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "줄이 엉켜 미끼가 2개 더 소모됩니다."},
 
@@ -1466,6 +1467,11 @@ class FishingGameView(discord.ui.View):
                 elif fish["name"] == "바다거북":
                     conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + 50 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     event_embed = discord.Embed(title="🐢 바다거북을 방생했습니다!", description="보호종 바다거북을 안전하게 돌려보냈습니다.\n\n⭐ **개인 명성 +50**", color=discord.Color.green())
+                    special_event = True
+                
+                elif fish["name"] == "알비노바다거북":
+                    conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + 100 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                    event_embed = discord.Embed(title="🐢 알비노바다거북을 방생했습니다!", description="보호종 알비노바다거북을 안전하게 돌려보냈습니다.\n\n⭐ **개인 명성 +100**", color=discord.Color.green())
                     special_event = True
 
                 elif fish["name"] == "보라성게":
