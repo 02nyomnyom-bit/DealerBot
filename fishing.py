@@ -824,6 +824,15 @@ class BuyConfirmView(discord.ui.View):
         if self.responded: return
         self.responded = True
 
+        # 🚨 [추가] 런타임 스키마 보정: last_activity 컬럼 존재 여부 재확인
+        try:
+            res = self.db.execute_query("PRAGMA table_info(fishing_ground)", (), 'all')
+            cols = [c['name'] for c in res] if res else []
+            if 'last_activity' not in cols:
+                self.db.execute_query("ALTER TABLE fishing_ground ADD COLUMN last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        except Exception as e:
+            print(f"[스키마 보정 실패] {e}")
+
         conn = self.db.get_connection()
         try:
             conn.execute("BEGIN")
