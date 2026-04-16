@@ -839,12 +839,18 @@ class BuyConfirmView(discord.ui.View):
         try:
             conn.execute("BEGIN")
             
-            # 1. 낚시터 상태 재검증
-            ground = conn.execute("SELECT owner_id, purchasable FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid)).fetchone()
+            # 1. 낚시터 상태 재검증 및 시설 가치 계산
+            ground = conn.execute("SELECT owner_id, purchasable, ground_price FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid)).fetchone()
             if not ground:
                 conn.rollback()
                 return await interaction.response.edit_message(content="❌ 오류: 존재하지 않는 낚시터 정보입니다.", embed=None, view=None)
             
+            facilities = conn.execute("SELECT facility_name FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid)).fetchall()
+            facility_value = sum([FACILITIES[f['facility_name']]['req_cash'] for f in facilities if f['facility_name'] in FACILITIES])
+            
+            # 매입 가격 = 토지가격 + 시설가격
+            actual_price = ground['ground_price'] + facility_value
+
             # 본인 소유 체크
             if ground['owner_id'] == self.buyer_id:
                 conn.rollback()
@@ -862,23 +868,23 @@ class BuyConfirmView(discord.ui.View):
             user = conn.execute("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (self.buyer_id, self.gid)).fetchone()
             current_cash = user['cash'] if user else 0
             
-            if current_cash < self.price:
+            if current_cash < actual_price:
                 conn.rollback()
-                return await interaction.response.edit_message(content=f"❌ 매입 실패: 잔액이 부족합니다! (필요: {self.price:,}원 / 보유: {current_cash:,}원)", embed=None, view=None)
+                return await interaction.response.edit_message(content=f"❌ 매입 실패: 잔액이 부족합니다! (필요: {actual_price:,}원 / 보유: {current_cash:,}원)", embed=None, view=None)
 
             # 3. 실제 매입 처리
             # 구매자 돈 차감
-            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.price, self.buyer_id, self.gid))
+            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (actual_price, self.buyer_id, self.gid))
             
             if is_takeover:
-                # 📉 [약탈 로직] 전 주인에게 80% 환불 처리
-                refund_amount = int(self.price * 0.8)
+                # 📉 전 주인에게 환불 (기존가 80% + 시설가 80%)
+                refund_amount = int((ground['ground_price'] + facility_value) * 0.8)
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (refund_amount, old_owner_id, self.gid))
                 
                 # 전 주인 시설물 철거
                 conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid))
                 
-                # 명성 및 티어 초기화 (약탈당한 땅은 황폐화됨)
+                # 명성 및 티어 초기화
                 conn.execute("UPDATE fishing_ground SET tier = 1, ground_reputation = 0 WHERE channel_id = ? AND guild_id = ?", (self.chid, self.gid))
 
                 log_desc = f"낚시터 채널({self.chid}) 약탈(매입) 지출"
@@ -893,17 +899,18 @@ class BuyConfirmView(discord.ui.View):
             else:
                 log_desc = f"낚시터 채널({self.chid}) 매입 지출"
 
-            # 낚시터 정보 업데이트 (소유권 이전 및 비공개 처리)
+            # 낚시터 정보 업데이트 (소유권 이전, 땅값 5% 인상)
+            new_price = int(ground['ground_price'] * 1.05)
             conn.execute(
-                "UPDATE fishing_ground SET owner_id = ?, purchasable = 0, is_public = 0, last_activity = CURRENT_TIMESTAMP "
+                "UPDATE fishing_ground SET owner_id = ?, purchasable = 0, is_public = 0, last_activity = CURRENT_TIMESTAMP, ground_price = ? "
                 "WHERE channel_id = ? AND guild_id = ?", 
-                (self.buyer_id, self.chid, self.gid)
+                (self.buyer_id, new_price, self.chid, self.gid)
             )
             
             # 구매자 로그 기록
             conn.execute(
                 "INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                (self.buyer_id, "낚시터매입", -self.price, current_cash - self.price, log_desc)
+                (self.buyer_id, "낚시터매입", -actual_price, current_cash - actual_price, log_desc)
             )
             
             conn.commit()
@@ -914,16 +921,25 @@ class BuyConfirmView(discord.ui.View):
             embed = discord.Embed(
                 title=title,
                 description=(
-                    f"성공적으로 <#{self.chid}> 채널을 소유하게 되었습니다!\n\n"
-                    f"💰 **지출 금액:** `{self.price:,}원`\n"
+                    f"성공적으로 <#{self.chid}> 채널을 소유하게 되었습니다!\\n\\n"
+                    f"💰 **지출 금액:** `{actual_price:,}원` (기존가: {ground['ground_price']:,} + 시설: {facility_value:,})\\n"
                     f"🔒 **현재 상태:** `비공개 (입장권 필요)`"
-                    f"{takeover_msg}\n\n"
+                    f"{takeover_msg}\\n\\n"
                     f"💡 `/낚시터 액션: 설정 변경`을 통해 입장료와 공개 여부를 관리할 수 있습니다."
                 ),
                 color=discord.Color.green() if not is_takeover else discord.Color.red()
             )
-            await interaction.response.edit_message(content=None, embed=embed, view=None)
 
+            # 채널 이름 변경
+            try:
+                owner_member = interaction.guild.get_member(int(self.buyer_id))
+                owner_name = owner_member.display_name if owner_member else "주인"
+                await interaction.channel.edit(name=f"🎣｜{owner_name}_낚시터")
+            except Exception as e:
+                print(f"[채널명 변경 실패] {e}")
+
+            await interaction.response.send_message(embed=embed)
+            await interaction.message.delete()
         except Exception as e:
             try: conn.rollback()
             except: pass
@@ -1908,7 +1924,7 @@ class FishingSystemCog(commands.Cog):
         if ground['owner_id'] and ground['owner_id'] != uid and ground['is_public'] != 1:
             p = db.execute_query("SELECT expire_time FROM fishing_passes WHERE user_id = ? AND channel_id = ? AND guild_id = ?", (uid, chid, gid), 'one')
             if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S') <= datetime.now():
-                view = GroundAccessView(interaction.user, ground['entry_fee'], ground['usage_time_limit'], ground['owner_id'], db)
+                view = GroundAccessView(interaction.user, ground['entry_fee'], 3, ground['owner_id'], db)
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
         # 6️⃣ 게임 뷰 생성 및 시작
