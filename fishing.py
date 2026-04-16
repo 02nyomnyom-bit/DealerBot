@@ -933,9 +933,16 @@ class BuyConfirmView(discord.ui.View):
             try:
                 owner_member = interaction.guild.get_member(int(self.buyer_id))
                 owner_name = owner_member.display_name if owner_member else "주인"
-                await interaction.channel.edit(name=f"🎣｜{owner_name}_낚시터")
+                
+                async def rename_channel():
+                    try:
+                        await interaction.channel.edit(name=f"🎣｜{owner_name}_낚시터")
+                    except Exception as e:
+                        print(f"[채널명 변경 실패] {e}")
+                
+                asyncio.create_task(rename_channel())
             except Exception as e:
-                print(f"[채널명 변경 실패] {e}")
+                print(f"[채널명 변경 태스크 생성 실패] {e}")
 
             await interaction.response.send_message(embed=embed)
             # await interaction.message.delete() # 메시지 삭제 제거
