@@ -829,7 +829,9 @@ class BuyConfirmView(discord.ui.View):
             res = self.db.execute_query("PRAGMA table_info(fishing_ground)", (), 'all')
             cols = [c['name'] for c in res] if res else []
             if 'last_activity' not in cols:
-                self.db.execute_query("ALTER TABLE fishing_ground ADD COLUMN last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                # SQLite 제약: ALTER TABLE 시 CURRENT_TIMESTAMP 직접 추가 불가
+                self.db.execute_query("ALTER TABLE fishing_ground ADD COLUMN last_activity TIMESTAMP")
+                self.db.execute_query("UPDATE fishing_ground SET last_activity = CURRENT_TIMESTAMP WHERE last_activity IS NULL")
         except Exception as e:
             print(f"[스키마 보정 실패] {e}")
 
@@ -1736,7 +1738,10 @@ class FishingSystemCog(commands.Cog):
             except: pass
 
         if 'last_activity' not in cols_g:
-            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            try: 
+                # SQLite에서는 ALTER TABLE 시 CURRENT_TIMESTAMP 같은 동적 기본값을 직접 추가할 수 없음
+                db.execute_query("ALTER TABLE fishing_ground ADD COLUMN last_activity TIMESTAMP")
+                db.execute_query("UPDATE fishing_ground SET last_activity = CURRENT_TIMESTAMP WHERE last_activity IS NULL")
             except: pass
 
     def _get_db(self, interaction: discord.Interaction):
