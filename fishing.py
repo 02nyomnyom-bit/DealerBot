@@ -920,10 +920,10 @@ class BuyConfirmView(discord.ui.View):
             embed = discord.Embed(
                 title=title,
                 description=(
-                    f"성공적으로 <#{self.chid}> 채널을 소유하게 되었습니다!\\n\\n"
-                    f"💰 **지출 금액:** `{actual_price:,}원` (기존가: {ground['ground_price']:,} + 시설: {facility_value:,})\\n"
+                    f"성공적으로 <#{self.chid}> 채널을 소유하게 되었습니다!\n\n"
+                    f"💰 **지출 금액:** `{actual_price:,}원` (기존가: {ground['ground_price']:,} + 시설: {facility_value:,})\n"
                     f"🔒 **현재 상태:** `비공개 (입장권 필요)`"
-                    f"{takeover_msg}\\n\\n"
+                    f"{takeover_msg}\n\n"
                     f"💡 `/낚시터 액션: 설정 변경`을 통해 입장료와 공개 여부를 관리할 수 있습니다."
                 ),
                 color=discord.Color.green() if not is_takeover else discord.Color.red()
