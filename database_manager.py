@@ -463,8 +463,8 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 cursor.execute(query, params)
             
-                # INSERT, UPDATE, DELETE 쿼리는 변경사항을 커밋
-                if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+                # INSERT, UPDATE, DELETE, ALTER, CREATE, DROP 쿼리는 변경사항을 커밋
+                if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE', 'ALTER', 'CREATE', 'DROP')):
                     conn.commit()
                 
                 if fetch_type == 'one':

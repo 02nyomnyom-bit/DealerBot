@@ -257,7 +257,7 @@ async def get_usage_benefit(user_id, guild_id, db):
 # ==========================================
 
 class TrashActionView(discord.ui.View):
-    def __init__(self, db, user_id, guild_id, channel_id, value_name, value):
+    def __init__(self, db, user_id, guild_id, channel_id, value_name, value, rate):
         super().__init__(timeout=40) # 방치 투기까지 40초
         self.db = db
         self.user_id = user_id
@@ -265,6 +265,7 @@ class TrashActionView(discord.ui.View):
         self.channel_id = channel_id
         self.value_name = value_name
         self.value = value
+        self.rate = rate
         self.message = None
         self.responded = False # ✅ 추가: 응답 여부 확인용
 
@@ -286,13 +287,17 @@ class TrashActionView(discord.ui.View):
                 uid = str(self.user_id)
 
                 current_data = self.db.execute_query(
-                    "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+                    "SELECT pollution, owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
                     (chid, gid), 'one'
                 )
                 current_pollution = current_data['pollution'] if current_data else 0
+                owner_id = current_data['owner_id'] if current_data else None
 
                 added_pollution = 1.0 + (current_pollution * 0.2)
-                new_pollution = min(100.0, current_pollution + added_pollution)
+                
+                # ✅ 공영 낚시터(소유주 없음)는 최대 50, 사유지는 최대 100 제한
+                pollution_cap = 50.0 if owner_id is None else 100.0
+                new_pollution = min(pollution_cap, current_pollution + added_pollution)
 
                 conn = self.db.get_connection()
                 fine_msg = ""
@@ -302,21 +307,22 @@ class TrashActionView(discord.ui.View):
                 conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
                 conn.execute("UPDATE users SET neglect_dump_count = neglect_dump_count + 1 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                 
-                user_data = self.db.execute_query("SELECT neglect_dump_count, cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                user_data = self.db.execute_query("SELECT neglect_dump_count, cash, max_dump_rate FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
                 user_count = user_data['neglect_dump_count'] if user_data else 0
                 current_cash = user_data['cash'] if user_data else 0
+                max_dump_rate = user_data['max_dump_rate'] if user_data else 0.0
 
-                trigger_fine = False
+                # 📈 최대 투기 비율 경신 체크
+                if self.rate > max_dump_rate:
+                    max_dump_rate = self.rate
+                    conn.execute("UPDATE users SET max_dump_rate = ? WHERE user_id = ? AND guild_id = ?", (max_dump_rate, uid, gid))
 
-                if user_count == 30:
-                    trigger_fine = True
-                elif 30 < user_count <= 90 and (user_count - 30) % 20 == 0:
-                    trigger_fine = True
-                elif user_count > 90 and (user_count - 90) % 10 == 0:
-                    trigger_fine = True
+                # 🚨 [벌금 로직 변경] 10회 이상이며 10의 배수일 때 부과
+                trigger_fine = (user_count >= 10 and user_count % 10 == 0)
 
                 if trigger_fine:
-                    fine_rate = 0.45 
+                    # 💰 벌금율: 역대 최대 비율 * 2.0
+                    fine_rate = max_dump_rate * 2.0
                     calculated_fine = max(5000, int(current_cash * fine_rate))
 
                     if current_cash < 50000:
@@ -333,7 +339,7 @@ class TrashActionView(discord.ui.View):
                         conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
                                      (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"방치투기 누적 {user_count}회 적발 과태료"))
 
-                        fine_msg = f"\n\n🚨 **[환경 방치투기 과태료 부과!]**\n방치가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**이 즉시 징수되었습니다!"
+                        fine_msg = f"\n\n🚨 **[환경 방치투기 과태료 부과!]**\n방치가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(배율 {fine_rate:.2f})이 즉시 징수되었습니다!"
                 
                 # 🚫 50회당 페널티 (돈 없으면 시간제한, 돈 있으면 추가 과태료)
                 if user_count % 50 == 0:
@@ -414,13 +420,17 @@ class TrashActionView(discord.ui.View):
         uid = self.user_id
         
         current_data = self.db.execute_query(
-            "SELECT pollution FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
+            "SELECT pollution, owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
             (chid, gid), 'one'
         )
         current_pollution = current_data['pollution'] if current_data else 0
+        owner_id = current_data['owner_id'] if current_data else None
 
         added_pollution = 0.5 + (current_pollution * 0.1)
-        new_pollution = min(100.0, current_pollution + added_pollution)
+        
+        # ✅ 공영 낚시터(소유주 없음)는 최대 50, 사유지는 최대 100 제한
+        pollution_cap = 50.0 if owner_id is None else 100.0
+        new_pollution = min(pollution_cap, current_pollution + added_pollution)
 
         conn = self.db.get_connection()
         fine_msg = ""
@@ -430,21 +440,22 @@ class TrashActionView(discord.ui.View):
             conn.execute("BEGIN")
             conn.execute("UPDATE users SET illegal_dump_count = illegal_dump_count + 1 WHERE user_id = ? AND guild_id = ?", (uid, gid))
             
-            user_data = self.db.execute_query("SELECT illegal_dump_count, cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+            user_data = self.db.execute_query("SELECT illegal_dump_count, cash, max_dump_rate FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             user_count = user_data['illegal_dump_count'] if user_data else 0
             current_cash = user_data['cash'] if user_data else 0
+            max_dump_rate = user_data['max_dump_rate'] if user_data else 0.0
 
-            trigger_fine = False
+            # 📈 최대 투기 비율 경신 체크
+            if self.rate > max_dump_rate:
+                max_dump_rate = self.rate
+                conn.execute("UPDATE users SET max_dump_rate = ? WHERE user_id = ? AND guild_id = ?", (max_dump_rate, uid, gid))
 
-            if user_count == 30:
-                trigger_fine = True
-            elif 30 < user_count <= 90 and (user_count - 30) % 20 == 0:
-                trigger_fine = True
-            elif user_count > 90 and (user_count - 90) % 10 == 0:
-                trigger_fine = True
+            # 🚨 [벌금 로직 변경] 10회 이상이며 10의 배수일 때 부과
+            trigger_fine = (user_count >= 10 and user_count % 10 == 0)
 
             if trigger_fine:
-                fine_rate = 0.45
+                # 💰 벌금율: 역대 최대 비율 * 2.0
+                fine_rate = max_dump_rate * 2.0
                 calculated_fine = max(5000, int(current_cash * fine_rate))
 
                 if current_cash < 50000:
@@ -457,7 +468,7 @@ class TrashActionView(discord.ui.View):
                     conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (calculated_fine, uid, gid))
                     conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
                                 (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"무단투기 누적 {user_count}회 적발 과태료"))
-                    fine_msg = f"\n\n🚨 **[무단투기 과태료 부과!]**\n무단투기가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**이 즉시 징수되었습니다!"
+                    fine_msg = f"\n\n🚨 **[무단투기 과태료 부과!]**\n무단투기가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(배율 {fine_rate:.2f})이 즉시 징수되었습니다!"
             
             # 🚫 10회당 10분 이용 제한 추가
             if user_count % 10 == 0:
@@ -1283,14 +1294,15 @@ class FishingGameView(discord.ui.View):
                     calculated_fine = int(current_cash * rate)
                     actual_fine = -max(1000, calculated_fine) 
             
-                    # 🚨 [인자 6개 채우기] 에러 해결을 위해 모든 정보 전달
+                    # 🚨 [인자 7개 채우기] 에러 해결 및 rate 전달
                     view = TrashActionView(
                         self.db, 
                         str(self.user.id), 
                         str(interaction.guild_id), 
                         str(interaction.channel_id), 
                         trash['name'], 
-                        actual_fine
+                        actual_fine,
+                        rate
                     )
             
                     # 세션 등록 (self.cog를 통해 부모 Cog의 딕셔너리에 접근)
@@ -1640,7 +1652,7 @@ class FishingSystemCog(commands.Cog):
 
     def _init_db_schema(self, db):
         # 1. 기본 테이블 생성
-        db.create_table("fishing_ground", "channel_id TEXT, guild_id TEXT, owner_id TEXT, channel_name TEXT, ground_type TEXT DEFAULT '호수', tier INTEGER DEFAULT 1, ground_reputation INTEGER DEFAULT 0, ground_price INTEGER DEFAULT 100000, purchasable INTEGER DEFAULT 1, is_public INTEGER DEFAULT 1, entry_fee INTEGER DEFAULT 0, usage_time_limit INTEGER DEFAULT 6, PRIMARY KEY(channel_id, guild_id)")
+        db.create_table("fishing_ground", "channel_id TEXT, guild_id TEXT, owner_id TEXT, channel_name TEXT, ground_type TEXT DEFAULT '호수', tier INTEGER DEFAULT 1, ground_reputation INTEGER DEFAULT 0, ground_price INTEGER DEFAULT 100000, purchasable INTEGER DEFAULT 1, is_public INTEGER DEFAULT 1, entry_fee INTEGER DEFAULT 0, usage_time_limit INTEGER DEFAULT 6, pollution INTEGER DEFAULT 0, last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(channel_id, guild_id)")
         db.create_table("fishing_gear", "user_id TEXT, guild_id TEXT, rod_level INTEGER DEFAULT 0, rod_durability INTEGER DEFAULT 100, bait_level INTEGER DEFAULT 0, bait_count INTEGER DEFAULT 0, PRIMARY KEY(user_id, guild_id)")
         db.create_table("fishing_inventory", "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, guild_id TEXT, fish_name TEXT, length REAL, price_per_cm INTEGER, rarity TEXT DEFAULT '흔함'")
         db.create_table("fishing_passes", "user_id TEXT, channel_id TEXT, guild_id TEXT, expire_time TEXT, PRIMARY KEY(user_id, channel_id, guild_id)")
@@ -1673,6 +1685,10 @@ class FishingSystemCog(commands.Cog):
 
         if 'fishing_ban_until' not in cols_u:
             try: db.execute_query("ALTER TABLE users ADD COLUMN fishing_ban_until TEXT")
+            except: pass
+
+        if 'max_dump_rate' not in cols_u:
+            try: db.execute_query("ALTER TABLE users ADD COLUMN max_dump_rate REAL DEFAULT 0.0")
             except: pass
 
         # 📦 [추가] 인벤토리 rarity 컬럼 누락 체크
@@ -2266,10 +2282,17 @@ class FishingSystemCog(commands.Cog):
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
-        ground = db.execute_query("SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+        ground = db.execute_query("SELECT owner_id, is_public FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         
-        if not ground or not ground['owner_id'] or ground['owner_id'] != uid: 
-            return await interaction.response.send_message("❌ 본인이 매입한 개인 사유지(채널)에만 시설을 지을 수 있습니다.", ephemeral=True)
+        # ✅ 공영 낚시터(소유주 없음)이면서 관리자라면 허용, 그 외에는 본인 땅 체크
+        is_admin = interaction.user.guild_permissions.administrator
+        is_public_ground = (ground and ground['owner_id'] is None)
+        
+        if not ground:
+            return await interaction.response.send_message("❌ 등록된 낚시터 정보가 없습니다.", ephemeral=True)
+
+        if not ( (is_public_ground and is_admin) or (ground['owner_id'] == uid) ):
+            return await interaction.response.send_message("❌ 본인이 매입한 개인 사유지이거나, 공영 낚시터의 관리자여야 시설을 지을 수 있습니다.", ephemeral=True)
         
         f_data = FACILITIES[시설명]
         user = db.get_user(uid)
