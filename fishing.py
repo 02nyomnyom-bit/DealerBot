@@ -259,7 +259,7 @@ async def get_usage_benefit(user_id, guild_id, db):
 
 class TrashActionView(discord.ui.View):
     def __init__(self, db, user_id, guild_id, channel_id, value_name, value, rate):
-        super().__init__(timeout=40) # 방치 투기까지 40초
+        super().__init__(timeout=40) # 무단투기 처리까지 40초
         self.db = db
         self.user_id = user_id
         self.guild_id = guild_id
@@ -275,11 +275,11 @@ class TrashActionView(discord.ui.View):
         return self.responded
 
     async def process_neglect(self):
-        """다른 명령어로 인해 강제로 방치 처리해야 할 때 호출"""
+        """다른 명령어로 인해 강제로 무단투기 처리해야 할 때 호출"""
         if not self.responded:
             await self.on_timeout()
 
-    # ⌛ [1] 시간 초과 (방치 투기) 시 벌금 징수 로직
+    # ⌛ [1] 시간 초과 (무단투기) 시 벌금 징수 로직
     async def on_timeout(self):
         if self.message and not self.responded:
             self.responded = True # ✅ 추가: 중복 처리 방지
@@ -331,37 +331,37 @@ class TrashActionView(discord.ui.View):
                         conn.execute("UPDATE users SET fine_debt = fine_debt + ? WHERE user_id = ? AND guild_id = ?", (debt_fine, uid, gid))
                         
                         fine_msg = (
-                            f"\n\n🚨 **[환경 방치투기 과태료 빚 적립]**\n"
-                            f"방치가 누적 **{user_count}회** 적발되었습니다.\n"
+                            f"\n\n🚨 **[무단투기 과태료 빚 적립]**\n"
+                            f"무단투기가 누적 **{user_count}회** 적발되었습니다.\n"
                             f"현재 보유 자산이 5만 원 미만이므로, 앞으로 물고기 정산 시 `{debt_fine:,}원`이 자동 차감됩니다!"
                         )
                     else:
                         conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (calculated_fine, uid, gid))
                         conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                                     (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"방치투기 누적 {user_count}회 적발 과태료"))
+                                     (uid, "과태료", -calculated_fine, current_cash - calculated_fine, f"무단투기 누적 {user_count}회 적발 과태료"))
 
-                        fine_msg = f"\n\n🚨 **[환경 방치투기 과태료 부과!]**\n방치가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(배율 {fine_rate:.2f})이 즉시 징수되었습니다!"
+                        fine_msg = f"\n\n🚨 **[무단투기 과태료 부과!]**\n무단투기가 누적 **{user_count}회** 적발되었습니다.\n과태료 **{calculated_fine:,}원**(배율 {fine_rate:.2f})이 즉시 징수되었습니다!"
                 
                 # 🚫 50회당 페널티 (돈 없으면 시간제한, 돈 있으면 추가 과태료)
                 if user_count % 50 == 0:
                     if current_cash < 50000:
                         ban_until = (datetime.now() + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
                         conn.execute("UPDATE users SET fishing_ban_until = ? WHERE user_id = ? AND guild_id = ?", (ban_until, uid, gid))
-                        ban_msg = f"\n\n🚫 **[저소득자 이용 제한]**\n방치투기 50회 누적되었으나, 벌금을 낼 자산이 부족하여 향후 **30분간** 이용이 금지됩니다."
+                        ban_msg = f"\n\n🚫 **[저소득자 이용 제한]**\n무단투기 50회 누적되었으나, 벌금을 낼 자산이 부족하여 향후 **30분간** 이용이 금지됩니다."
                     else:
                         surcharge = 50000
                         conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (surcharge, uid, gid))
                         conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
                                      (uid, "과태료", -surcharge, current_cash - surcharge, f"투기 50회 누적 가중 과태료"))
-                        ban_msg = f"\n\n💸 **[가중 과태료 부과]**\n방치투기 50회 누적 페널티로 가중 과태료 **{surcharge:,}원**이 추가 징수되었습니다. (소지금 보유로 이용 제한 면제)"
+                        ban_msg = f"\n\n💸 **[가중 과태료 부과]**\n무단투기 50회 누적 페널티로 가중 과태료 **{surcharge:,}원**이 추가 징수되었습니다. (소지금 보유로 이용 제한 면제)"
 
                 conn.commit() # ✅ 추가: 트랜잭션 완료
 
                 if self.message:
                     embed = discord.Embed(
-                        title="💤 방치투기 발생",
+                        title="💤 무단투기 발생",
                         description=(
-                            f"쓰레기 **[{self.value_name}]**이(가) 방치되어 강물로 떠내려갔습니다.\n"
+                            f"쓰레기 **[{self.value_name}]**이(가) 무단투기되어 강물로 떠내려갔습니다.\n"
                             f"☣️ **오염도 상승:** `+{added_pollution:.2f} P` (현재: {new_pollution:.1f} P)"
                             f"{fine_msg}"
                             f"{ban_msg}"
@@ -370,7 +370,7 @@ class TrashActionView(discord.ui.View):
                     )
                     await self.message.edit(embed=embed, view=None)
             except Exception as e:
-                print(f"[방치투기 처리 오류] {e}")
+                print(f"[무단투기 처리 오류] {e}")
 
         self._clear_session()
 
