@@ -2610,7 +2610,10 @@ class FishingSystemCog(commands.Cog):
 
             except Exception as e:
                 conn.rollback()
-                await interaction.response.send_message(f"❌ 판매 처리 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
+                if interaction.response.is_done():
+                    await interaction.followup.send(f"❌ 판매 처리 중 오류가 발생했습니다. (에러: {e})")
+                else:
+                    await interaction.response.send_message(f"❌ 판매 처리 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
         
         elif 액션 == "repair":
             g = db.execute_query("SELECT rod_durability, rod_level FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
