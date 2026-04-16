@@ -91,8 +91,8 @@ FISHING_ECOLOGY = {
         {"name": "전어", "rarity": "흔함", "chance": 0.12, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
         
         # --- 🚨 특수 동물/유해 생물 (바다) ---
-        {"name": "바다거북", "rarity": "신종", "chance": 0.07, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
-        {"name": "알비노바다거북", "rarity": "신종", "chance": 0.03, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
+        {"name": "바다거북", "rarity": "신종", "chance": 0.03, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
+        {"name": "알비노바다거북", "rarity": "신종", "chance": 0.01, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
         {"name": "보라성게", "rarity": "희귀", "chance": 0.08, "min": 5, "max": 15, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "가시에 찔려 낚싯대 내구도가 -10 감소합니다."},
         {"name": "아무르불가사리", "rarity": "흔함", "chance": 0.08, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "줄이 엉켜 미끼가 2개 더 소모됩니다."},
 
