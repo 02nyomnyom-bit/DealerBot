@@ -48,11 +48,13 @@ TRASH_LIST = [
     {"name": "로프 본디지에서 쓴 로프", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
     {"name": "니니님의 직설적인 욕", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
 
-    # ❓ [Group 6] 히든 쓰레기 (1~80% 현금 지출)
+    # ❓ [Group 6] 히든 쓰레기 (1~80% 현금 지출 / 혹은 이득)
     {"name": "수호자가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.30, "group": 6},
     {"name": "지배자가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.50, "group": 6},
     {"name": "순두부가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.70, "group": 6},
     {"name": "김묵이가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.80, "group": 6},
+    {"name": "정이가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.03, "group": 6},
+    {"name": "커커님의 항소문", "min_rate": 0.0, "max_rate": 0.0, "group": 6},
 ]
 
 FISHING_ECOLOGY = {
@@ -85,7 +87,9 @@ FISHING_ECOLOGY = {
         # --- 환상 ---
         {"name": "황금 잉어", "rarity": "환상", "chance": 0.01, "min": 80, "max": 150, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "영험한 영물. 잡을 시 모든 보유 시설 유지비 1회 면제"},
         {"name": "천지 네시", "rarity": "환상", "chance": 0.005, "min": 300, "max": 700, "price_per_cm": 110, "req_tier": 5, "water_quality": [1], "effect_desc": "호수의 지배자. 낚을 시 낚싯대 내구도 -30"},
-        {"name": "사냥꾼에게 어미를 잃은 애기유니콘", "rarity": "환상", "chance": 0.003, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 5, "water_quality": [1], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
+        {"name": "사냥꾼에게 어미를 잃은 애기유니콘", "rarity": "환상", "chance": 0.002, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 5, "water_quality": [1], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
+        {"name": "아름다운 유니콘", "rarity": "환상", "chance": 0.001, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 5, "water_quality": [1], "effect_desc": "신비한 유니콘을 봤습니다. 자산이 늘어납니다."},
+
     ],
 
     "바다": [
@@ -117,7 +121,9 @@ FISHING_ECOLOGY = {
         # --- 환상 ---
         {"name": "돌고래", "rarity": "환상", "chance": 0.001, "min": 150, "max": 300, "price_per_cm": 250, "req_tier": 5, "water_quality": [1,2], "effect_desc": "바다의 천사. 잡을 시 다음 낚시 성공 확률 +15%"},
         {"name": "메갈로돈", "rarity": "환상", "chance": 0.005, "min": 1500, "max": 2000, "price_per_cm": 38, "req_tier": 5, "water_quality": [1,2], "effect_desc": "고대의 초대형 상어. 낚을 시 낚싯대 내구도 -80"},
-        {"name": "인간에게 배신당한 인어", "rarity": "환상", "chance": 0.003, "min": 150, "max": 180, "price_per_cm": 0, "req_tier": 5, "water_quality": [1,2], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
+        {"name": "인간에게 배신당한 세이렌", "rarity": "환상", "chance": 0.002, "min": 150, "max": 180, "price_per_cm": 0, "req_tier": 5, "water_quality": [1,2], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
+        {"name": "노래를 부르는 세이렌", "rarity": "환상", "chance": 0.001, "min": 150, "max": 180, "price_per_cm": 0, "req_tier": 5, "water_quality": [1,2], "effect_desc": "물고기들이 노래에 홀렸습니다."},
+
     ],
 
     "늪": [
@@ -146,7 +152,9 @@ FISHING_ECOLOGY = {
         # --- 환상 ---
         {"name": "왜가리", "rarity": "환상", "chance": 0.01, "min": 80, "max": 110, "price_per_cm": 650, "req_tier": 5, "water_quality": [2,3,4], "effect_desc": "부동의 자세로 물고기를 사냥하는 새입니다."},
         {"name": "악어", "rarity": "환상", "chance": 0.005, "min": 150, "max": 400, "price_per_cm": 180, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "늪지의 최종 지배자. 엄청난 데스롤을 시전하여 낚싯대 내구도 -60"},
-        {"name": "용이 되지 못한 이무기", "rarity": "환상", "chance": 0.003, "min": 200, "max": 500, "price_per_cm": 0, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
+        {"name": "용이 되지 못한 이무기", "rarity": "환상", "chance": 0.002, "min": 200, "max": 500, "price_per_cm": 0, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
+        {"name": "어! 용이다. 용으로 변하는 이무기", "rarity": "환상", "chance": 0.001, "min": 200, "max": 500, "price_per_cm": 0, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "감사의 마음을 담아 소정의 부를 나누어주었습니다"},
+
     ]
 }
 
@@ -276,6 +284,12 @@ class TrashActionView(discord.ui.View):
         self.message = None
         self.responded = False # ✅ 추가: 응답 여부 확인용
 
+        # 🎁 이득이 되는 공지(양수 값)일 경우 버튼 이름 변경
+        if self.value > 0 or self.value_name == "커커님의 항소문":
+            self.clean.label = "📖 내용 읽어보기" if self.value_name == "커커님의 항소문" else "📖 공지 정독하기"
+            self.clean.style = discord.ButtonStyle.primary
+            self.dump.label = "🗑️ 쪽지 버리기"
+
     def is_finished(self):
         """이미 버튼을 눌러 처리가 완료되었는지 확인"""
         return self.responded
@@ -289,6 +303,21 @@ class TrashActionView(discord.ui.View):
     async def on_timeout(self):
         if self.message and not self.responded:
             self.responded = True # ✅ 추가: 중복 처리 방지
+            
+            # 🎁 이득이 되는 공지인데 무시한 경우, 그냥 소멸 처리 (오염도는 상승)
+            if self.value > 0 or self.value_name == "커커님의 항소문":
+                chid, gid = str(self.channel_id), str(self.guild_id)
+                self.db.execute_query("UPDATE fishing_ground SET pollution = pollution + 0.5 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+                
+                msg = f"**[{self.value_name}]**을 읽지 않고 버려 바람에 날아갔습니다.\n(낚시터 오염도 약간 상승)"
+                if self.value_name == "커커님의 항소문":
+                    msg = "항소문을 읽지 않고 버렸습니다. 커커님이 실망한 듯합니다.\n(낚시터 오염도 약간 상승)"
+                
+                embed = discord.Embed(title="🌬️ 저언...", description=msg, color=discord.Color.light_gray())
+                await self.message.edit(embed=embed, view=None)
+                self._clear_session()
+                return
+
             try:
                 chid, gid = str(self.channel_id), str(self.guild_id)
                 uid = str(self.user_id)
@@ -392,20 +421,37 @@ class TrashActionView(discord.ui.View):
         self.responded = True
 
         uid, gid = self.user_id, str(interaction.guild_id)
-        penalty = abs(self.value)
         current_cash = self.db.get_user_cash(uid) or 0
-        if current_cash < penalty:
-            self.responded = False
-            return await interaction.response.send_message("❌ 현금 부족!", ephemeral=True)
-
+        
         conn = self.db.get_connection()
         try:
             conn.execute("BEGIN")
-            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (penalty, uid, gid))
-            conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                         (uid, "낚시", -penalty, current_cash - penalty, "낚시 환경 정화 비용"))
+            
+            if self.value_name == "커커님의 항소문":
+                buff_until = (datetime.now() + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')
+                conn.execute("UPDATE users SET appeal_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
+                msg = "항소문을 읽고 감동했습니다! **5분간 쓰레기 확률이 5% 감소**합니다."
+                title = "📜 항소문 정독"
+            elif self.value > 0: # 🎁 [추가] 양수 보상인 경우 (정이가 올린 공지사항 등)
+                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (self.value, uid, gid))
+                conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                             (uid, "낚시", self.value, current_cash + self.value, f"{self.value_name} 정독 보너스"))
+                msg = f"공지를 정독하여 **{self.value:,}원**이 입금되었습니다!"
+                title = "✨ 공지 정독 완료"
+            else: # 🚮 일반 쓰레기 처리 비용 지불
+                penalty = abs(self.value)
+                if current_cash < penalty:
+                    self.responded = False
+                    return await interaction.response.send_message("❌ 현금 부족!", ephemeral=True)
+                
+                conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (penalty, uid, gid))
+                conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                             (uid, "낚시", -penalty, current_cash - penalty, "낚시 환경 정화 비용"))
+                msg = f"**{penalty:,}원**을 지출하여 쓰레기를 수거했습니다."
+                title = "✅ 정화 완료"
+
             conn.commit()
-            await interaction.response.edit_message(embed=discord.Embed(title="✅ 정화 완료", description=f"**{penalty:,}원**을 지출했습니다.", color=discord.Color.green()), view=None)
+            await interaction.response.edit_message(embed=discord.Embed(title=title, description=msg, color=discord.Color.green()), view=None)
         except:
             conn.rollback()
             self.responded = False
@@ -420,14 +466,22 @@ class TrashActionView(discord.ui.View):
         if self.responded: return
         self.responded = True # ✅ 중복 처리 즉시 차단
 
+        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
+        uid = self.user_id
+
+        # 🎁 [추가] 이득이 되는 쪽지(공지/항소문)를 그냥 버리는 경우 패널티 면제
+        if self.value > 0 or self.value_name == "커커님의 항소문":
+            self.db.execute_query("UPDATE fishing_ground SET pollution = pollution + 0.5 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
+            msg = f"**[{self.value_name}]**을 읽지 않고 그냥 버렸습니다.\n(오염도가 미량 상승합니다)"
+            await interaction.response.edit_message(embed=discord.Embed(title="🌬️ 쪽지 폐기", description=msg, color=discord.Color.light_gray()), view=None)
+            self._clear_session()
+            return
+
         # 1. 실제 데이터베이스 오염도 수치 증가 (핵심 로직)
         self.db.execute_query(
             "UPDATE fishing_ground SET pollution = pollution + 1 WHERE channel_id = ? AND guild_id = ?",
-            (str(interaction.channel_id), str(interaction.guild_id))
+            (chid, gid)
         )
-
-        chid, gid = str(interaction.channel_id), str(interaction.guild_id)
-        uid = self.user_id
         
         current_data = self.db.execute_query(
             "SELECT pollution, owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
@@ -1067,7 +1121,7 @@ class FishingGameView(discord.ui.View):
         if self.message and not self.responded:
             try:
                 for child in self.children: child.disabled = True
-                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초과", description="낚시가 자동으로 중단되었습니다.", color=discord.Color.default()), view=self)
+                await self.message.edit(embed=discord.Embed(title="⌛ 시간 초무", description="낚시가 자동으로 중단되었습니다.", color=discord.Color.default()), view=self)
             except: pass
 
     def _clear_session(self):
@@ -1267,11 +1321,24 @@ class FishingGameView(discord.ui.View):
                         trash_chance = 0.25 + (current_pollution * 0.007499) 
 
                 # 🧤 [추가] 낚시 장갑 버프 체크 (쓰레기 확률 -10%)
-                user_data_buff = self.db.execute_query("SELECT trash_buff_until FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
-                if user_data_buff and user_data_buff['trash_buff_until']:
-                    buff_until = datetime.strptime(user_data_buff['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
-                    if datetime.now() < buff_until:
-                        trash_chance -= 0.1 # 10% 감소
+                user_data_buff = self.db.execute_query("SELECT trash_buff_until, fish_buff_until, appeal_buff_until FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                if user_data_buff:
+                    if user_data_buff['trash_buff_until']:
+                        buff_until = datetime.strptime(user_data_buff['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
+                        if datetime.now() < buff_until:
+                            trash_chance -= 0.1 # 10% 감소
+                    
+                    # 🧜‍♀️ [추가] 세이렌의 노래 버프 체크 (쓰레기 확률 -10%)
+                    if user_data_buff['fish_buff_until']:
+                        f_buff_until = datetime.strptime(user_data_buff['fish_buff_until'], '%Y-%m-%d %H:%M:%S')
+                        if datetime.now() < f_buff_until:
+                            trash_chance -= 0.1 # 10% 감소 (물고기 확률 10% 증가와 동일)
+
+                    # 📜 [추가] 커커님의 항소문 버프 체크 (쓰레기 확률 -5%)
+                    if user_data_buff.get('appeal_buff_until'):
+                        a_buff_until = datetime.strptime(user_data_buff['appeal_buff_until'], '%Y-%m-%d %H:%M:%S')
+                        if datetime.now() < a_buff_until:
+                            trash_chance -= 0.05 # 5% 감소
 
                 # 🧪 [추가] 함정(Sabotage) 체크 (입장권 기반)
                 # 사유지일 경우에만 입장권의 함정 여부를 확인합니다.
@@ -1357,7 +1424,14 @@ class FishingGameView(discord.ui.View):
                     
                     # 계산된 금액이 1,000원보다 적으면 최소 1,000원 부과
                     calculated_fine = int(current_cash * rate)
-                    actual_fine = -max(1000, calculated_fine) 
+                    
+                    # 🎁 [수정] 특수 아이템 정산 처리
+                    if trash["name"] == "정이가 올린 공지사항":
+                        actual_fine = calculated_fine
+                    elif trash["name"] == "커커님의 항소문":
+                        actual_fine = 0 # 📜 항소문은 읽는 데 돈이 들지 않음
+                    else:
+                        actual_fine = -max(1000, calculated_fine) 
             
                     # 🚨 [인자 7개 채우기] 에러 해결 및 rate 전달
                     view = TrashActionView(
@@ -1526,6 +1600,32 @@ class FishingGameView(discord.ui.View):
                         description=f"**{fish['name']}**이(가) 걸려왔습니다! 이들의 분노로 인해 소지금의 50%(**{penalty:,}원**)를 수거해갑니다.", 
                         color=discord.Color.dark_red()
                     )
+                    special_event = True
+
+                elif fish["name"] == "아름다운 유니콘":
+                    user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                    user_cash = user_data['cash'] if user_data else 0
+                    bonus = int(user_cash * 0.2)
+                    conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (bonus, uid, gid))
+                    conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                                 (uid, "낚시보너스", bonus, user_cash + bonus, f"{fish['name']}의 축복으로 인한 자산 20% 증가"))
+                    event_embed = discord.Embed(title="🌌 유니콘의 축복!", description=f"**아름다운 유니콘**을 만났습니다! 축복으로 인해 소지금의 20%(**{bonus:,}원**)가 늘어납니다.", color=discord.Color.from_rgb(255, 0, 127))
+                    special_event = True
+
+                elif fish["name"] == "어! 용이다. 용으로 변하는 이무기":
+                    user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                    user_cash = user_data['cash'] if user_data else 0
+                    bonus = int(user_cash * 0.2)
+                    conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (bonus, uid, gid))
+                    conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                                 (uid, "낚시보너스", bonus, user_cash + bonus, f"{fish['name']}의 감사의 표시로 자산 20% 증가"))
+                    event_embed = discord.Embed(title="🐉 용의 승천!", description=f"**이무기가 용이 되는 순간**을 목격했습니다! 감사의 표시로 소지금의 20%(**{bonus:,}원**)를 나누어줍니다.", color=discord.Color.gold())
+                    special_event = True
+
+                elif fish["name"] == "노래를 부르는 세이렌":
+                    buff_until = (datetime.now() + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+                    conn.execute("UPDATE users SET fish_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
+                    event_embed = discord.Embed(title="🧜‍♀️ 세이렌의 노래!", description="**노래를 부르는 세이렌**을 만났습니다! 그녀의 노래에 홀린 물고기들이 몰려듭니다.\n(✨ 30분간 물고기 확률 **+10%** 증가)", color=discord.Color.blue())
                     special_event = True
 
                 # 🎣 [수정] 특수 이벤트가 아닐 때만 일반 물고기 인벤토리에 한 번만 저장
@@ -1808,8 +1908,16 @@ class FishingSystemCog(commands.Cog):
             try: db.execute_query("ALTER TABLE users ADD COLUMN trash_buff_until TEXT")
             except: pass
 
+        if 'fish_buff_until' not in cols_u:
+            try: db.execute_query("ALTER TABLE users ADD COLUMN fish_buff_until TEXT")
+            except: pass
+
         if 'award_buff_until' not in cols_u:
             try: db.execute_query("ALTER TABLE users ADD COLUMN award_buff_until TEXT")
+            except: pass
+
+        if 'appeal_buff_until' not in cols_u:
+            try: db.execute_query("ALTER TABLE users ADD COLUMN appeal_buff_until TEXT")
             except: pass
 
         # 📦 [추가] 인벤토리 rarity 컬럼 누락 체크
