@@ -1335,7 +1335,7 @@ class FishingGameView(discord.ui.View):
                             trash_chance -= 0.1 # 10% 감소 (물고기 확률 10% 증가와 동일)
 
                     # 📜 [추가] 커커님의 항소문 버프 체크 (쓰레기 확률 -5%)
-                    if user_data_buff.get('appeal_buff_until'):
+                    if user_data_buff['appeal_buff_until']:
                         a_buff_until = datetime.strptime(user_data_buff['appeal_buff_until'], '%Y-%m-%d %H:%M:%S')
                         if datetime.now() < a_buff_until:
                             trash_chance -= 0.05 # 5% 감소
@@ -2065,6 +2065,9 @@ class FishingSystemCog(commands.Cog):
 
         # 🚫 [추가] 낚시 금지 제제 체크
         user_data = db.get_user(uid)
+        if user_data:
+            user_data = dict(user_data)
+        
         if user_data and user_data.get('fishing_ban_until'):
             ban_until = datetime.strptime(user_data['fishing_ban_until'], '%Y-%m-%d %H:%M:%S')
             if datetime.now() < ban_until:
