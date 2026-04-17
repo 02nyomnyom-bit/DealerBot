@@ -59,28 +59,28 @@ FISHING_ECOLOGY = {
     "호수": [
         # --- 흔함 ---
         {"name": "피라미", "rarity": "흔함", "chance": 0.12, "min": 5, "max": 15, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "가장 기초적인 민물 잡어입니다."},
-        {"name": "붕어", "rarity": "흔함", "chance": 0.10, "min": 15, "max": 30, "price_per_cm": 120, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "표준적인 민물 낚시의 손맛을 줍니다."},
-        {"name": "잉어", "rarity": "흔함", "chance": 0.07, "min": 30, "max": 80, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "몸집이 커서 초반 돈벌이에 좋습니다."},
-        {"name": "메기", "rarity": "흔함", "chance": 0.07, "min": 30, "max": 70, "price_per_cm": 60, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 어종이며 탁한 물을 좋아합니다."},
+        {"name": "붕어", "rarity": "흔함", "chance": 0.11, "min": 15, "max": 30, "price_per_cm": 120, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "표준적인 민물 낚시의 손맛을 줍니다."},
+        {"name": "잉어", "rarity": "흔함", "chance": 0.11, "min": 30, "max": 80, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "몸집이 커서 초반 돈벌이에 좋습니다."},
+        {"name": "메기", "rarity": "흔함", "chance": 0.11, "min": 30, "max": 70, "price_per_cm": 60, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 어종이며 탁한 물을 좋아합니다."},
         
         # --- 🚨 특수 동물/유해 생물 (호수) ---
-        {"name": "수달", "rarity": "희귀", "chance": 0.09, "min": 40, "max": 60, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "가방에서 가장 비싼 물고기를 훔쳐갑니다!"},
-        {"name": "자라", "rarity": "희귀", "chance": 0.09, "min": 20, "max": 35, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "물리면 치료비 5,000원이 지출됩니다."},
-        {"name": "붉은가위가재", "rarity": "흔함", "chance": 0.09, "min": 10, "max": 20, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "낚싯대 내구도를 -10 감소시킵니다."},
+        {"name": "수달", "rarity": "희귀", "chance": 0.06, "min": 40, "max": 60, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "가방에서 가장 비싼 물고기를 훔쳐갑니다!"},
+        {"name": "자라", "rarity": "희귀", "chance": 0.06, "min": 20, "max": 35, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "물리면 치료비 5,000원이 지출됩니다."},
+        {"name": "붉은가위가재", "rarity": "흔함", "chance": 0.06, "min": 10, "max": 20, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "낚싯대 내구도를 -10 감소시킵니다."},
 
         # --- 희귀 ---
-        {"name": "쏘가리", "rarity": "희귀", "chance": 0.05, "min": 25, "max": 50, "price_per_cm": 180, "req_tier": 2, "water_quality": [1,2], "effect_desc": "깨끗한 돌 틈에 살며, 잡을 시 명성 +50"},
-        {"name": "무지개송어", "rarity": "희귀", "chance": 0.04, "min": 30, "max": 60, "price_per_cm": 150, "req_tier": 2, "water_quality": [1,2], "effect_desc": "화려한 무늬를 띱니다. 경험치 획득 +10%"},
-        {"name": "은어", "rarity": "희귀", "chance": 0.05, "min": 15, "max": 25, "price_per_cm": 350, "req_tier": 2, "water_quality": [1], "effect_desc": "맑은 물에만 살며 수박 향이 납니다."},
-        {"name": "향어", "rarity": "희귀", "chance": 0.04, "min": 40, "max": 70, "price_per_cm": 130, "req_tier": 2, "water_quality": [3,4], "effect_desc": "양식 기원 어종으로 묵직한 손맛을 줍니다."},
+        {"name": "쏘가리", "rarity": "희귀", "chance": 0.027, "min": 25, "max": 50, "price_per_cm": 180, "req_tier": 2, "water_quality": [1,2], "effect_desc": "깨끗한 돌 틈에 살며, 잡을 시 명성 +50"},
+        {"name": "무지개송어", "rarity": "희귀", "chance": 0.027, "min": 30, "max": 60, "price_per_cm": 150, "req_tier": 2, "water_quality": [1,2], "effect_desc": "화려한 무늬를 띱니다. 경험치 획득 +10%"},
+        {"name": "은어", "rarity": "희귀", "chance": 0.027, "min": 15, "max": 25, "price_per_cm": 350, "req_tier": 2, "water_quality": [1], "effect_desc": "맑은 물에만 살며 수박 향이 납니다."},
+        {"name": "향어", "rarity": "희귀", "chance": 0.027, "min": 40, "max": 70, "price_per_cm": 130, "req_tier": 2, "water_quality": [3,4], "effect_desc": "양식 기원 어종으로 묵직한 손맛을 줍니다."},
         
         # --- 신종 ---
-        {"name": "아로와나", "rarity": "신종", "chance": 0.10, "min": 50, "max": 100, "price_per_cm": 280, "req_tier": 3, "water_quality": [1], "effect_desc": "살아있는 화석. 잡을 시 낚시터 명성 +100"},
-        {"name": "피라루쿠", "rarity": "신종", "chance": 0.08, "min": 100, "max": 250, "price_per_cm": 110, "req_tier": 3, "water_quality": [2,3], "effect_desc": "거대 민물 어종입니다. 낚싯대 내구도 -5"},
+        {"name": "아로와나", "rarity": "신종", "chance": 0.036, "min": 50, "max": 100, "price_per_cm": 280, "req_tier": 3, "water_quality": [1], "effect_desc": "살아있는 화석. 잡을 시 낚시터 명성 +100"},
+        {"name": "피라루쿠", "rarity": "신종", "chance": 0.036, "min": 100, "max": 250, "price_per_cm": 110, "req_tier": 3, "water_quality": [2,3], "effect_desc": "거대 민물 어종입니다. 낚싯대 내구도 -5"},
         
         # --- 전설 ---
-        {"name": "산천어", "rarity": "전설", "chance": 0.04, "min": 20, "max": 40, "price_per_cm": 1100, "req_tier": 4, "water_quality": [1], "effect_desc": "1급수 청정 지표 어종입니다."},
-        {"name": "철갑상어", "rarity": "전설", "chance": 0.032, "min": 100, "max": 200, "price_per_cm": 220, "req_tier": 4, "water_quality": [1,2], "effect_desc": "고급 알(캐비아)을 품어 매우 비쌉니다."},
+        {"name": "산천어", "rarity": "전설", "chance": 0.036, "min": 20, "max": 40, "price_per_cm": 1100, "req_tier": 4, "water_quality": [1], "effect_desc": "1급수 청정 지표 어종입니다."},
+        {"name": "철갑상어", "rarity": "전설", "chance": 0.036, "min": 100, "max": 200, "price_per_cm": 220, "req_tier": 4, "water_quality": [1,2], "effect_desc": "고급 알(캐비아)을 품어 매우 비쌉니다."},
         
         # --- 환상 ---
         {"name": "황금 잉어", "rarity": "환상", "chance": 0.01, "min": 80, "max": 150, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "영험한 영물. 잡을 시 모든 보유 시설 유지비 1회 면제"},
@@ -90,13 +90,13 @@ FISHING_ECOLOGY = {
 
     "바다": [
         # --- 흔함 ---
-        {"name": "전갱이", "rarity": "흔함", "chance": 0.12, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
-        {"name": "고등어", "rarity": "흔함", "chance": 0.12, "min": 20, "max": 40, "price_per_cm": 110, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
-        {"name": "전어", "rarity": "흔함", "chance": 0.12, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
+        {"name": "전갱이", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
+        {"name": "고등어", "rarity": "흔함", "chance": 0.15, "min": 20, "max": 40, "price_per_cm": 110, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
+        {"name": "전어", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
         
         # --- 🚨 특수 동물/유해 생물 (바다) ---
-        {"name": "보라성게", "rarity": "희귀", "chance": 0.135, "min": 5, "max": 15, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "가시에 찔려 낚싯대 내구도가 -10 감소합니다."},
-        {"name": "아무르불가사리", "rarity": "흔함", "chance": 0.135, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "줄이 엉켜 미끼가 2개 더 소모됩니다."},
+        {"name": "보라성게", "rarity": "희귀", "chance": 0.09, "min": 5, "max": 15, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "가시에 찔려 낚싯대 내구도가 -10 감소합니다."},
+        {"name": "아무르불가사리", "rarity": "흔함", "chance": 0.09, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "줄이 엉켜 미끼가 2개 더 소모됩니다."},
 
         # --- 희귀 ---
         {"name": "벵에돔", "rarity": "희귀", "chance": 0.036, "min": 25, "max": 50, "price_per_cm": 180, "req_tier": 2, "water_quality": [1,2], "effect_desc": "낚시꾼들의 로망 중 하나입니다. 잡을 시 개인 명성 +50"},
@@ -104,11 +104,11 @@ FISHING_ECOLOGY = {
         {"name": "우럭", "rarity": "희귀", "chance": 0.036, "min": 20, "max": 50, "price_per_cm": 180, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "바위 틈에 서식하는 대중적인 횟감입니다."},
         
         # --- 신종 ---
-        {"name": "바다거북", "rarity": "신종", "chance": 0.0019, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
-        {"name": "알비노바다거북", "rarity": "신종", "chance": 0.0001, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
+        {"name": "바다거북", "rarity": "신종", "chance": 0.007, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
+        {"name": "알비노바다거북", "rarity": "신종", "chance": 0.005, "min": 80, "max": 120, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "보호종을 방생하여 개인 명성 +500을 얻습니다!"},
         {"name": "고래상어", "rarity": "신종", "chance": 0.02, "min": 500, "max": 1200, "price_per_cm": 24, "req_tier": 3, "water_quality": [1,2], "effect_desc": "지구상에서 가장 큰 어류입니다. 낚을 시 낚시터 명성 +500"},
-        {"name": "타이거 샤크(뱀상어)", "rarity": "신종", "chance": 0.016, "min": 300, "max": 600, "price_per_cm": 45, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "무엇이든 먹어치우는 바다의 포식자입니다. 낚싯대 내구도 -15"},
-        {"name": "대왕 오징어", "rarity": "신종", "chance": 0.016, "min": 200, "max": 1000, "price_per_cm": 28, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "심해의 거대 괴수입니다. 낚싯대 내구도 -10"},
+        {"name": "타이거 샤크(뱀상어)", "rarity": "신종", "chance": 0.02, "min": 300, "max": 600, "price_per_cm": 45, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "무엇이든 먹어치우는 바다의 포식자입니다. 낚싯대 내구도 -15"},
+        {"name": "대왕 오징어", "rarity": "신종", "chance": 0.02, "min": 200, "max": 1000, "price_per_cm": 28, "req_tier": 3, "water_quality": [1,2,3], "effect_desc": "심해의 거대 괴수입니다. 낚싯대 내구도 -10"},
         
         # --- 전설 ---
         {"name": "백상아리", "rarity": "전설", "chance": 0.004, "min": 300, "max": 600, "price_per_cm": 80, "req_tier": 4, "water_quality": [1,2], "effect_desc": "죠스의 주인공! 낚을 시 낚싯대 내구도 -35"},
@@ -122,23 +122,23 @@ FISHING_ECOLOGY = {
 
     "늪": [
         # --- 흔함 ---
-        {"name": "검정말", "rarity": "흔함", "chance": 0.13, "min": 10, "max": 50, "price_per_cm": 80, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "늪 바닥에 무성한 수초입니다."},
-        {"name": "부레옥잠", "rarity": "흔함", "chance": 0.12, "min": 10, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "수질 정화 능력이 있는 흔한 수생식물입니다."},
-        {"name": "해캄", "rarity": "흔함", "chance": 0.11, "min": 5, "max": 20, "price_per_cm": 200, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "탁한 물에 끼는 녹조류 뭉덩이입니다."},
+        {"name": "검정말", "rarity": "흔함", "chance": 0.15, "min": 10, "max": 50, "price_per_cm": 80, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "늪 바닥에 무성한 수초입니다."},
+        {"name": "부레옥잠", "rarity": "흔함", "chance": 0.15, "min": 10, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "수질 정화 능력이 있는 흔한 수생식물입니다."},
+        {"name": "해캄", "rarity": "흔함", "chance": 0.15, "min": 5, "max": 20, "price_per_cm": 200, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "탁한 물에 끼는 녹조류 뭉덩이입니다."},
         
         # --- 🚨 특수 동물/유해 생물 (늪) ---
-        {"name": "너구리", "rarity": "희귀", "chance": 0.09, "min": 30, "max": 45, "price_per_cm": 0, "req_tier": 1, "water_quality": [2,3,4,5], "effect_desc": "가방을 털어 미끼 5개를 훔쳐 달아납니다!"},
-        {"name": "황소개구리", "rarity": "전설", "chance": 0.09, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "퇴치 포상금 10,000원을 얻지만 오염도가 상승합니다."},
-        {"name": "붉은가위가재", "rarity": "흔함", "chance": 0.09, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "낚싯대 내구도를 -10 감소시킵니다."},
+        {"name": "너구리", "rarity": "희귀", "chance": 0.06, "min": 30, "max": 45, "price_per_cm": 0, "req_tier": 1, "water_quality": [2,3,4,5], "effect_desc": "가방을 털어 미끼 5개를 훔쳐 달아납니다!"},
+        {"name": "황소개구리", "rarity": "전설", "chance": 0.06, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "퇴치 포상금 10,000원을 얻지만 오염도가 상승합니다."},
+        {"name": "붉은가위가재", "rarity": "흔함", "chance": 0.06, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "낚싯대 내구도를 -10 감소시킵니다."},
 
         # --- 희귀 ---
-        {"name": "민물새우", "rarity": "희귀", "chance": 0.36, "min": 3, "max": 8, "price_per_cm": 1100, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "작고 투명한 늪지 새우입니다."},
+        {"name": "민물새우", "rarity": "희귀", "chance": 0.036, "min": 3, "max": 8, "price_per_cm": 1100, "req_tier": 2, "water_quality": [2,3,4], "effect_desc": "작고 투명한 늪지 새우입니다."},
         {"name": "말조개", "rarity": "희귀", "chance": 0.036, "min": 10, "max": 25, "price_per_cm": 350, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "진흙 바닥에 서식하는 거대 민물 조개입니다."},
         {"name": "물방개", "rarity": "희귀", "chance": 0.036, "min": 2, "max": 5, "price_per_cm": 1800, "req_tier": 2, "water_quality": [3,4,5], "effect_desc": "헤엄을 잘 치는 수서곤충입니다."},
         
         # --- 신종 ---
-        {"name": "누룩뱀", "rarity": "신종", "chance": 0.36, "min": 50, "max": 120, "price_per_cm": 220, "req_tier": 3, "water_quality": [3,4,5], "effect_desc": "늪 습지에서 보이는 뱀입니다."},
-        {"name": "메기", "rarity": "신종", "chance": 0.36, "min": 30, "max": 70, "price_per_cm": 400, "req_tier": 3, "water_quality": [3,4,5,6], "effect_desc": "탁한 수질에 도가 튼 야행성 포식자입니다."},
+        {"name": "누룩뱀", "rarity": "신종", "chance": 0.036, "min": 50, "max": 120, "price_per_cm": 220, "req_tier": 3, "water_quality": [3,4,5], "effect_desc": "늪 습지에서 보이는 뱀입니다."},
+        {"name": "메기", "rarity": "신종", "chance": 0.036, "min": 30, "max": 70, "price_per_cm": 400, "req_tier": 3, "water_quality": [3,4,5,6], "effect_desc": "탁한 수질에 도가 튼 야행성 포식자입니다."},
         
         # --- 전설 ---
         {"name": "가물치", "rarity": "전설", "chance": 0.072, "min": 40, "max": 100, "price_per_cm": 450, "req_tier": 4, "water_quality": [3,4,5,6], "effect_desc": "늪지의 무법자이자 난폭한 최상위 어종입니다."},
