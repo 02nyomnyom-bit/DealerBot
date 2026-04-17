@@ -416,6 +416,9 @@ class TrashActionView(discord.ui.View):
     async def dump(self, interaction: discord.Interaction, button: discord.ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("자신의 쓰레기만 처리할 수 있습니다!", ephemeral=True)
+        
+        if self.responded: return
+        self.responded = True # ✅ 중복 처리 즉시 차단
 
         # 1. 실제 데이터베이스 오염도 수치 증가 (핵심 로직)
         self.db.execute_query(
@@ -1531,6 +1534,15 @@ class FishingGameView(discord.ui.View):
                     conn.execute("INSERT INTO fishing_inventory (user_id, guild_id, fish_name, length, price_per_cm, rarity) VALUES (?, ?, ?, ?, ?, ?)", 
                                  (uid, gid, fish["name"], length, fish["price_per_cm"], fish.get("rarity", "흔함")))
                     
+                    # 📏 [추가] 월척 기록 경신 체크 (직접 쿼리)
+                    user_row = conn.execute("SELECT IFNULL(max_fish_length, 0.0) as m FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid)).fetchone()
+                    current_max = user_row['m'] if user_row else 0.0
+                    
+                    is_new_record = False
+                    if length > current_max:
+                        conn.execute("UPDATE users SET max_fish_length = ? WHERE user_id = ? AND guild_id = ?", (length, uid, gid))
+                        is_new_record = True
+
                     # ✨ [명성 계산 시스템 개선]
                     rep_multiplier = 1.0
                     if built_facilities:
@@ -1584,6 +1596,9 @@ class FishingGameView(discord.ui.View):
                         f"⭐ **개인 명성:** `+{base_give_rep} P` (배율 적용)",
                         f"🏞️ **낚시터 명성:** `+{ground_rep_gain} P` 기여"
                     ]
+                    
+                    if is_new_record:
+                        desc_lines.insert(1, f"✨ **신규 월척 경신! (종전 {current_max}cm)**")
                     
                     if durability_damage > 0:
                         desc_lines.append(f"💢 **내구도 감소:** `-{durability_damage}` 포인트")
@@ -2575,9 +2590,8 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="🎒 가방 물고기", value=f"{cnt}마리", inline=True)
             
             # 투기 기록 추가
-            illegal = u.get('illegal_dump_count', 0)
-            neglect = u.get('neglect_dump_count', 0)
-            embed.add_field(name="🚮 투기 기록", value=f"🚫 무단: {illegal}회 / 💤 방치: {neglect}회", inline=False)
+            total_dump = u.get('illegal_dump_count', 0) + u.get('neglect_dump_count', 0)
+            embed.add_field(name="🚮 투기 기록", value=f"⚠️ 총 {total_dump}회", inline=True)
 
             # 🧤 [추가] 낚시 장갑 버프 정보 표시
             if u.get('trash_buff_until'):
