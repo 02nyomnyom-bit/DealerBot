@@ -1793,6 +1793,10 @@ class FishingSystemCog(commands.Cog):
             try: db.execute_query("ALTER TABLE users ADD COLUMN trash_buff_until TEXT")
             except: pass
 
+        if 'award_buff_until' not in cols_u:
+            try: db.execute_query("ALTER TABLE users ADD COLUMN award_buff_until TEXT")
+            except: pass
+
         # 📦 [추가] 인벤토리 rarity 컬럼 누락 체크
         cols_i_res = db.execute_query("PRAGMA table_info(fishing_inventory)", (), 'all')
         cols_i = [c['name'] for c in cols_i_res] if cols_i_res else []
@@ -2602,7 +2606,7 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="낚싯대 수리(1당 10원)", value="repair"),
         app_commands.Choice(name="초보자 세트 구매 (10,000원)", value="starter"),
         app_commands.Choice(name="미끼 개당 (300원)", value="buy_bait"),
-        app_commands.Choice(name="📜 나는 관리자들 공지를 잘 읽을게요 (300,000원 / 능력 미표기)", value="buy_award"),
+        app_commands.Choice(name="📜 나는 관리자들 공지를 잘 읽을게요 (150,000원 / 1시간30분 쓰레기 비용 절반)", value="buy_award"),
         app_commands.Choice(name="🧤 낚시 장갑 (50,000원 / 3시간 쓰레기 -10%)", value="buy_gloves"),
         app_commands.Choice(name="🧪 냄새나는 입장권 (50,000원 / 다음 입장객 방해)", value="buy_sabotage")
     ])
@@ -2729,7 +2733,7 @@ class FishingSystemCog(commands.Cog):
                 await interaction.response.send_message("❌ 구매 처리 중 오류가 발생했습니다.", ephemeral=True)
 
         elif 액션 == "buy_award":
-            COST = 100000
+            COST = 150000
             current_cash = db.get_user_cash(uid) or 0
             if current_cash < COST:
                 return await interaction.response.send_message(f"❌ 자금이 부족합니다! (필요: {COST:,}원 / 보유: {current_cash:,}원)", ephemeral=True)
@@ -2738,10 +2742,13 @@ class FishingSystemCog(commands.Cog):
             try:
                 conn.execute("BEGIN")
                 conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (COST, uid, gid))
-                # 무단투기 및 방치 횟수 각각 5회씩 차감 (음수 방지)
-                conn.execute("UPDATE users SET illegal_dump_count = MAX(0, illegal_dump_count - 5), neglect_dump_count = MAX(0, neglect_dump_count - 5) WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                
+                # 1시간 30분(90분) 버프 시간 계산
+                buff_until = (datetime.now() + timedelta(minutes=90)).strftime('%Y-%m-%d %H:%M:%S')
+                conn.execute("UPDATE users SET award_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
+                
                 conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                             (uid, "낚시", -COST, current_cash - COST, "나는 관리자들 공지를 잘 읽을게요 (투기 기록 정화)"))
+                             (uid, "낚시", -COST, current_cash - COST, "나는 관리자들 공지를 잘 읽을게요 (1시간30분 쓰레기 비용 절반)"))
                 conn.commit()
                 
                 embed = discord.Embed(
@@ -2749,7 +2756,8 @@ class FishingSystemCog(commands.Cog):
                     description=(
                         f"관리자들의 환심을 얻었습니다!\n\n"
                         f"✅ **차감 금액:** `{COST:,}원`\n"
-                        f"✨ **정화 효과:** 무단투기 횟수 및 방치 횟수가 각각 **5회** 감소했습니다."
+                        f"✨ **효과:** 앞으로 **1시간 30분** 동안 쓰레기가 낚였을 때 지불하는 비용이 **50% 감소**합니다.\n"
+                        f"⏰ **만료 시간:** `{buff_until}`"
                     ),
                     color=discord.Color.gold()
                 )
