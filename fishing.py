@@ -155,6 +155,37 @@ FISHING_ECOLOGY = {
         {"name": "용이 되지 못한 이무기", "rarity": "환상", "chance": 0.002, "min": 200, "max": 500, "price_per_cm": 0, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
         {"name": "어! 용이다. 용으로 변하는 이무기", "rarity": "환상", "chance": 0.001, "min": 200, "max": 500, "price_per_cm": 0, "req_tier": 5, "water_quality": [3,4,5,6], "effect_desc": "감사의 마음을 담아 소정의 부를 나누어주었습니다"},
 
+    ],
+
+    "쥬라기": [
+        # --- 흔함 (비율 상승) ---
+        {"name": "에라스모사우루스", "rarity": "흔함", "chance": 0.20, "min": 50, "max": 100, "price_per_cm": 100, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "목이 긴 해양 파충류로, 유유히 헤엄치며 비교적 쉽게 낚입니다."},
+        {"name": "피라냐", "rarity": "흔함", "chance": 0.10, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "날카로운 이빨로 공격해옵니다! 치료비 10,000원이 지출됩니다."},
+        {"name": "프로카노케리스", "rarity": "흔함", "chance": 0.15, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "초기 어류로 민첩하게 움직이며 기본적인 손맛을 제공합니다."},
+        {"name": "오프탈모사우루스", "rarity": "흔함", "chance": 0.10, "min": 150, "max": 250, "price_per_cm": 40, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "눈이 커서 시야가 넓은 포식자. 빠르게 도망쳐 손맛이 좋습니다."},
+        {"name": "마크로플라타 ", "rarity": "흔함", "chance": 0.10, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 해양 파충류로 어두운 수역에서 잘 낚입니다"},
+        {"name": "브라카우케니우스", "rarity": "흔함", "chance": 0.10, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "짧은 목과 강한 턱을 가진 포식자로 힘이 강합니다."},
+
+        # --- 희귀 (비율 하락) ---
+        {"name": "랩터", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "매우 민첩한 포식자입니다. 가방에서 가장 비싼 물고기 2마리를 채갑니다!"},
+        {"name": "익룡", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "하늘에서 내려와 물고기 대신 보석 주머니를 떨어뜨리고 갔습니다! +10,000원"},
+        {"name": "엘라스모사우루스", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "매우 긴 목을 가진 대표적 플레시오사우루스. 잡을 시 명성 +50"},
+        {"name": "플레시오사우루스", "rarity": "희귀", "chance": 0.04, "min": 100, "max": 150, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "균형 잡힌 체형의 해양 파충류로 경험치 획득 +10%"},
+        {"name": "플리오사우루스", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 100, "price_per_cm": 300, "req_tier": 2, "water_quality": [1], "effect_desc": "거대한 턱을 가진 최상위 포식자. 강력한 저항을 합니다."},
+        {"name": "씨팍티누스", "rarity": "희귀", "chance": 0.03, "min": 150, "max": 250, "price_per_cm": 120, "req_tier": 2, "water_quality": [3,4], "effect_desc": "거대한 육식 어류로 한입에 먹어치우는 포식 습성이 특징입니다."},
+
+        # --- 신종 (비율 하락) ---
+        {"name": "리오플레우로돈", "rarity": "신종", "chance": 0.02, "min": 100, "max": 200, "price_per_cm": 300, "req_tier": 3, "water_quality": [1], "effect_desc": "전설적인 초대형 해양 포식자. 잡을 시 낚시터 명성 +100"},
+        {"name": "바실로사우루스", "rarity": "신종", "chance": 0.015, "min": 300, "max": 500, "price_per_cm": 120, "req_tier": 3, "water_quality": [2,3], "effect_desc": "고대 고래로 긴 몸을 가진 대형 포유류. 낚싯대 내구도 -5"},
+
+        # --- 전설 (극도로 희귀) ---
+        {"name": "던클레오스테우스", "rarity": "전설", "chance": 0.005, "min": 50, "max": 100, "price_per_cm": 1000, "req_tier": 4, "water_quality": [1], "effect_desc": "갑옷 같은 두개골을 가진 고대 어류. 강한 방어력으로 낚기 어렵습니다."},
+        {"name": "이크티오사우루스", "rarity": "전설", "chance": 0.003, "min": 200, "max": 400, "price_per_cm": 250, "req_tier": 4, "water_quality": [1,2], "effect_desc": "돌고래처럼 빠른 해양 파충류. 속도가 빨라 포획이 까다롭습니다."},
+
+        # --- 환상 (서버 알림감) ---
+        {"name": "모사사우루스", "rarity": "환상", "chance": 0.001, "min": 150, "max": 300, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "백악기 바다의 지배자. 잡을 시 모든 보유 시설 유지비 1회 면제"},
+        {"name": "메갈로돈", "rarity": "환상", "chance": 0.0005, "min": 500, "max": 1000, "price_per_cm": 150, "req_tier": 5, "water_quality": [1], "effect_desc": "역사상 가장 거대한 상어. 낚을 시 낚싯대 내구도 -30"},
+        {"name": "크로노사우루스", "rarity": "환상", "chance": 0.003, "min": 200, "max": 300, "price_per_cm": 500, "req_tier": 4, "water_quality": [1,2], "effect_desc": "초대형 플리오사우루스로 강력한 포식자입니다."},
     ]
 }
 
@@ -200,9 +231,9 @@ FACILITIES = {
     "거대한매표소": {"req_rep": 1500000, "req_cash": 25000000, "tier": 5, "effect": {"fee_adj": 0.30}, "desc": "수수료 조정 범위 +-30%"},
 
     # 📦 물고기 확률 조정 (희귀 어종 포획의 핵심)
-    "창고": {"req_rep": 5000, "req_cash": 250000, "tier": 1, "effect": {"fish_rate": 0.01, "base_fee": 0.01, "upkeep_mult": 0.05}, "desc": "확률 +1%, 유지비 +5%"},
-    "소형창고": {"req_rep": 25000, "req_cash": 800000, "tier": 2, "effect": {"fish_rate": 0.03, "base_fee": 0.03, "upkeep_mult": 0.10}, "desc": "확률 +3%, 유지비 +10%"},
-    "중형창고": {"req_rep": 100000, "req_cash": 2500000, "tier": 3, "effect": {"fish_rate": 0.05, "base_fee": 0.05, "upkeep_mult": 0.15}, "desc": "확률 +5%, 유지비 +15%"},
+    "창고": {"req_rep": 5000, "req_cash": 250000, "tier": 1, "effect": {"fish_rate": 0.03, "base_fee": 0.01, "upkeep_mult": 0.05}, "desc": "확률 +3%, 유지비 +5%"},
+    "소형창고": {"req_rep": 25000, "req_cash": 800000, "tier": 2, "effect": {"fish_rate": 0.05, "base_fee": 0.03, "upkeep_mult": 0.10}, "desc": "확률 +5%, 유지비 +10%"},
+    "중형창고": {"req_rep": 100000, "req_cash": 2500000, "tier": 3, "effect": {"fish_rate": 0.10, "base_fee": 0.05, "upkeep_mult": 0.15}, "desc": "확률 +10%, 유지비 +15%"},
     "대형창고": {"req_rep": 450000, "req_cash": 7000000, "tier": 4, "effect": {"fish_rate": 0.15, "base_fee": 0.10, "upkeep_mult": 0.30}, "desc": "확률 +15%, 유지비 +30%"},
     "초거대한창고": {"req_rep": 1500000, "req_cash": 20000000, "tier": 5, "effect": {"fish_rate": 0.30, "base_fee": 0.15, "upkeep_mult": 0.50}, "desc": "확률 +30%, 유지비 +50%"},
     
@@ -1580,6 +1611,32 @@ class FishingGameView(discord.ui.View):
                     event_embed = discord.Embed(title="🌟 아무르불가사리 출현!", description="해양 생태계를 파괴하는 유해 불가사리입니다! 엉킨 줄을 푸느라 미끼가 **2개** 더 소실되었습니다.", color=discord.Color.orange())
                     special_event = True
 
+                elif fish["name"] == "랩터":
+                    # 가장 비싼 물고기 2마리 조회
+                    most_expensive = self.db.execute_query(
+                        "SELECT id, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ? ORDER BY (length * price_per_cm) DESC LIMIT 2",
+                        (uid, gid), 'all'
+                    )
+                    if most_expensive:
+                        ids = [str(m['id']) for m in most_expensive]
+                        conn.execute(f"DELETE FROM fishing_inventory WHERE id IN ({','.join(ids)})")
+                        names = ", ".join([f"[{m['fish_name']}]" for m in most_expensive])
+                        desc = f"😱 랩터 무리가 순식간에 나타나 가방에서 가장 비싼 {names}을(를) 낚채어 달아났습니다!"
+                    else:
+                        desc = "🦖 랩터가 가방을 노렸지만 가져갈 물고기가 없어 으르렁거리며 돌아갔습니다."
+                    event_embed = discord.Embed(title="🦖 랩터 습격!", description=desc, color=discord.Color.red())
+                    special_event = True
+
+                elif fish["name"] == "피라냐":
+                    conn.execute("UPDATE users SET cash = MAX(0, cash - 10000) WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                    event_embed = discord.Embed(title="🐟 피라냐의 공격!", description="물속에서 튀어오른 피라냐 떼에게 공격당했습니다! 치료비 **10,000원**이 지출되었습니다.", color=discord.Color.red())
+                    special_event = True
+
+                elif fish["name"] == "익룡":
+                    conn.execute("UPDATE users SET cash = cash + 10000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                    event_embed = discord.Embed(title="🦅 익룡의 선물!", description="하늘을 날던 익룡이 물고기를 가지러 내려왔다가, 대신 귀한 보물을 떨어뜨리고 갔습니다!\n\n💰 **+10,000원** 획득!", color=discord.Color.gold())
+                    special_event = True
+
                 elif fish["name"] == "황소개구리":
                     conn.execute("UPDATE users SET cash = cash + 10000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                     new_pollution = min(100.0, current_pollution + 2.0)
@@ -1587,7 +1644,7 @@ class FishingGameView(discord.ui.View):
                     event_embed = discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold())
                     special_event = True
 
-                elif fish["name"] in ["인간에게 배신당한 인어", "용이 되지 못한 이무기", "어미가 사냥꾼에게 살해당한 애기유니콘"]:
+                elif fish["name"] in ["인간에게 배신당한 세이렌", "용이 되지 못한 이무기", "어미가 사냥꾼에게 살해당한 애기유니콘"]:
                     user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
                     user_cash = user_data['cash'] if user_data else 0
                     penalty = int(user_cash * 0.5)
@@ -1661,6 +1718,7 @@ class FishingGameView(discord.ui.View):
                     if fish["name"] == "쏘가리": fish_base_personal_rep += 2
                     elif fish["name"] == "벵에돔": fish_base_personal_rep += 2
                     elif fish["name"] == "혹등고래": fish_base_personal_rep = 150 
+                    elif fish["name"] == "엘라스모사우루스": fish_base_personal_rep += 50
 
                     base_give_rep = int(fish_base_personal_rep * rep_multiplier)
                     conn.execute("UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?", (base_give_rep, uid, gid))
@@ -1669,6 +1727,7 @@ class FishingGameView(discord.ui.View):
                     ground_rep_gain = 1 # 모든 물고기는 낚시터 명성 1점을 기본으로 기여
                     if fish["name"] == "아로와나": ground_rep_gain += 100
                     elif fish["name"] == "고래상어": ground_rep_gain += 500
+                    elif fish["name"] == "리오플레우로돈": ground_rep_gain += 100
                     elif fish.get("rarity") == "전설": ground_rep_gain += 50
                     elif fish.get("rarity") == "환상": ground_rep_gain += 200
                     
@@ -1679,7 +1738,24 @@ class FishingGameView(discord.ui.View):
                     damage_map = {
                         "피라루쿠": 5, "천지 네시": 30, "타이거 샤크(뱀상어)": 15, 
                         "대왕 오징어": 10, "백상아리": 35, "가시연꽃": 2, 
-                        "악어": 60, "메갈로돈": 80
+                        "악어": 60,
+                        # --- 🦖 쥬라기 생물들 (강력한 손맛/내구도 소모) ---
+                        "메갈로돈": 150, 
+                        "모사사우루스": 120,
+                        "크로노사우루스": 100,
+                        "던클레오스테우스": 80,
+                        "리오플레우로돈": 70,
+                        "바실로사우루스": 50,
+                        "플리오사우루스": 45,
+                        "이크티오사우루스": 40,
+                        "씨팍티누스": 35,
+                        "엘라스모사우루스": 30,
+                        "플레시오사우루스": 30,
+                        "에라스모사우루스": 25,
+                        "브라카우케니우스": 20,
+                        "오프탈모사우루스": 15,
+                        "마크로플라타 ": 15,
+                        "프로카노케리스": 10
                     }
                     durability_damage = damage_map.get(fish["name"], 0)
                     
@@ -1973,6 +2049,14 @@ class FishingSystemCog(commands.Cog):
                 db.execute_query("UPDATE fishing_ground SET last_activity = CURRENT_TIMESTAMP WHERE last_activity IS NULL")
             except: pass
 
+        if 'original_ground_type' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN original_ground_type TEXT")
+            except: pass
+
+        if 'temp_terrain_expire' not in cols_g:
+            try: db.execute_query("ALTER TABLE fishing_ground ADD COLUMN temp_terrain_expire TEXT")
+            except: pass
+
     def _get_db(self, interaction: discord.Interaction):
         db = self.db_cog.get_manager(interaction.guild_id)
         # ✅ 명령어를 날릴 때마다 스키마를 체크하여 누락된 컬럼(is_public 등)이 있다면 채워 넣습니다.
@@ -2154,7 +2238,8 @@ class FishingSystemCog(commands.Cog):
     @app_commands.choices(지형=[
         app_commands.Choice(name="🏞️ 호수", value="호수"),
         app_commands.Choice(name="🌊 바다", value="바다"),
-        app_commands.Choice(name="🐊 늪", value="늪")
+        app_commands.Choice(name="🐊 늪", value="늪"),
+        app_commands.Choice(name="🦖 쥬라기", value="쥬라기")
     ])
     async def fish_ground(
         self, 
@@ -2341,12 +2426,38 @@ class FishingSystemCog(commands.Cog):
 
             if 입장료 is not None or 지형 is not None:
                 new_fee = 입장료 if 입장료 is not None else ground['entry_fee']
-                new_type = 지형 if 지형 is not None else ground['ground_type']
+                
+                # 🦕 [쥬라기 특수 지형 로직]
+                new_type = ground['ground_type']
+                revert_msg = ""
+                
+                if 지형 is not None:
+                    if 지형 == "쥬라기":
+                        if not interaction.user.guild_permissions.administrator:
+                            return await interaction.response.send_message("❌ **[쥬라기]** 지형은 운영진만 설정할 수 있는 특수 구역입니다.", ephemeral=True)
+                        
+                        # 이미 쥬라기인 경우 연장 불가 로직 (필요시)
+                        if ground['ground_type'] != "쥬라기":
+                            expire_time = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+                            db.execute_query(
+                                "UPDATE fishing_ground SET original_ground_type = ?, temp_terrain_expire = ? WHERE channel_id = ? AND guild_id = ?",
+                                (ground['ground_type'], expire_time, chid, gid)
+                            )
+                            revert_msg = "\n⚠️ **주의:** 운영진 권한으로 고대 생태계가 개방되었습니다! **1시간 후** 원래 지형으로 복구됩니다."
+                        new_type = "쥬라기"
+                    else:
+                        # 일반 지형으로 변경 시 임시 타이머 초기화
+                        db.execute_query(
+                            "UPDATE fishing_ground SET original_ground_type = NULL, temp_terrain_expire = NULL WHERE channel_id = ? AND guild_id = ?",
+                            (chid, gid)
+                        )
+                        new_type = 지형
+
                 db.execute_query(
                     "UPDATE fishing_ground SET entry_fee = ?, ground_type = ? WHERE channel_id = ? AND guild_id = ?", 
                     (new_fee, new_type, chid, gid)
                 )
-                await interaction.response.send_message(f"✅ 기초 정보가 업데이트되었습니다! (입장료: {new_fee:,}원 / 환경: {new_type})")
+                await interaction.response.send_message(f"✅ 기초 정보가 업데이트되었습니다! (입장료: {new_fee:,}원 / 환경: {new_type}){revert_msg}")
                 return 
 
             embed = discord.Embed(
@@ -2773,7 +2884,7 @@ class FishingSystemCog(commands.Cog):
                             best_multiplier = f_mult
 
             calculated_total = 0
-            RARITY_CAPS = {"흔함": 5000, "희귀": 10000, "신종": 30000, "전설": 50000, "환상": 80000}
+            RARITY_CAPS = {"흔함": 10000, "희귀": 30000, "신종": 60000, "전설": 100000, "환상": 150000}
 
             for i in items:
                 fish_data = dict(i)
@@ -3138,53 +3249,65 @@ class FishingSystemCog(commands.Cog):
                 (chid, gid, channel_name)
             )
 
-    @tasks.loop(hours=24)
+    @tasks.loop(minutes=1)
     async def auto_cleanup_inactive_grounds(self):
-        """7일 방치 낚시터 회수: 50% 환불 & 다음 구매가 10만원 설정"""
-        threshold_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+        """방치 낚시터 회수(24시간 주기 체크) 및 임시 지형 복구(실시간)"""
+        now_dt = datetime.now()
+        now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
         
         for guild in self.bot.guilds:
             try:
                 db = self.db_cog.get_manager(guild.id)
+                
+                # 🦕 [1] 임시 지형 복구 로직 (쥬라기 등)
+                expired_terrains = db.execute_query(
+                    "SELECT channel_id, original_ground_type FROM fishing_ground WHERE temp_terrain_expire IS NOT NULL AND temp_terrain_expire < ?",
+                    (now_str,), 'all'
+                )
+                
+                if expired_terrains:
+                    for t in expired_terrains:
+                        chid = t['channel_id']
+                        orig = t['original_ground_type'] or "호수"
+                        db.execute_query(
+                            "UPDATE fishing_ground SET ground_type = ?, original_ground_type = NULL, temp_terrain_expire = NULL WHERE channel_id = ?",
+                            (orig, chid)
+                        )
+                        print(f"🦕 [지형복구] {guild.name} - {chid} 채널이 원래 지형({orig})으로 복구되었습니다.")
+
+                # 🏛️ [2] 7일 방치 낚시터 회수 (기존 로직 유지하되 1시간에 한 번만 실제 실행되도록 내부 체크 가능)
+                # 여기서는 매 분 실행되지만, last_activity가 7일 이전인 것만 골라내므로 안전합니다.
+                threshold_date = (now_dt - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
                 targets = db.execute_query(
                     "SELECT * FROM fishing_ground WHERE owner_id IS NOT NULL AND last_activity < ?", 
                     (threshold_date,), 'all'
                 )
 
-                if not targets:
-                    continue
+                if targets:
+                    for ground in targets:
+                        uid, chid = ground['owner_id'], ground['channel_id']
+                        refund_amount = int(ground['ground_price'] * 0.5)
 
-                for ground in targets:
-                    uid, chid = ground['owner_id'], ground['channel_id']
-                    # ground_price를 기준으로 환불액 계산
-                    refund_amount = int(ground['ground_price'] * 0.5)
+                        try:
+                            with db.get_connection() as conn:
+                                conn.execute(
+                                    """UPDATE fishing_ground 
+                                       SET owner_id = NULL, 
+                                           pollution = 0, 
+                                           is_public = 1, 
+                                           ground_price = 100000, 
+                                           last_activity = CURRENT_TIMESTAMP 
+                                       WHERE channel_id = ?""", 
+                                    (chid,)
+                                )
+                                conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, str(guild.id)))
+                                conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (refund_amount, uid, str(guild.id)))
+                            print(f"🏛️ [국고환수] {guild.name} - {chid} 채널 회수 완료.")
+                        except Exception as e:
+                            print(f"❌ [{guild.name}] 국고 환수 오류: {e}")
 
-                    try:
-                        with db.get_connection() as conn:
-                            # 3. 국고 환수 처리
-                            conn.execute(
-                                """UPDATE fishing_ground 
-                                   SET owner_id = NULL, 
-                                       pollution = 0, 
-                                       is_public = 1, 
-                                       ground_price = 100000, 
-                                       last_activity = CURRENT_TIMESTAMP 
-                                   WHERE channel_id = ?""", 
-                                (chid,)
-                            )
-                            
-                            # 4. 시설물 철거
-                            conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, str(guild.id)))
-                            
-                            # 5. 기존 주인에게 50% 입금
-                            conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (refund_amount, uid, str(guild.id)))
-                        
-                        print(f"🏛️ [국고환수] {guild.name} - {chid} 채널 회수 완료. (전주인 {uid} {refund_amount:,}원 환불)")
-                        
-                    except Exception as e:
-                        print(f"❌ [{guild.name}] 국고 환수 중 오류 발생 (채널 {chid}): {e}")
             except Exception as e:
-                print(f"❌ [{guild.name}] 국고 환수 루프 중 오류 발생: {e}")
+                print(f"❌ [{guild.name}] 루프 오류: {e}")
 
 async def setup(bot):
     await bot.add_cog(FishingSystemCog(bot))
