@@ -163,34 +163,34 @@ FISHING_ECOLOGY = {
     ],
 
     "쥬라기": [
-        # --- 흔함 (비율 상승) ---
-        {"name": "에라스모사우루스", "rarity": "흔함", "chance": 0.20, "min": 50, "max": 100, "price_per_cm": 100, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "목이 긴 해양 파충류로, 유유히 헤엄치며 비교적 쉽게 낚입니다."},
-        {"name": "피라냐", "rarity": "흔함", "chance": 0.10, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "날카로운 이빨로 공격해옵니다! 치료비 10,000원이 지출됩니다."},
-        {"name": "프로카노케리스", "rarity": "흔함", "chance": 0.15, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "초기 어류로 민첩하게 움직이며 기본적인 손맛을 제공합니다."},
-        {"name": "오프탈모사우루스", "rarity": "흔함", "chance": 0.10, "min": 150, "max": 250, "price_per_cm": 40, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "눈이 커서 시야가 넓은 포식자. 빠르게 도망쳐 손맛이 좋습니다."},
-        {"name": "마크로플라타 ", "rarity": "흔함", "chance": 0.10, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 해양 파충류로 어두운 수역에서 잘 낚입니다"},
-        {"name": "브라카우케니우스", "rarity": "흔함", "chance": 0.10, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "짧은 목과 강한 턱을 가진 포식자로 힘이 강합니다."},
+        # --- 흔함 (비율 조정: 합계 0.50) ---
+        {"name": "에라스모사우루스", "rarity": "흔함", "chance": 0.10, "min": 50, "max": 100, "price_per_cm": 100, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "목이 긴 해양 파충류로, 유유히 헤엄치며 비교적 쉽게 낚입니다."},
+        {"name": "피라냐", "rarity": "흔함", "chance": 0.08, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "날카로운 이빨로 공격해옵니다! 소지금의 5%가 치료비로 지출됩니다."},
+        {"name": "프로카노케리스", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "초기 어류로 민첩하게 움직이며 기본적인 손맛을 제공합니다."},
+        {"name": "오프탈모사우루스", "rarity": "흔함", "chance": 0.08, "min": 150, "max": 250, "price_per_cm": 40, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "눈이 커서 시야가 넓은 포식자. 빠르게 도망쳐 손맛이 좋습니다."},
+        {"name": "마크로플라타 ", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 해양 파충류로 어두운 수역에서 잘 낚입니다"},
+        {"name": "브라카우케니우스", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "짧은 목과 강한 턱을 가진 포식자로 힘이 강합니다."},
 
-        # --- 희귀 (비율 하락) ---
-        {"name": "랩터", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "매우 민첩한 포식자입니다. 가방에서 가장 비싼 물고기 2마리를 채갑니다!"},
+        # --- 희귀 (비율 조정: 합계 0.18) ---
+        {"name": "랩터", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "매우 민첩한 포식자입니다! 당신의 지갑을 낚채어 소지금의 1~10%를 훔쳐 달아납니다!"},
         {"name": "익룡", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "하늘에서 내려와 물고기 대신 보석 주머니를 떨어뜨리고 갔습니다! +10,000원"},
         {"name": "엘라스모사우루스", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "매우 긴 목을 가진 대표적 플레시오사우루스. 잡을 시 명성 +50"},
-        {"name": "플레시오사우루스", "rarity": "희귀", "chance": 0.04, "min": 100, "max": 150, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "균형 잡힌 체형의 해양 파충류로 경험치 획득 +10%"},
+        {"name": "플레시오사우루스", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "균형 잡힌 체형의 해양 파충류로 경험치 획득 +10%"},
         {"name": "플리오사우루스", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 100, "price_per_cm": 300, "req_tier": 2, "water_quality": [1], "effect_desc": "거대한 턱을 가진 최상위 포식자. 강력한 저항을 합니다."},
         {"name": "씨팍티누스", "rarity": "희귀", "chance": 0.03, "min": 150, "max": 250, "price_per_cm": 120, "req_tier": 2, "water_quality": [3,4], "effect_desc": "거대한 육식 어류로 한입에 먹어치우는 포식 습성이 특징입니다."},
 
-        # --- 신종 (비율 하락) ---
-        {"name": "리오플레우로돈", "rarity": "신종", "chance": 0.02, "min": 100, "max": 200, "price_per_cm": 300, "req_tier": 3, "water_quality": [1], "effect_desc": "전설적인 초대형 해양 포식자. 잡을 시 낚시터 명성 +100"},
+        # --- 신종 (비율 조정: 합계 0.03) ---
+        {"name": "리오플레우로돈", "rarity": "신종", "chance": 0.015, "min": 100, "max": 200, "price_per_cm": 300, "req_tier": 3, "water_quality": [1], "effect_desc": "전설적인 초대형 해양 포식자. 잡을 시 낚시터 명성 +100"},
         {"name": "바실로사우루스", "rarity": "신종", "chance": 0.015, "min": 300, "max": 500, "price_per_cm": 120, "req_tier": 3, "water_quality": [2,3], "effect_desc": "고대 고래로 긴 몸을 가진 대형 포유류. 낚싯대 내구도 -5"},
 
-        # --- 전설 (극도로 희귀) ---
-        {"name": "던클레오스테우스", "rarity": "전설", "chance": 0.005, "min": 50, "max": 100, "price_per_cm": 1000, "req_tier": 4, "water_quality": [1], "effect_desc": "갑옷 같은 두개골을 가진 고대 어류. 강한 방어력으로 낚기 어렵습니다."},
-        {"name": "이크티오사우루스", "rarity": "전설", "chance": 0.003, "min": 200, "max": 400, "price_per_cm": 250, "req_tier": 4, "water_quality": [1,2], "effect_desc": "돌고래처럼 빠른 해양 파충류. 속도가 빨라 포획이 까다롭습니다."},
+        # --- 전설 (비율 조정: 합계 0.008) ---
+        {"name": "던클레오스테우스", "rarity": "전설", "chance": 0.004, "min": 50, "max": 100, "price_per_cm": 1000, "req_tier": 4, "water_quality": [1], "effect_desc": "갑옷 같은 두개골을 가진 고대 어류. 강한 방어력으로 낚기 어렵습니다."},
+        {"name": "이크티오사우루스", "rarity": "전설", "chance": 0.004, "min": 200, "max": 400, "price_per_cm": 250, "req_tier": 4, "water_quality": [1,2], "effect_desc": "돌고래처럼 빠른 해양 파충류. 속도가 빨라 포획이 까다롭습니다."},
 
-        # --- 환상 (서버 알림감) ---
-        {"name": "모사사우루스", "rarity": "환상", "chance": 0.001, "min": 150, "max": 300, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "백악기 바다의 지배자. 잡을 시 모든 보유 시설 유지비 1회 면제"},
-        {"name": "메갈로돈", "rarity": "환상", "chance": 0.0005, "min": 500, "max": 1000, "price_per_cm": 150, "req_tier": 5, "water_quality": [1], "effect_desc": "역사상 가장 거대한 상어. 낚을 시 낚싯대 내구도 -30"},
-        {"name": "크로노사우루스", "rarity": "환상", "chance": 0.003, "min": 200, "max": 300, "price_per_cm": 500, "req_tier": 4, "water_quality": [1,2], "effect_desc": "초대형 플리오사우루스로 강력한 포식자입니다."},
+        # --- 환상 (비율 조정: 합계 0.005) ---
+        {"name": "모사사우루스", "rarity": "환상", "chance": 0.002, "min": 150, "max": 300, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "백악기 바다의 지배자. 잡을 시 모든 보유 시설 유지비 1회 면제"},
+        {"name": "메갈로돈", "rarity": "환상", "chance": 0.001, "min": 500, "max": 1000, "price_per_cm": 150, "req_tier": 5, "water_quality": [1], "effect_desc": "역사상 가장 거대한 상어. 낚을 시 낚싯대 내구도 -30"},
+        {"name": "크로노사우루스", "rarity": "환상", "chance": 0.002, "min": 200, "max": 300, "price_per_cm": 500, "req_tier": 4, "water_quality": [1,2], "effect_desc": "초대형 플리오사우루스로 강력한 포식자입니다."},
     ]
 }
 
@@ -1356,12 +1356,15 @@ class FishingGameView(discord.ui.View):
                 if self.force_trash:
                     trash_chance = 1.0
                 else:
-                    trash_chance = 0.25 + (current_pollution / 100.0)
+                    # 🦖 [쥬라기 지형 특수 확률] 기본 쓰레기 27.7% 적용
+                    base_trash = 0.277 if location == "쥬라기" else 0.25
+                    trash_chance = base_trash + (current_pollution / 100.0)
+                    
                     if current_pollution >= 100.0:
                         trash_chance = 0.9999
                     else:
                         # 오염도가 100 미만일 때는 기존 오염도 비례 공식을 사용합니다.
-                        trash_chance = 0.25 + (current_pollution * 0.007499) 
+                        trash_chance = base_trash + (current_pollution * 0.007499) 
 
                 # 🧤 [추가] 낚시 장갑 버프 체크 (쓰레기 확률 -10%)
                 user_data_buff = self.db.execute_query("SELECT trash_buff_until, fish_buff_until, appeal_buff_until FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
@@ -1624,26 +1627,24 @@ class FishingGameView(discord.ui.View):
                     special_event = True
 
                 elif fish["name"] == "랩터":
-                    # 가장 비싼 물고기 2마리 조회
-                    most_expensive = self.db.execute_query(
-                        "SELECT id, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ? ORDER BY (length * price_per_cm) DESC LIMIT 2",
-                        (uid, gid), 'all'
-                    )
-                    if most_expensive:
-                        ids = [str(m['id']) for m in most_expensive]
-                        conn.execute(f"DELETE FROM fishing_inventory WHERE id IN ({','.join(ids)})")
-                        names = ", ".join([f"[{m['fish_name']}]" for m in most_expensive])
-                        desc = f"😱 랩터 무리가 순식간에 나타나 가방에서 가장 비싼 {names}을(를) 낚채어 달아났습니다!"
-                    else:
-                        stolen_cash = random.randint(10000, 100000)
-                        conn.execute("UPDATE users SET cash = MAX(0, cash - ?) WHERE user_id = ? AND guild_id = ?", (stolen_cash, uid, gid))
-                        desc = f"🦖 랩터가 가방을 노렸지만 가져갈 물고기가 없자, 화풀이로 당신의 지갑에서 **{stolen_cash:,}원**을 낚채어 달아났습니다!"
-                    event_embed = discord.Embed(title="🦖 랩터 습격!", description=desc, color=discord.Color.red())
+                    user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                    user_cash = user_data['cash'] if user_data else 0
+                    steal_rate = random.uniform(0.01, 0.10)
+                    penalty = int(user_cash * steal_rate)
+                    conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (penalty, uid, gid))
+                    conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                                 (uid, "낚시패널티", -penalty, user_cash - penalty, f"랩터의 습격으로 인한 자산 탈취 (소지금 {steal_rate*100:.1f}%)"))
+                    event_embed = discord.Embed(title="🦖 랩터 습격!", description=f"매우 민첩한 랩터 무리가 당신의 지갑을 낚채어 달아났습니다! 소지금의 {steal_rate*100:.1f}%(**{penalty:,}원**)를 잃었습니다.", color=discord.Color.red())
                     special_event = True
 
                 elif fish["name"] == "피라냐":
-                    conn.execute("UPDATE users SET cash = MAX(0, cash - 10000) WHERE user_id = ? AND guild_id = ?", (uid, gid))
-                    event_embed = discord.Embed(title="🐟 피라냐의 공격!", description="물속에서 튀어오른 피라냐 떼에게 공격당했습니다! 치료비 **10,000원**이 지출되었습니다.", color=discord.Color.red())
+                    user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                    user_cash = user_data['cash'] if user_data else 0
+                    penalty = int(user_cash * 0.05)
+                    conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (penalty, uid, gid))
+                    conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                                 (uid, "낚시패널티", -penalty, user_cash - penalty, "피라냐의 공격으로 인한 치료비 (소지금 5%)"))
+                    event_embed = discord.Embed(title="🐟 피라냐의 공격!", description=f"물속에서 튀어오른 피라냐 떼에게 공격당했습니다! 소지금의 5%(**{penalty:,}원**)가 치료비로 지출되었습니다.", color=discord.Color.red())
                     special_event = True
 
                 elif fish["name"] == "익룡":
@@ -2349,14 +2350,14 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=False)
 
             effect_summary = (
-                f"🎫 **수수료 조정 범위:** `±{adj_fee * 100:.1f}%` (매표소)\n"
-                f"📦 **희귀 물고기 확률:** `+{fish_rate * 100:.1f}%` (창고)\n"
-                f"💰 **창고 기본 수수료:** `+{base_fee * 100:.1f}%` (창고)\n"
+                f"🎫 **수수료 조정 범위:** `±{adj_fee * 100:.1f}%`\n"
+                f"📦 **희귀 물고기 확률:** `+{fish_rate * 100:.1f}%`\n"
+                f"💰 **창고 기본 수수료:** `+{base_fee * 100:.1f}%`\n"
                 f"🗑️ **현재 쓰레기 낚일 확률:** `{final_trash_chance * 100:.1f}%` (기본+오염도+시설합산)\n"
-                f"⚡ **최종 유지비 변동률:** `{final_upkeep_mod:+.1f}%` (발전소/사업체)\n"
-                f"✨ **명성 획득 배율:** `{rep_mult:.1f}배` (명성 시설)\n"
-                f"🏪 **물고기 판매가 보너스:** `{fish_price_mult:.1f}배` (상점/기업)\n"
-                f"🏫 **낚시 실패 확률 증가:** `+{fail_rate * 100:.1f}%` (학교)\n"
+                f"⚡ **최종 유지비 변동률:** `{final_upkeep_mod:+.1f}%`\n"
+                f"✨ **명성 획득 배율:** `{rep_mult:.1f}배`\n"
+                f"🏪 **물고기 판매가 보너스:** `{fish_price_mult:.1f}배`\n"
+                f"🏫 **낚시 실패 확률 증가:** `+{fail_rate * 100:.1f}%`\n"
             )
             embed.add_field(name="📊 현재 낚시터 적용 효과 종합", value=effect_summary, inline=False)
 
