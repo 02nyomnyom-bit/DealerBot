@@ -55,6 +55,11 @@ TRASH_LIST = [
     {"name": "김묵이가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.80, "group": 6},
     {"name": "정이가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.03, "group": 6},
     {"name": "커커님의 항소문", "min_rate": 0.0, "max_rate": 0.0, "group": 6},
+
+    # 🦖 [Jurassic Trash]
+    {"name": "부서진 공룡 뼈", "min_rate": 0.01, "max_rate": 0.03, "group": 1},
+    {"name": "깨진 알 껍질", "min_rate": 0.02, "max_rate": 0.04, "group": 2},
+    {"name": "화석화된 나뭇가지", "min_rate": 0.02, "max_rate": 0.05, "group": 3},
 ]
 
 FISHING_ECOLOGY = {
@@ -1161,16 +1166,23 @@ class FishingGameView(discord.ui.View):
 
     async def start_game(self, interaction: discord.Interaction):
         uid, gid = str(self.user.id), str(interaction.guild_id)
+        chid = str(interaction.channel_id)
+        
+        # 🦖 [쥬라기 특수 지형 체크]
+        ground = self.db.execute_query("SELECT ground_type FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
+        location = ground['ground_type'] if ground else "호수"
+        bait_needed = 30 if location == "쥬라기" else 1
+
         gear = self.db.execute_query("SELECT bait_count, rod_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
         
-        if not gear or gear['bait_count'] <= 0:
+        if not gear or gear['bait_count'] < bait_needed:
             self._clear_session()
-            return await interaction.response.send_message("❌ 미끼가 없습니다!", ephemeral=True)
+            return await interaction.response.send_message(f"❌ 미끼가 부족합니다! ({location} 지형 필요: {bait_needed}개)", ephemeral=True)
         if gear['rod_durability'] <= 0:
             self._clear_session()
             return await interaction.response.send_message("❌ 낚싯대가 부러졌습니다!", ephemeral=True)
 
-        self.db.execute_query("UPDATE fishing_gear SET bait_count = bait_count - 1 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+        self.db.execute_query("UPDATE fishing_gear SET bait_count = bait_count - ? WHERE user_id = ? AND guild_id = ?", (bait_needed, uid, gid))
         
         await interaction.response.send_message(embed=discord.Embed(title="🎣 낚시 시작!", description="찌를 던졌습니다. 물고기를 기다리는 중...", color=discord.Color.green()), view=self)
         self.message = await interaction.original_response()
@@ -1623,7 +1635,9 @@ class FishingGameView(discord.ui.View):
                         names = ", ".join([f"[{m['fish_name']}]" for m in most_expensive])
                         desc = f"😱 랩터 무리가 순식간에 나타나 가방에서 가장 비싼 {names}을(를) 낚채어 달아났습니다!"
                     else:
-                        desc = "🦖 랩터가 가방을 노렸지만 가져갈 물고기가 없어 으르렁거리며 돌아갔습니다."
+                        stolen_cash = random.randint(10000, 50000)
+                        conn.execute("UPDATE users SET cash = MAX(0, cash - ?) WHERE user_id = ? AND guild_id = ?", (stolen_cash, uid, gid))
+                        desc = f"🦖 랩터가 가방을 노렸지만 가져갈 물고기가 없자, 화풀이로 당신의 지갑에서 **{stolen_cash:,}원**을 낚채어 달아났습니다!"
                     event_embed = discord.Embed(title="🦖 랩터 습격!", description=desc, color=discord.Color.red())
                     special_event = True
 
