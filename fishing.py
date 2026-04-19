@@ -1635,7 +1635,7 @@ class FishingGameView(discord.ui.View):
                         names = ", ".join([f"[{m['fish_name']}]" for m in most_expensive])
                         desc = f"😱 랩터 무리가 순식간에 나타나 가방에서 가장 비싼 {names}을(를) 낚채어 달아났습니다!"
                     else:
-                        stolen_cash = random.randint(10000, 50000)
+                        stolen_cash = random.randint(10000, 100000)
                         conn.execute("UPDATE users SET cash = MAX(0, cash - ?) WHERE user_id = ? AND guild_id = ?", (stolen_cash, uid, gid))
                         desc = f"🦖 랩터가 가방을 노렸지만 가져갈 물고기가 없자, 화풀이로 당신의 지갑에서 **{stolen_cash:,}원**을 낚채어 달아났습니다!"
                     event_embed = discord.Embed(title="🦖 랩터 습격!", description=desc, color=discord.Color.red())
