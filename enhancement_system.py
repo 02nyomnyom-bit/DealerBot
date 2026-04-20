@@ -578,9 +578,6 @@ class EnhancementSystemCog(commands.Cog):
         if config_cog and not await config_cog.check_permission(interaction.channel_id, "enhancement", interaction.guild.id):
             return await interaction.response.send_message("🚫 이 채널은 게임 사용이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", ephemeral=True)
         
-        xp_cog = self.bot.get_cog("XPLeaderboardCog")
-        if xp_cog: await xp_cog.process_command_xp(interaction)
-
         user_id, guild_id, username = str(interaction.user.id), str(interaction.guild_id), interaction.user.display_name
         
         try:
@@ -595,9 +592,14 @@ class EnhancementSystemCog(commands.Cog):
             if not can_enhance:
                 return await interaction.response.send_message(f"⏰ 아이템 **{아이템명}**은(는) 아직 강화할 수 없습니다. ({remaining}초 남음)", ephemeral=True)
             
+            # 강화 시도 전에 금지 여부 등 최종 확인
             res = self.enhancement_data.attempt_enhancement(아이템명, user_id, username, guild_id)
             if res[5].startswith("BANNED_"):
                 return await interaction.response.send_message(f"🚫 **강화 금지 상태:** 현재 강화가 금지된 상태입니다. (**{res[5].split('_')[1]}분** 남음)", ephemeral=True)
+
+            # XP 시스템을 가져와서 실행 (모든 검증 통과 후 실제 강화 시도 시 지급)
+            xp_cog = self.bot.get_cog("XPLeaderboardCog")
+            if xp_cog: await xp_cog.process_command_xp(interaction)
 
             success, old_lv, new_lv, rate, d_rate, r_type, change, c_fails = res
             old_tier, new_tier = get_level_tier_info(old_lv), get_level_tier_info(new_lv)

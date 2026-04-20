@@ -116,6 +116,11 @@ class YabawiGameView(View):
             await point_manager.add_point(self.bot, self.guild_id, self.user_id, -self.base_bet)
             self.initial_bet_deducted = True
 
+            # XP 시스템을 가져와서 실행 (실제 게임 시작 시점에 지급)
+            xp_cog = self.bot.get_cog("XPLeaderboardCog")
+            if xp_cog:
+                await xp_cog.process_command_xp(interaction)
+
         # 2. 확률 판정 먼저 수행
         current_rate = SUCCESS_RATES[min(self.wins, len(SUCCESS_RATES)-1)]
         is_correct = random.random() < current_rate # 여기서 승패가 먼저 결정됨
@@ -240,28 +245,6 @@ class YabawiGameCog(commands.Cog):
                 "🚫 이 채널은 게임이 허용되지 않은 채널입니다.\n지정된 채널을 이용해 주세요!", 
                 ephemeral=True
             )
-        
-        # XP 시스템을 가져와서 실행
-        xp_cog = self.bot.get_cog("XPLeaderboardCog")
-        if xp_cog:
-            await xp_cog.process_command_xp(interaction)
-            
-        user_id = str(interaction.user.id)
-        guild_id = str(interaction.guild_id)
-
-        # 명령어를 실행하자마자 등록 여부 확인
-        if not await point_manager.is_registered(self.bot, guild_id, user_id):
-            return await interaction.response.send_message(
-                "❌ 먼저 서버에 가입해야 이용할 수 있습니다.\n"
-                "먼저 `/등록` 명령어로 등록해주세요.", ephemeral=True)
-    
-        # 현재 유저가 이미 게임을 플레이 중인지 확인
-        if user_id in active_games_by_user:
-            return await interaction.response.send_message("❗ 이미 진행 중인 게임이 있습니다.", ephemeral=True)
-
-        # 배팅 금액이 허용 범위(100~3,000원) 내에 있는지 확인
-        if 배팅 < 100 or 배팅 > 3000:
-            return await interaction.response.send_message("❗ 배팅은 100~3,000원 사이만 가능합니다.", ephemeral=True)
         
         # 게임 시작 등록
         active_games_by_user.add(user_id)
