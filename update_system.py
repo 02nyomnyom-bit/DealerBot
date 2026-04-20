@@ -302,7 +302,7 @@ class RealtimeUpdateSystem(commands.Cog):
             value=f"활성: {stats['total_active']}개 | 오늘 추가: {stats['today_count']}개", 
             inline=True
         )
-        embed.set_footer(text="보석상 v1.10.2 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="보석상 v1.10.9 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
