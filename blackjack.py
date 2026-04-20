@@ -516,21 +516,15 @@ class BlackjackCog(commands.Cog):
         if user_id in self.processing_users:
             return await interaction.response.send_message("❌ 이미 블랙잭 게임을 플레이 중입니다.", ephemeral=True)
         
-        # XP 시스템을 가져와서 실행
-        xp_cog = self.bot.get_cog("XPLeaderboardCog")
-        if xp_cog:
-            await xp_cog.process_command_xp(interaction)
-        
-        # 배팅 금액 제한 체크
-        if 배팅 < 100:
-            return await interaction.response.send_message("❌ 최소 배팅 금액은 100원입니다.", ephemeral=True)
-        if 배팅 > MAX_BET:
-            return await interaction.response.send_message(f"❌ 최대 배팅 금액은 {MAX_BET:,}원입니다.", ephemeral=True)
-
         # 잔액 체크
         balance = await point_manager.get_point(self.bot, interaction.guild_id, str(user_id))
         if balance < 배팅:
             return await interaction.response.send_message(f"❌ 잔액이 부족합니다. (보유: {balance:,}원)", ephemeral=True)
+
+        # XP 시스템을 가져와서 실행
+        xp_cog = self.bot.get_cog("XPLeaderboardCog")
+        if xp_cog:
+            await xp_cog.process_command_xp(interaction)
 
         # 게임 시작 모드 선택
         self.processing_users.add(user_id)

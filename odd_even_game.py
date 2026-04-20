@@ -282,17 +282,14 @@ class OddEvenCog(commands.Cog):
                 ephemeral=True
             )
         
+        if POINT_MANAGER_AVAILABLE:
+            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
+            if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
+
         # XP 시스템을 가져와서 실행
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:
             await xp_cog.process_command_xp(interaction)
-            
-        if 배팅 < 100: return await interaction.response.send_message("❌ 최소 100원부터!", ephemeral=True)
-        if 배팅 > MAX_BET: return await interaction.response.send_message(f"❌ 최대 배팅금은 {MAX_BET:,}원입니다.", ephemeral=True)
-        
-        if POINT_MANAGER_AVAILABLE:
-            balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
-            if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
 
         view = OddEvenModeSelectView(self.bot, interaction.user, 배팅)
         await interaction.response.send_message(f"🎲 **홀짝 게임 모드 선택** (배팅: {배팅:,}원)", view=view)

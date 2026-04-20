@@ -658,7 +658,7 @@ class XPLeaderboardCog(commands.Cog):
         setting_map = {
             "set_chat_xp": ("chat_xp", "채팅 XP", "XP"),
             "set_voice_xp": ("voice_xp_per_minute", "음성 XP", "XP"),
-            "command_xp": ("attendance_xp", "명령어 XP", "XP"),
+            "command_xp": ("command_xp", "명령어 XP", "XP"),
             "set_chat_cooldown": ("chat_cooldown", "채팅 쿨타임", "초")
         }
 

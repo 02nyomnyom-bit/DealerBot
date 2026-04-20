@@ -204,7 +204,16 @@ class SlotMachineCog(commands.Cog):
                 ephemeral=True
             )
         
-        # XP 시스템을 가져와서 실행
+        # 배팅 금액 제한 체크
+        if 배팅 < 100 or 배팅 > 10000:
+            return await interaction.response.send_message("❌ 배팅 금액은 100원 ~ 10,000원 사이여야 합니다.", ephemeral=True)
+
+        # 잔액 확인
+        user_points = await point_manager.get_point(self.bot, guild_id, uid)
+        if user_points < 배팅:
+            return await interaction.response.send_message(f"❌ 잔액이 부족합니다. (현재 잔액: {user_points:,}원)", ephemeral=True)
+
+        # XP 시스템을 가져와서 실행 (검증 완료 후 지급)
         xp_cog = self.bot.get_cog("XPLeaderboardCog")
         if xp_cog:
             await xp_cog.process_command_xp(interaction)
@@ -212,20 +221,13 @@ class SlotMachineCog(commands.Cog):
         try:
             uid = str(interaction.user.id)
             guild_id = str(interaction.guild.id)
-
+            
             # 등록 여부 확인
             if not await point_manager.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요.", ephemeral=True)
-            # 배팅 금액 제한 체크
-            if 배팅 < 100 or 배팅 > 10000:
-                return await interaction.response.send_message("⚠️ 배팅 금액은 100~10,000원 사이여야 합니다.", ephemeral=True)
-            # 잔액 충분한지 확인
-            current_balance = await point_manager.get_point(self.bot, guild_id, uid)
-            if current_balance < 배팅:
-                return await interaction.response.send_message(
-                    f"❌ 잔액이 부족합니다!\n💰 현재 잔액: {current_balance:,}원\n💸 필요 금액: {배팅:,}원",
-                    ephemeral=True
-                )
+
+            current_balance = user_points
+            
             # 게임 시작 안내 메시지
             embed = discord.Embed(
                 title="🔥 자극적인 슬롯머신",
