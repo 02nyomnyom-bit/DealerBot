@@ -3273,7 +3273,8 @@ class FishingSystemCog(commands.Cog):
         for guild in self.bot.guilds:
             try:
                 db = self.db_cog.get_manager(guild.id)
-                
+                self._init_db_schema(db)
+
                 # 🦕 [1] 임시 지형 복구 로직 (쥬라기 등)
                 expired_terrains = db.execute_query(
                     "SELECT channel_id, original_ground_type FROM fishing_ground WHERE temp_terrain_expire IS NOT NULL AND temp_terrain_expire < ?",
