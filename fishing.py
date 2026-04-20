@@ -165,15 +165,15 @@ FISHING_ECOLOGY = {
     "쥬라기": [
         # --- 흔함 (비율 조정: 합계 0.50) ---
         {"name": "에라스모사우루스", "rarity": "흔함", "chance": 0.10, "min": 50, "max": 100, "price_per_cm": 100, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "목이 긴 해양 파충류로, 유유히 헤엄치며 비교적 쉽게 낚입니다."},
-        {"name": "피라냐", "rarity": "흔함", "chance": 0.08, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "날카로운 이빨로 공격해옵니다! 소지금의 5%가 치료비로 지출됩니다."},
+        {"name": "피라냐", "rarity": "흔함", "chance": 0.04, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "날카로운 이빨로 공격해옵니다! 소지금의 5%가 치료비로 지출됩니다."},
         {"name": "프로카노케리스", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "초기 어류로 민첩하게 움직이며 기본적인 손맛을 제공합니다."},
         {"name": "오프탈모사우루스", "rarity": "흔함", "chance": 0.08, "min": 150, "max": 250, "price_per_cm": 40, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "눈이 커서 시야가 넓은 포식자. 빠르게 도망쳐 손맛이 좋습니다."},
         {"name": "마크로플라타 ", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 해양 파충류로 어두운 수역에서 잘 낚입니다"},
         {"name": "브라카우케니우스", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "짧은 목과 강한 턱을 가진 포식자로 힘이 강합니다."},
 
         # --- 희귀 (비율 조정: 합계 0.18) ---
-        {"name": "랩터", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "매우 민첩한 포식자입니다! 당신의 지갑을 낚채어 소지금의 1~10%를 훔쳐 달아납니다!"},
-        {"name": "익룡", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "하늘에서 내려와 물고기 대신 보석 주머니를 떨어뜨리고 갔습니다! +10,000원"},
+        {"name": "랩터", "rarity": "희귀", "chance": 0.015, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "매우 민첩한 포식자입니다! 당신의 지갑을 낚채어 소지금의 1~10%를 훔쳐 달아납니다!"},
+        {"name": "익룡", "rarity": "희귀", "chance": 0.015, "min": 100, "max": 150, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2], "effect_desc": "하늘에서 내려와 물고기 대신 보석 주머니를 떨어뜨리고 갔습니다! +10,000원"},
         {"name": "엘라스모사우루스", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "매우 긴 목을 가진 대표적 플레시오사우루스. 잡을 시 명성 +50"},
         {"name": "플레시오사우루스", "rarity": "희귀", "chance": 0.03, "min": 100, "max": 150, "price_per_cm": 200, "req_tier": 2, "water_quality": [1,2], "effect_desc": "균형 잡힌 체형의 해양 파충류로 경험치 획득 +10%"},
         {"name": "플리오사우루스", "rarity": "희귀", "chance": 0.03, "min": 50, "max": 100, "price_per_cm": 300, "req_tier": 2, "water_quality": [1], "effect_desc": "거대한 턱을 가진 최상위 포식자. 강력한 저항을 합니다."},
