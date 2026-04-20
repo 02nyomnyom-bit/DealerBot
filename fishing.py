@@ -165,7 +165,7 @@ FISHING_ECOLOGY = {
     "쥬라기": [
         # --- 흔함 (비율 조정: 합계 0.50) ---
         {"name": "에라스모사우루스", "rarity": "흔함", "chance": 0.10, "min": 50, "max": 100, "price_per_cm": 100, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "목이 긴 해양 파충류로, 유유히 헤엄치며 비교적 쉽게 낚입니다."},
-        {"name": "피라냐", "rarity": "흔함", "chance": 0.04, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "날카로운 이빨로 공격해옵니다! 소지금의 5%가 치료비로 지출됩니다."},
+        {"name": "피라냐", "rarity": "흔함", "chance": 0.08, "min": 15, "max": 30, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "날카로운 이빨로 공격해옵니다! 소지금의 5%가 치료비로 지출됩니다."},
         {"name": "프로카노케리스", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "초기 어류로 민첩하게 움직이며 기본적인 손맛을 제공합니다."},
         {"name": "오프탈모사우루스", "rarity": "흔함", "chance": 0.08, "min": 150, "max": 250, "price_per_cm": 40, "req_tier": 1, "water_quality": [2,3,4], "effect_desc": "눈이 커서 시야가 넓은 포식자. 빠르게 도망쳐 손맛이 좋습니다."},
         {"name": "마크로플라타 ", "rarity": "흔함", "chance": 0.08, "min": 100, "max": 200, "price_per_cm": 50, "req_tier": 1, "water_quality": [3,4,5], "effect_desc": "야행성 해양 파충류로 어두운 수역에서 잘 낚입니다"},
@@ -1627,14 +1627,30 @@ class FishingGameView(discord.ui.View):
                     special_event = True
 
                 elif fish["name"] == "랩터":
-                    user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
-                    user_cash = user_data['cash'] if user_data else 0
-                    steal_rate = random.uniform(0.01, 0.10)
-                    penalty = int(user_cash * steal_rate)
-                    conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (penalty, uid, gid))
-                    conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                                 (uid, "낚시패널티", -penalty, user_cash - penalty, f"랩터의 습격으로 인한 자산 탈취 (소지금 {steal_rate*100:.1f}%)"))
-                    event_embed = discord.Embed(title="🦖 랩터 습격!", description=f"매우 민첩한 랩터 무리가 당신의 지갑을 낚채어 달아났습니다! 소지금의 {steal_rate*100:.1f}%(**{penalty:,}원**)를 잃었습니다.", color=discord.Color.red())
+                    # 인벤토리에서 가장 비싼 물고기 2마리 조회
+                    expensive_fish = conn.execute(
+                        "SELECT id, fish_name FROM fishing_inventory WHERE user_id = ? AND guild_id = ? ORDER BY (length * price_per_cm) DESC LIMIT 2",
+                        (uid, gid)
+                    ).fetchall()
+
+                    if expensive_fish:
+                        fish_names = [f["fish_name"] for f in expensive_fish]
+                        fish_ids = [f["id"] for f in expensive_fish]
+                        # 물고기 삭제
+                        placeholders = ",".join(["?"] * len(fish_ids))
+                        conn.execute(f"DELETE FROM fishing_inventory WHERE id IN ({placeholders})", tuple(fish_ids))
+                        
+                        description = f"매우 민첩한 랩터 무리가 당신의 물고기 보관함을 습격했습니다! 가장 비싼 **{', '.join(fish_names)}** 등 {len(fish_names)}마리를 낚채어 달아났습니다!"
+                        event_embed = discord.Embed(title="🦖 랩터 습격!", description=description, color=discord.Color.red())
+                    else:
+                        user_data = self.db.execute_query("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                        user_cash = user_data['cash'] if user_data else 0
+                        steal_rate = random.uniform(0.01, 0.10)
+                        penalty = int(user_cash * steal_rate)
+                        conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (penalty, uid, gid))
+                        conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
+                                     (uid, "낚시패널티", -penalty, user_cash - penalty, f"랩터의 습격으로 인한 자산 탈취 (소지금 {steal_rate*100:.1f}%)"))
+                        event_embed = discord.Embed(title="🦖 랩터 습격!", description=f"매우 민첩한 랩터 무리가 당신의 지갑을 낚채어 달아났습니다! 소지금의 {steal_rate*100:.1f}%(**{penalty:,}원**)를 잃었습니다.", color=discord.Color.red())
                     special_event = True
 
                 elif fish["name"] == "피라냐":
