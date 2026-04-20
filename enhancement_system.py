@@ -305,7 +305,7 @@ class EnhancementDataManager:
             return False, "🚫 이미 사용하신 코드입니다."
             
         # --- 랜덤 버프 로직 ---
-        buff_type = random.choice(["SUCCESS_BOOST", "ATTACK_SHIELD", "ENHANCE_BAN_RIGHT"])
+        buff_type = random.choice(["SUCCESS_BOOST", "ATTACK_SHIELD", "ENHANCE_BAN_RIGHT", "STAFF_VOUCHER"])
         buff_msg = ""
         
         if "user_buffs" not in self.data:
@@ -325,6 +325,15 @@ class EnhancementDataManager:
         elif buff_type == "ENHANCE_BAN_RIGHT":
             self.data["user_buffs"][user_id]["ban_rights"] = self.data["user_buffs"][user_id].get("ban_rights", 0) + 1
             buff_msg = "🚫 **[권한 획득] 상대지정 1시간 강화 이용금지권!**\n`/강화금지 @유저` 명령어로 상대를 1시간 동안 강화 불가능 상태로 만듭니다."
+        elif buff_type == "STAFF_VOUCHER":
+            money = random.randint(10000, 30000)
+            xp = random.randint(3000, 9300)
+            fame = random.randint(50, 100)
+            buff_msg = f"📞 **[특별 당첨] 운영진호출(지급권) 획득!**\n\n" \
+                       f"💰 **지급 골드:** {money:,}원\n" \
+                       f"🧪 **지급 경험치:** {xp:,} XP\n" \
+                       f"🌟 **지급 명성:** {fame} 명성\n\n" \
+                       f"*이 메시지를 캡처하여 운영진에게 제출해주세요!*"
 
         event.setdefault("used_by", []).append(user_id)
         self.save_data()
