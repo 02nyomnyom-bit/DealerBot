@@ -90,7 +90,7 @@ FISHING_ECOLOGY = {
         {"name": "철갑상어", "rarity": "전설", "chance": 0.036, "min": 100, "max": 200, "price_per_cm": 220, "req_tier": 4, "water_quality": [1,2], "effect_desc": "고급 알(캐비아)을 품어 매우 비쌉니다."},
         
         # --- 환상 ---
-        {"name": "황금 잉어", "rarity": "환상", "chance": 0.01, "min": 80, "max": 150, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "영험한 영물. 잡을 시 모든 보유 시설 유지비 1회 면제"},
+        {"name": "황금 잉어", "rarity": "환상", "chance": 0.01, "min": 80, "max": 150, "price_per_cm": 500, "req_tier": 5, "water_quality": [1,2], "effect_desc": "영험한 영물. 잡을 시 다음 쓰레기 처리 비용 1회 면제!"},
         {"name": "천지 네시", "rarity": "환상", "chance": 0.005, "min": 300, "max": 700, "price_per_cm": 110, "req_tier": 5, "water_quality": [1], "effect_desc": "호수의 지배자. 낚을 시 낚싯대 내구도 -30"},
         {"name": "사냥꾼에게 어미를 잃은 애기유니콘", "rarity": "환상", "chance": 0.002, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 5, "water_quality": [1], "effect_desc": "분노로 인해 보유 자산의 50%를 수거해갑니다."},
         {"name": "아름다운 유니콘", "rarity": "환상", "chance": 0.001, "min": 50, "max": 80, "price_per_cm": 0, "req_tier": 5, "water_quality": [1], "effect_desc": "신비한 유니콘을 봤습니다. 자산이 늘어납니다."},
@@ -2025,6 +2025,10 @@ class FishingSystemCog(commands.Cog):
 
         if 'appeal_buff_until' not in cols_u:
             try: db.execute_query("ALTER TABLE users ADD COLUMN appeal_buff_until TEXT")
+            except: pass
+
+        if 'trash_free_passes' not in cols_u:
+            try: db.execute_query("ALTER TABLE users ADD COLUMN trash_free_passes INTEGER DEFAULT 0")
             except: pass
 
         # 📦 [추가] 인벤토리 rarity 컬럼 누락 체크
