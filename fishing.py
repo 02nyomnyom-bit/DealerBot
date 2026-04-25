@@ -101,6 +101,7 @@ FISHING_ECOLOGY = {
         # --- 흔함 ---
         {"name": "전갱이", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
         {"name": "고등어", "rarity": "흔함", "chance": 0.15, "min": 20, "max": 40, "price_per_cm": 110, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
+        {"name": "해초", "rarity": "흔함", "chance": 0.08, "min": 20, "max": 50, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "[해양 정화] 오염도 5% 하락"},
         {"name": "전어", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
         
         # --- 🚨 특수 동물/유해 생물 (바다) ---
@@ -1673,6 +1674,18 @@ class FishingGameView(discord.ui.View):
                     new_pollution = min(100.0, current_pollution + 2.0)
                     conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
                     event_embed = discord.Embed(title="🐸 황소개구리 포획!", description="외래종 퇴치 포상금 **10,000원**을 획득했습니다.\n(🚨 늪 오염도 **+2.0 P** 상승)", color=discord.Color.gold())
+                    special_event = True
+
+                elif fish["name"] == "블루길":
+                    conn.execute("UPDATE users SET cash = cash + 5000 WHERE user_id = ? AND guild_id = ?", (uid, gid))
+                    event_embed = discord.Embed(title="🐟 블루길 포획!", description="생태계 교란 어종인 블루길을 포획했습니다!\n외래종 퇴치 포상금 **5,000원**을 지급받았습니다.", color=discord.Color.gold())
+                    special_event = True
+
+                elif fish["name"] == "해초":
+                    reduced_pollution = current_pollution * 0.05
+                    new_pollution = max(0.0, current_pollution - reduced_pollution)
+                    conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
+                    event_embed = discord.Embed(title="🌿 해초 수거!", description=f"낚싯바늘에 걸려온 해초를 수거하여 바다를 정화했습니다!\n(✨ 오염도 **-{reduced_pollution:.2f} P** 감소 / 현재: {new_pollution:.1f} P)", color=discord.Color.blue())
                     special_event = True
 
                 elif fish["name"] in ["인간에게 배신당한 세이렌", "용이 되지 못한 이무기", "어미가 사냥꾼에게 살해당한 애기유니콘"]:
