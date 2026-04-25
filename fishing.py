@@ -101,7 +101,7 @@ FISHING_ECOLOGY = {
         # --- 흔함 ---
         {"name": "전갱이", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "미끼 도둑으로 불리는 흔한 바다 어종입니다."},
         {"name": "고등어", "rarity": "흔함", "chance": 0.15, "min": 20, "max": 40, "price_per_cm": 110, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "국민 생선. 가장 흔하게 잡힙니다."},
-        {"name": "해초", "rarity": "흔함", "chance": 0.08, "min": 20, "max": 50, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "[해양 정화] 오염도 5% 하락"},
+        {"name": "해초", "rarity": "흔함", "chance": 0.03, "min": 20, "max": 50, "price_per_cm": 0, "req_tier": 1, "water_quality": [1,2,3,4,5], "effect_desc": "[해양 정화] 오염도 5% 하락"},
         {"name": "전어", "rarity": "흔함", "chance": 0.15, "min": 15, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [1,2,3], "effect_desc": "집 나간 며느리도 돌아온다는 가을 별미입니다."},
         
         # --- 🚨 특수 동물/유해 생물 (바다) ---
@@ -135,6 +135,7 @@ FISHING_ECOLOGY = {
     "늪": [
         # --- 흔함 ---
         {"name": "검정말", "rarity": "흔함", "chance": 0.15, "min": 10, "max": 50, "price_per_cm": 80, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "늪 바닥에 무성한 수초입니다."},
+        {"name": "블루길", "rarity": "희귀", "chance": 0.01, "min": 10, "max": 25, "price_per_cm": 0, "req_tier": 1, "water_quality": [3,4,5,6], "effect_desc": "[생태계교란어종 포획] 보상금 5,000원 지급"},
         {"name": "부레옥잠", "rarity": "흔함", "chance": 0.15, "min": 10, "max": 30, "price_per_cm": 150, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "수질 정화 능력이 있는 흔한 수생식물입니다."},
         {"name": "해캄", "rarity": "흔함", "chance": 0.15, "min": 5, "max": 20, "price_per_cm": 200, "req_tier": 1, "water_quality": [4,5,6], "effect_desc": "탁한 물에 끼는 녹조류 뭉덩이입니다."},
         
