@@ -316,9 +316,9 @@ class EnhancementDataManager:
         item_data = self.data["items"][item_key]
         
         if buff_type == "SUCCESS_BOOST":
-            until = (datetime.now() + timedelta(hours=1)).isoformat()
+            until = (datetime.now() + timedelta(minutes=30)).isoformat()
             self.data["user_buffs"][user_id]["success_boost_until"] = until
-            buff_msg = "✨ **[버프 획득] 1시간 동안 성공 확률 10% 상승!**\n지금 바로 강화를 시도해보세요!"
+            buff_msg = "✨ **[버프 획득] 30분 동안 성공 확률 30% 상승!**\n지금 바로 강화를 시도해보세요!"
         elif buff_type == "ATTACK_SHIELD":
             item_data["shield_count"] = item_data.get("shield_count", 0) + 1
             buff_msg = f"🛡️ **[아이템 강화] 공격 1회 방어권 획득!**\n아이템 **{target_item_name}**이(가) 다음 공격을 1회 무효화합니다."
@@ -437,7 +437,7 @@ class EnhancementDataManager:
             # 2. 성공 확률 보정 버프 적용
             boost_until = buffs.get("success_boost_until")
             if boost_until and datetime.now() < datetime.fromisoformat(boost_until):
-                success_rate += 10.0 # +10% 합연산
+                success_rate += 30.0 # +30% 합연산
                 
             downgrade_rate = get_downgrade_rate(current_level)
             consec_fail = item_data.get("consecutive_fails", 0)
@@ -643,7 +643,18 @@ class EnhancementSystemCog(commands.Cog):
             )
 
             next_s, next_d = get_success_rate(new_lv), get_downgrade_rate(new_lv)
-            embed.add_field(name="🔮 다음 강화", value=f"📈 성공률: **{next_s:.1f}%**\n📉 강등률: **{next_d:.1f}%**\n💰 강화비: **무료**\n⏰ 쿨타임: **30초**", inline=False)
+            
+            # 다음 강화 확률에도 버프 적용 여부 표시
+            display_rate = next_s
+            buffs = self.enhancement_data.data.get("user_buffs", {}).get(user_id, {})
+            boost_until = buffs.get("success_boost_until")
+            if boost_until and datetime.now() < datetime.fromisoformat(boost_until):
+                display_rate += 30.0
+                rate_text = f"**{display_rate:.1f}%** (기본 {next_s:.1f}% + 🚀**30%**)"
+            else:
+                rate_text = f"**{next_s:.1f}%**"
+
+            embed.add_field(name="🔮 다음 강화", value=f"📈 성공률: {rate_text}\n📉 강등률: **{next_d:.1f}%**\n💰 강화비: **무료**\n⏰ 쿨타임: **30초**", inline=False)
 
             if c_fails >= 3:
                 embed.add_field(name="🛡️ 연속 실패 보호", value=f"🔥 연속 **{c_fails}회** 실패!\n💡 **{5 - c_fails}회** 더 실패하면\n🎯 다음 강화는 **성공 보장**!", inline=False)
@@ -786,7 +797,7 @@ class EnhancementSystemCog(commands.Cog):
         embed.add_field(name="🎯 기본 규칙", value="• 각 아이템별로 독립적인 강화\n• 30초 쿨다운 (아이템별)\n• 1~5레벨 랜덤 변동\n• **완전 무료, 보상 없음**", inline=False)
         embed.add_field(name="📊 확률 시스템", value="• 레벨이 높을수록 성공률 감소\n• 레벨 10 이하는 강등 없음 (안전구간)\n• 연속 5회 실패 시 다음 강화는 **성공 보장**", inline=False)
         embed.add_field(name="🏆 등급 시스템", value="• **기본**(1-50) • **아이언**(51-150) • **브론즈**(151-250) • **실버**(251-350) • **골드**(351-450) • **플래티넘**(451-600) • **마스터**(601-750) • **그랜드마스터**(751-950) • **챌린저**(951~1000)", inline=False)
-        embed.add_field(name="🎁 히든 이벤트", value="• **확률업**: 1시간 동안 성공확률 +10%\n• **방어권**: 상대의 공격을 1회 자동 방어\n• **금지권**: 지정한 유저를 1시간 동안 강화 불가 상태로 만듦\n• **지급권**: 운영진에게 보상을 받을 수 있는 특별권", inline=False)
+        embed.add_field(name="🎁 히든 이벤트", value="• **확률업**: 30분 동안 성공확률 +30%\n• **방어권**: 상대의 공격을 1회 자동 방어\n• **금지권**: 지정한 유저를 1시간 동안 강화 불가 상태로 만듦\n• **지급권**: 운영진에게 보상을 받을 수 있는 특별권", inline=False)
         embed.add_field(name="🎮 사용법", value="`/강화 아이템명`, `/내강화`, `/강화순위`, `/공격`, `/강화정보`, `/강화이벤트`, `/강화금지`", inline=False)
         embed.set_footer(text="각 아이템마다 다른 이름으로 여러 개 강화 가능! • 기존 시스템과 완전 독립")
         await interaction.response.send_message(embed=embed)
