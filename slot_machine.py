@@ -24,11 +24,6 @@ try:
     POINT_MANAGER_AVAILABLE = True
 except ImportError:
     POINT_MANAGER_AVAILABLE = False
-try:
-    import point_manager
-    POINT_MANAGER_AVAILABLE = True
-except ImportError:
-    POINT_MANAGER_AVAILABLE = False
     print("⚠️ point_manager가 없어 포인트 기능이 비활성화됩니다.")
 
     # point_manager 파일이 없을 경우를 대비
@@ -194,6 +189,7 @@ class SlotMachineCog(commands.Cog):
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
     
+        is_allowed = True
         if config_cog:
         # 2. 현재 채널에 'slot' 권한이 있는지 체크 (channel_config.py의 value="slot"와 일치해야 함)
             is_allowed = await config_cog.check_permission(interaction.channel_id, "slot", interaction.guild.id)
@@ -208,6 +204,9 @@ class SlotMachineCog(commands.Cog):
         if 배팅 < 100 or 배팅 > 10000:
             return await interaction.response.send_message("❌ 배팅 금액은 100원 ~ 10,000원 사이여야 합니다.", ephemeral=True)
 
+        uid = str(interaction.user.id)
+        guild_id = str(interaction.guild.id)
+
         # 잔액 확인
         user_points = await point_manager.get_point(self.bot, guild_id, uid)
         if user_points < 배팅:
@@ -219,9 +218,6 @@ class SlotMachineCog(commands.Cog):
             await xp_cog.process_command_xp(interaction)
             
         try:
-            uid = str(interaction.user.id)
-            guild_id = str(interaction.guild.id)
-            
             # 등록 여부 확인
             if not await point_manager.is_registered(self.bot, guild_id, uid):
                 return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요.", ephemeral=True)
