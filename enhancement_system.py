@@ -53,7 +53,7 @@ ENHANCEMENT_CONFIG = {
     "level_change_range": (1, 5),   # 레벨 변동 범위
     "backup_interval": 30,          # 30회마다 백업
     "max_items_per_user": 3,        # 갯수제한
-    "special_reward_chance": 1.0    # 당첨 확률
+    "special_reward_chance": 3.0    # 당첨 확률
 }
 
 # 데이터 디렉토리 생성
@@ -305,7 +305,10 @@ class EnhancementDataManager:
             return False, "🚫 이미 사용하신 코드입니다."
             
         # --- 랜덤 버프 로직 ---
-        buff_type = random.choice(["SUCCESS_BOOST", "ATTACK_SHIELD", "ENHANCE_BAN_RIGHT", "STAFF_VOUCHER"])
+        # STAFF_VOUCHER 확률을 0.1%로 조정 (1/1000)
+        buff_types = ["SUCCESS_BOOST", "ATTACK_SHIELD", "ENHANCE_BAN_RIGHT", "STAFF_VOUCHER"]
+        weights = [333, 333, 333, 1]
+        buff_type = random.choices(buff_types, weights=weights, k=1)[0]
         buff_msg = ""
         
         if "user_buffs" not in self.data:
