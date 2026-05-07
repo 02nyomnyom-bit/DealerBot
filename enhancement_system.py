@@ -324,7 +324,7 @@ class EnhancementDataManager:
             buff_msg = f"🛡️ **[아이템 강화] 공격 1회 방어권 획득!**\n아이템 **{target_item_name}**이(가) 다음 공격을 1회 무효화합니다."
         elif buff_type == "ENHANCE_BAN_RIGHT":
             self.data["user_buffs"][user_id]["ban_rights"] = self.data["user_buffs"][user_id].get("ban_rights", 0) + 1
-            buff_msg = "🚫 **[권한 획득] 상대지정 1시간 강화 이용금지권!**\n`/강화금지 @유저` 명령어로 상대를 1시간 동안 강화 불가능 상태로 만듭니다."
+            buff_msg = "🚫 **[권한 획득] 상대지정 1시간 강화 이용금지권!**\n`/강화금지 닉네임 아이템명` 명령어로 상대를 1시간 동안 강화 불가능 상태로 만듭니다."
         elif buff_type == "STAFF_VOUCHER":
             money = random.randint(10000, 30000)
             xp = random.randint(3000, 9300)
@@ -674,11 +674,22 @@ class EnhancementSystemCog(commands.Cog):
         success, message = self.enhancement_data.verify_event_code(코드, user_id)
         await interaction.response.send_message(message, ephemeral=not success)
 
-    @app_commands.command(name="강화금지", description="상대방을 1시간 동안 강화 불가능 상태로 만듭니다. (권한 소모)")
-    @app_commands.describe(상대방="강화를 금지할 유저")
-    async def ban_user_enhancement(self, interaction: discord.Interaction, 상대방: discord.Member):
-        user_id, target_id = str(interaction.user.id), str(상대방.id)
+    @app_commands.command(name="강화금지", description="상대방의 아이템을 지정하여 1시간 동안 강화를 금지합니다. (권한 소모)")
+    @app_commands.describe(닉네임="대상 유저 선택", 아이템명="강화를 금지할 아이템 이름")
+    async def ban_user_enhancement(self, interaction: discord.Interaction, 닉네임: discord.Member, 아이템명: str):
+        user_id = str(interaction.user.id)
+        target_id = str(닉네임.id)
+        
         if user_id == target_id: return await interaction.response.send_message("❌ 본인에게는 사용할 수 없습니다.", ephemeral=True)
+        
+        # 대상 아이템 찾기
+        target_item = self.enhancement_data.get_existing_item_data(아이템명, target_id)
+        
+        if not target_item or target_item.get("guild_id") != str(interaction.guild_id):
+            return await interaction.response.send_message(f"❌ **{닉네임.display_name}**님의 **{아이템명}** 아이템을 찾을 수 없습니다.", ephemeral=True)
+            
+        target_name = 닉네임.display_name
+        
         buffs = self.enhancement_data.data.get("user_buffs", {}).get(user_id, {})
         rights = buffs.get("ban_rights", 0)
         if rights <= 0: return await interaction.response.send_message("❌ 사용할 수 있는 '강화 이용금지권'이 없습니다.", ephemeral=True)
@@ -689,8 +700,8 @@ class EnhancementSystemCog(commands.Cog):
         self.enhancement_data.data["user_buffs"][target_id]["banned_until"] = (datetime.now() + timedelta(hours=1)).isoformat()
         self.enhancement_data.save_data()
         
-        embed = discord.Embed(title="🚫 강화 금지 발동!", description=f"**{interaction.user.display_name}**님이 **{상대방.display_name}**님에게 이용금지권을 사용했습니다!", color=discord.Color.dark_red())
-        embed.add_field(name="⏰ 효과", value="지금부터 **1시간** 동안 강화 시도가 불가능해집니다.", inline=False)
+        embed = discord.Embed(title="🚫 강화 금지 발동!", description=f"**{interaction.user.display_name}**님이 **{target_name}**님의 **{아이템명}**을 겨냥해 이용금지권을 사용했습니다!", color=discord.Color.dark_red())
+        embed.add_field(name="⏰ 효과", value=f"**{target_name}**님은 지금부터 **1시간** 동안 강화 시도가 불가능해집니다.", inline=False)
         embed.set_footer(text=f"남은 권한: {rights - 1}개")
         await interaction.response.send_message(embed=embed)
 
@@ -798,7 +809,7 @@ class EnhancementSystemCog(commands.Cog):
         embed.add_field(name="📊 확률 시스템", value="• 레벨이 높을수록 성공률 감소\n• 레벨 10 이하는 강등 없음 (안전구간)\n• 연속 5회 실패 시 다음 강화는 **성공 보장**", inline=False)
         embed.add_field(name="🏆 등급 시스템", value="• **기본**(1-50) • **아이언**(51-150) • **브론즈**(151-250) • **실버**(251-350) • **골드**(351-450) • **플래티넘**(451-600) • **마스터**(601-750) • **그랜드마스터**(751-950) • **챌린저**(951~1000)", inline=False)
         embed.add_field(name="🎁 히든 이벤트", value="• **확률업**: 30분 동안 성공확률 +30%\n• **방어권**: 상대의 공격을 1회 자동 방어\n• **금지권**: 지정한 유저를 1시간 동안 강화 불가 상태로 만듦\n• **지급권**: 운영진에게 보상을 받을 수 있는 특별권", inline=False)
-        embed.add_field(name="🎮 사용법", value="`/강화 아이템명`, `/내강화`, `/강화순위`, `/공격`, `/강화정보`, `/강화이벤트`, `/강화금지`", inline=False)
+        embed.add_field(name="🎮 사용법", value="`/강화 아이템명`, `/내강화`, `/강화순위`, `/공격 내아이템 상대방 상대아이템`, `/강화정보`, `/강화이벤트`, `/강화금지 닉네임 아이템명`", inline=False)
         embed.set_footer(text="각 아이템마다 다른 이름으로 여러 개 강화 가능! • 기존 시스템과 완전 독립")
         await interaction.response.send_message(embed=embed)
 
