@@ -422,14 +422,15 @@ class EnhancementDataManager:
     def attempt_enhancement(self, item_name: str, owner_id: str, owner_name: str, guild_id: str) -> Tuple:
         """강화 시도 (버프 및 금지 로직 포함)"""
         try:
-            # 1. 강화 금지 여부 확인
-            buffs = self.data.get("user_buffs", {}).get(owner_id, {})
-            banned_until = buffs.get("banned_until")
+            item_data = self.get_item_data(item_name, owner_id, owner_name, guild_id)
+            
+            # 1. 강화 금지 여부 확인 (아이템별)
+            banned_until = item_data.get("banned_until")
             if banned_until and datetime.now() < datetime.fromisoformat(banned_until):
                 remaining = (datetime.fromisoformat(banned_until) - datetime.now()).total_seconds()
                 return False, 0, 0, 0, 0, f"BANNED_{int(remaining//60)}", 0, 0
 
-            item_data = self.get_item_data(item_name, owner_id, owner_name, guild_id)
+            buffs = self.data.get("user_buffs", {}).get(owner_id, {})
             current_level = int(item_data.get("level", 0))
             
             if current_level >= ENHANCEMENT_CONFIG["max_level"]:
@@ -698,9 +699,9 @@ class EnhancementSystemCog(commands.Cog):
         if rights <= 0: return await interaction.response.send_message("❌ 사용할 수 있는 '강화 이용금지권'이 없습니다.", ephemeral=True)
         
         self.enhancement_data.data["user_buffs"][user_id]["ban_rights"] = rights - 1
-        if target_id not in self.enhancement_data.data["user_buffs"]:
-            self.enhancement_data.data["user_buffs"][target_id] = {"ban_rights": 0, "success_boost_until": None}
-        self.enhancement_data.data["user_buffs"][target_id]["banned_until"] = (datetime.now() + timedelta(hours=1)).isoformat()
+        
+        # 아이템별 강화 금지 적용
+        target_item["banned_until"] = (datetime.now() + timedelta(hours=1)).isoformat()
         self.enhancement_data.save_data()
         
         embed = discord.Embed(title="🚫 강화 금지 발동!", description=f"**{interaction.user.display_name}**님이 **{target_name}**님의 **{아이템명}**을 겨냥해 이용금지권을 사용했습니다!", color=discord.Color.dark_red())
