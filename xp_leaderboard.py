@@ -565,13 +565,24 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.command(name="레벨순위_자동업데이트", description="[관리자 전용] 3시간마다 레벨 순위를 자동으로 업데이트합니다.")
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(채널="순위를 업데이트할 채널")
-    async def auto_level_update(self, interaction: discord.Interaction, 채널: discord.TextChannel):
+    @app_commands.describe(채널="순위를 업데이트할 채널", 스레드_id="[선택] 포럼 게시물(스레드) ID")
+    async def auto_level_update(self, interaction: discord.Interaction, 채널: discord.TextChannel, 스레드_id: Optional[str] = None):
+        target_channel = 채널
+        if 스레드_id:
+            try:
+                thread = await self.bot.fetch_channel(int(스레드_id))
+                if isinstance(thread, (discord.Thread, discord.ForumChannel)):
+                    target_channel = thread
+                else:
+                    return await interaction.response.send_message("❌ 유효한 스레드/게시물 ID가 아닙니다.", ephemeral=True)
+            except Exception:
+                return await interaction.response.send_message("❌ 스레드를 찾을 수 없습니다. ID를 확인해주세요.", ephemeral=True)
+        
         if self.auto_level_leaderboard.is_running():
             self.auto_level_leaderboard.stop()
         
-        self.auto_level_leaderboard.start(채널)
-        await interaction.response.send_message(f"✅ {채널.mention} 채널에서 3시간마다 레벨 순위가 자동 업데이트됩니다.", ephemeral=True)
+        self.auto_level_leaderboard.start(target_channel)
+        await interaction.response.send_message(f"✅ {target_channel.mention} 채널에서 3시간마다 레벨 순위가 자동 업데이트됩니다.", ephemeral=True)
     
     # ===== 관리자 명령어들 =====
     @app_commands.command(name="경험치관리", description="[관리자 전용] 특정 사용자의 XP 및 레벨 직접 수정")
