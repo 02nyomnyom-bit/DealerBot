@@ -568,15 +568,27 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.describe(채널="순위를 업데이트할 채널", 스레드_id="[선택] 포럼 게시물(스레드) ID")
     async def auto_level_update(self, interaction: discord.Interaction, 채널: discord.TextChannel, 스레드_id: Optional[str] = None):
         target_channel = 채널
+        
         if 스레드_id:
             try:
-                thread = await self.bot.fetch_channel(int(스레드_id))
-                if isinstance(thread, (discord.Thread, discord.ForumChannel)):
+                # 1. 먼저 봇의 캐시에서 시도
+                thread = self.bot.get_channel(int(스레드_id))
+                
+                # 2. 캐시에 없으면 서버를 통해 fetch 시도
+                if not thread:
+                    thread = await interaction.guild.fetch_channel(int(스레드_id))
+                
+                # 포럼 스레드나 일반 스레드인지 확인
+                if isinstance(thread, (discord.Thread, discord.ForumChannel, discord.TextChannel)):
                     target_channel = thread
                 else:
-                    return await interaction.response.send_message("❌ 유효한 스레드/게시물 ID가 아닙니다.", ephemeral=True)
-            except Exception:
-                return await interaction.response.send_message("❌ 스레드를 찾을 수 없습니다. ID를 확인해주세요.", ephemeral=True)
+                    return await interaction.response.send_message(f"❌ '{스레드_id}'는 인식할 수 없는 채널/스레드 형식입니다.", ephemeral=True)
+            except discord.NotFound:
+                return await interaction.response.send_message("❌ 해당 ID를 가진 채널이나 스레드를 찾을 수 없습니다.", ephemeral=True)
+            except discord.Forbidden:
+                return await interaction.response.send_message("❌ 해당 채널/스레드에 접근할 권한이 없습니다.", ephemeral=True)
+            except Exception as e:
+                return await interaction.response.send_message(f"❌ 오류 발생: {e}", ephemeral=True)
         
         if self.auto_level_leaderboard.is_running():
             self.auto_level_leaderboard.stop()
