@@ -15,6 +15,13 @@ from typing import Dict, List, Tuple, Optional
 # 한국 시간대 설정 (UTC+9)
 KST = timezone(timedelta(hours=9))
 
+def parse_kst_iso(date_str: str) -> datetime:
+    """ISO 문자열을 KST aware datetime으로 변환"""
+    dt = datetime.fromisoformat(date_str)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=KST)
+    return dt.astimezone(KST)
+
 # 통계 시스템
 try:
     from statistics_system import stats_manager
@@ -310,7 +317,7 @@ class EnhancementDataManager:
             return False, f"❌ **아이템 상실:** 코드를 획득했던 아이템(**{target_item_name}**)을 더 이상 보유하고 있지 않아 인증이 불가능합니다."
 
         try:
-            expires_at = datetime.fromisoformat(event["expires_at"])
+            expires_at = parse_kst_iso(event["expires_at"])
         except Exception:
             return False, "❌ 코드 데이터 형식 오류입니다."
             
@@ -367,7 +374,7 @@ class EnhancementDataManager:
         to_delete = []
         for code, info in self.data["event_codes"].items():
             try:
-                expires_at = datetime.fromisoformat(info["expires_at"])
+                expires_at = parse_kst_iso(info["expires_at"])
                 if current_time > expires_at:
                     to_delete.append(code)
             except Exception:
@@ -456,7 +463,7 @@ class EnhancementDataManager:
             banned_until = item_data.get("banned_until")
             if banned_until:
                 try:
-                    banned_time = datetime.fromisoformat(banned_until)
+                    banned_time = parse_kst_iso(banned_until)
                     if datetime.now(KST) < banned_time:
                         remaining = (banned_time - datetime.now(KST)).total_seconds()
                         return False, 0, 0, 0, 0, f"BANNED_{int(remaining//60)}", 0, 0
@@ -474,7 +481,7 @@ class EnhancementDataManager:
             
             # 2. 성공 확률 보정 버프 적용
             boost_until = buffs.get("success_boost_until")
-            if boost_until and datetime.now(KST) < datetime.fromisoformat(boost_until):
+            if boost_until and datetime.now(KST) < parse_kst_iso(boost_until):
                 success_rate += 30.0 # +30% 합연산
                 
             downgrade_rate = get_downgrade_rate(current_level)
@@ -694,7 +701,7 @@ class EnhancementSystemCog(commands.Cog):
             display_rate = next_s
             buffs = self.enhancement_data.data.get("user_buffs", {}).get(user_id, {})
             boost_until = buffs.get("success_boost_until")
-            if boost_until and datetime.now(KST) < datetime.fromisoformat(boost_until):
+            if boost_until and datetime.now(KST) < parse_kst_iso(boost_until):
                 display_rate += 30.0
                 rate_text = f"**{display_rate:.1f}%** (기본 {next_s:.1f}% + 🚀**30%**)"
             else:
@@ -767,7 +774,7 @@ class EnhancementSystemCog(commands.Cog):
             
             ban_rights = buffs.get("ban_rights", 0)
             boost_until = buffs.get("success_boost_until")
-            boost_msg = f"활성 중 ({int((datetime.fromisoformat(boost_until)-datetime.now(KST)).total_seconds()//60)}분 남음)" if boost_until and datetime.now(KST) < datetime.fromisoformat(boost_until) else "없음"
+            boost_msg = f"활성 중 ({int((parse_kst_iso(boost_until)-datetime.now(KST)).total_seconds()//60)}분 남음)" if boost_until and datetime.now(KST) < parse_kst_iso(boost_until) else "없음"
             embed.add_field(name="🎁 보유 권한/버프", value=f"• 이용금지권: {ban_rights}개\n• 확률업: {boost_msg}", inline=False)
             embed.set_footer(text=f"{username}님의 아이템 목록 • 순수 강화 시스템")
             await interaction.response.send_message(embed=embed)

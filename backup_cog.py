@@ -314,7 +314,12 @@ class BackupSystem:
                     break
                 
                 if self.stats["last_backup_time"]:
-                    last_backup = datetime.fromisoformat(self.stats["last_backup_time"])
+                    last_backup_str = self.stats["last_backup_time"]
+                    last_backup = datetime.fromisoformat(last_backup_str)
+                    if last_backup.tzinfo is None:
+                        last_backup = last_backup.replace(tzinfo=KST)
+                    else:
+                        last_backup = last_backup.astimezone(KST)
                     if datetime.now(KST) - last_backup < timedelta(seconds=interval_seconds):
                         continue
                 

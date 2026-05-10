@@ -220,7 +220,12 @@ class MemberExitLogger(commands.Cog):
             if recent_logs:
                 log_text = ""
                 for i, log in enumerate(recent_logs[:10]):  # 최대 10개만 표시
-                    left_time = datetime.datetime.fromisoformat(log["left_at"])
+                    left_time_str = log["left_at"]
+                    left_time = datetime.datetime.fromisoformat(left_time_str)
+                    if left_time.tzinfo is None:
+                        left_time = left_time.replace(tzinfo=KST)
+                    else:
+                        left_time = left_time.astimezone(KST)
                     time_str = left_time.strftime("%Y-%m-%d %H:%M")
                 
                     user_type = "🤖" if log["is_bot"] else "👤"

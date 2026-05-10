@@ -79,7 +79,12 @@ def remove_old_updates() -> int:
         
         for update in updates:
             try:
-                update_time = datetime.datetime.fromisoformat(update["timestamp"])
+                update_time_str = update["timestamp"]
+                update_time = datetime.datetime.fromisoformat(update_time_str)
+                if update_time.tzinfo is None:
+                    update_time = update_time.replace(tzinfo=KST)
+                else:
+                    update_time = update_time.astimezone(KST)
                 time_diff = (current_date - update_time).total_seconds()
                 
                 if time_diff < 2592000:  # 30일(한 달) 미만 유지
