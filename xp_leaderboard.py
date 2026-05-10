@@ -897,7 +897,7 @@ class XPLeaderboardCog(commands.Cog):
                         inline=False
                     )
             
-            embed.set_footer(text=f"실행자: {interaction.user.display_name} | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            embed.set_footer(text=f"실행자: {interaction.user.display_name} | {datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')}")
             await interaction.followup.send(embed=embed)
             
         except Exception as e:

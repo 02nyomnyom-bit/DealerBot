@@ -3,9 +3,12 @@ from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member
 from discord.ext import commands
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 from typing import Optional, Any
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 # 데이터베이스 매니저 임포트는 더 이상 필요 없습니다. cog_load에서 가져옵니다.
 
@@ -20,7 +23,7 @@ def format_xp(xp):
 
 def log_admin_action(message):
     """관리자 액션 로그"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] ADMIN: {message}")
 
 class UserDeleteConfirmView(discord.ui.View):
@@ -76,7 +79,7 @@ class UserDeleteConfirmView(discord.ui.View):
                 inline=True
             )
             
-            embed.set_footer(text=f"삭제 완료 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            embed.set_footer(text=f"삭제 완료 시간: {datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')}")
             
             # 관리자 액션 로그
             log_admin_action(f"{self.admin_user.display_name}이(가) {self.target_name}을(를) 탈퇴시킴 (총 {deleted_total}건 삭제)")

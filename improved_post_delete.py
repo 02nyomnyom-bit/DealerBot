@@ -392,7 +392,7 @@ class DeleteConfirmView(discord.ui.View):
         recent_messages = []
         old_messages = []
         
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=14)
+        cutoff_date = datetime.now(KST) - timedelta(days=14)
         
         for message in messages:
             if message.created_at > cutoff_date:

@@ -6,7 +6,10 @@ from discord.ext import commands, tasks
 import asyncio
 import random
 from typing import Optional, Literal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 from database_manager import DatabaseManager
 
@@ -295,7 +298,7 @@ user_locks = {}
 
 async def get_usage_benefit(user_id, guild_id, db):
     """최근 24시간 내 이용 횟수를 조회하여 0.5씩 이득 수치를 계산합니다."""
-    now = datetime.now()
+    now = datetime.now(KST)
     one_day_ago = (now - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
     
     # 해당 길드(서버) 전체 또는 특정 낚시터의 24시간 내 이용 횟수 카운트
@@ -418,7 +421,7 @@ class TrashActionView(discord.ui.View):
                 # 🚫 50회당 페널티 (돈 없으면 시간제한, 돈 있으면 추가 과태료)
                 if user_count % 50 == 0:
                     if current_cash < 50000:
-                        ban_until = (datetime.now() + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+                        ban_until = (datetime.now(KST) + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
                         conn.execute("UPDATE users SET fishing_ban_until = ? WHERE user_id = ? AND guild_id = ?", (ban_until, uid, gid))
                         ban_msg = f"\n\n🚫 **[저소득자 이용 제한]**\n무단투기 50회 누적되었으나, 벌금을 낼 자산이 부족하여 향후 **30분간** 이용이 금지됩니다."
                     else:
@@ -466,7 +469,7 @@ class TrashActionView(discord.ui.View):
             conn.execute("BEGIN")
             
             if self.value_name == "커커님의 항소문":
-                buff_until = (datetime.now() + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')
+                buff_until = (datetime.now(KST) + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute("UPDATE users SET appeal_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
                 msg = "항소문을 읽고 감동했습니다! **5분간 쓰레기 확률이 5% 감소**합니다."
                 title = "📜 항소문 정독"
@@ -574,7 +577,7 @@ class TrashActionView(discord.ui.View):
             
             # 🚫 10회당 10분 이용 제한 추가
             if user_count % 10 == 0:
-                ban_until = (datetime.now() + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+                ban_until = (datetime.now(KST) + timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute("UPDATE users SET fishing_ban_until = ? WHERE user_id = ? AND guild_id = ?", (ban_until, uid, gid))
                 ban_msg = f"\n\n🚫 **[낚시터 이용 제한]**\n무단투기 누적 **{user_count}회** 기록으로 인해 향후 **10분간** 낚시터 이용이 금지됩니다."
 
@@ -1245,7 +1248,7 @@ class FishingGameView(discord.ui.View):
         log_query = "INSERT INTO fishing_logs (user_id, guild_id, timestamp) VALUES (?, ?, ?)"
         self.db.execute_query(
             log_query, 
-            (str(self.user.id), str(interaction.guild_id), datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            (str(self.user.id), str(interaction.guild_id), datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S'))
         )
 
         # [C] 낚시터 주인에게 수익금 실제로 지급 (DB 업데이트)
@@ -1373,19 +1376,19 @@ class FishingGameView(discord.ui.View):
                 if user_data_buff:
                     if user_data_buff['trash_buff_until']:
                         buff_until = datetime.strptime(user_data_buff['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
-                        if datetime.now() < buff_until:
+                        if datetime.now(KST) < buff_until:
                             trash_chance -= 0.1 # 10% 감소
                     
                     # 🧜‍♀️ [추가] 세이렌의 노래 버프 체크 (쓰레기 확률 -10%)
                     if user_data_buff['fish_buff_until']:
                         f_buff_until = datetime.strptime(user_data_buff['fish_buff_until'], '%Y-%m-%d %H:%M:%S')
-                        if datetime.now() < f_buff_until:
+                        if datetime.now(KST) < f_buff_until:
                             trash_chance -= 0.1 # 10% 감소 (물고기 확률 10% 증가와 동일)
 
                     # 📜 [추가] 커커님의 항소문 버프 체크 (쓰레기 확률 -5%)
                     if user_data_buff['appeal_buff_until']:
                         a_buff_until = datetime.strptime(user_data_buff['appeal_buff_until'], '%Y-%m-%d %H:%M:%S')
-                        if datetime.now() < a_buff_until:
+                        if datetime.now(KST) < a_buff_until:
                             trash_chance -= 0.05 # 5% 감소
 
                 # 🧪 [추가] 함정(Sabotage) 체크 (입장권 기반)
@@ -1725,7 +1728,7 @@ class FishingGameView(discord.ui.View):
                     special_event = True
 
                 elif fish["name"] == "노래를 부르는 세이렌":
-                    buff_until = (datetime.now() + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
+                    buff_until = (datetime.now(KST) + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
                     conn.execute("UPDATE users SET fish_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
                     event_embed = discord.Embed(title="🧜‍♀️ 세이렌의 노래!", description="**노래를 부르는 세이렌**을 만났습니다! 그녀의 노래에 홀린 물고기들이 몰려듭니다.\n(✨ 30분간 물고기 확률 **+10%** 증가)", color=discord.Color.blue())
                     special_event = True
@@ -1935,7 +1938,7 @@ class GroundAccessView(discord.ui.View):
                 sabotage_msg = "\n⚠️ **주의:** 낚시터 주변 분위기가 왠지 심상치 않습니다..."
 
             # 🎫 [발급] 이용권 데이터 저장 (is_sabotaged 반영)
-            expire = (datetime.now() + timedelta(hours=self.hours)).strftime('%Y-%m-%d %H:%M:%S')
+            expire = (datetime.now(KST) + timedelta(hours=self.hours)).strftime('%Y-%m-%d %H:%M:%S')
             conn.execute(
                 "INSERT INTO fishing_passes (user_id, channel_id, guild_id, expire_time, is_sabotaged) VALUES (?, ?, ?, ?, ?) "
                 "ON CONFLICT(user_id, channel_id, guild_id) DO UPDATE SET expire_time = excluded.expire_time, is_sabotaged = excluded.is_sabotaged",
@@ -2164,7 +2167,7 @@ class FishingSystemCog(commands.Cog):
         uid = str(interaction.user.id)
         chid = str(interaction.channel_id)
         gid = str(interaction.guild_id)
-        now = datetime.now()
+        now = datetime.now(KST)
 
         # 🕒 [추가] 명령어 연타 감지 및 패널티 로직
         if uid not in self.command_usage:
@@ -2203,8 +2206,8 @@ class FishingSystemCog(commands.Cog):
         
         if user_data and user_data.get('fishing_ban_until'):
             ban_until = datetime.strptime(user_data['fishing_ban_until'], '%Y-%m-%d %H:%M:%S')
-            if datetime.now() < ban_until:
-                remain = ban_until - datetime.now()
+            if datetime.now(KST) < ban_until:
+                remain = ban_until - datetime.now(KST)
                 minutes, seconds = divmod(int(remain.total_seconds()), 60)
                 embed = discord.Embed(
                     title="🚫 낚시터 이용 제한 중",
@@ -2257,7 +2260,7 @@ class FishingSystemCog(commands.Cog):
         # 사유지 입장 제한 로직
         if ground['owner_id'] and ground['owner_id'] != uid and ground['is_public'] != 1:
             p = db.execute_query("SELECT expire_time FROM fishing_passes WHERE user_id = ? AND channel_id = ? AND guild_id = ?", (uid, chid, gid), 'one')
-            if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S') <= datetime.now():
+            if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S') <= datetime.now(KST):
                 view = GroundAccessView(interaction.user, ground['entry_fee'], 3, ground['owner_id'], db)
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
@@ -2360,7 +2363,7 @@ class FishingSystemCog(commands.Cog):
             u = db.get_user(uid)
             if u and u.get('trash_buff_until'):
                 buff_until = datetime.strptime(u['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
-                if datetime.now() < buff_until:
+                if datetime.now(KST) < buff_until:
                     glove_buff = -0.1
 
             final_trash_chance = max(0.0, min(1.0, base_trash_chance + trash_rate + glove_buff))
@@ -2487,7 +2490,7 @@ class FishingSystemCog(commands.Cog):
                         
                         # 이미 쥬라기인 경우 연장 불가 로직 (필요시)
                         if ground['ground_type'] != "쥬라기":
-                            expire_time = (datetime.now() + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+                            expire_time = (datetime.now(KST) + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
                             db.execute_query(
                                 "UPDATE fishing_ground SET original_ground_type = ?, temp_terrain_expire = ? WHERE channel_id = ? AND guild_id = ?",
                                 (ground['ground_type'], expire_time, chid, gid)
@@ -2867,8 +2870,8 @@ class FishingSystemCog(commands.Cog):
             # 🧤 [추가] 낚시 장갑 버프 정보 표시
             if u.get('trash_buff_until'):
                 buff_until = datetime.strptime(u['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
-                if datetime.now() < buff_until:
-                    remain = buff_until - datetime.now()
+                if datetime.now(KST) < buff_until:
+                    remain = buff_until - datetime.now(KST)
                     h, m = divmod(int(remain.total_seconds() // 60), 60)
                     embed.add_field(name="🧤 낚시 장갑 버프", value=f"쓰레기 확률 **-10%** (남은 시간: {h}시간 {m}분)", inline=False)
 
@@ -3029,7 +3032,7 @@ class FishingSystemCog(commands.Cog):
                 conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (COST, uid, gid))
                 
                 # 1시간 30분(90분) 버프 시간 계산
-                buff_until = (datetime.now() + timedelta(minutes=90)).strftime('%Y-%m-%d %H:%M:%S')
+                buff_until = (datetime.now(KST) + timedelta(minutes=90)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute("UPDATE users SET award_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
                 
                 conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
@@ -3063,7 +3066,7 @@ class FishingSystemCog(commands.Cog):
                 conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (COST, uid, gid))
                 
                 # 3시간 버프 시간 계산
-                buff_until = (datetime.now() + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
+                buff_until = (datetime.now(KST) + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute("UPDATE users SET trash_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
                 
                 conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
@@ -3301,7 +3304,7 @@ class FishingSystemCog(commands.Cog):
     @tasks.loop(minutes=1)
     async def auto_cleanup_inactive_grounds(self):
         """방치 낚시터 회수(24시간 주기 체크) 및 임시 지형 복구(실시간)"""
-        now_dt = datetime.now()
+        now_dt = datetime.now(KST)
         now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
         
         for guild in self.bot.guilds:

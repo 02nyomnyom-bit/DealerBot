@@ -11,6 +11,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
+
 # ✅ 로깅 설정
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -49,7 +52,7 @@ class StatisticsManager:
         self.real_time_cache = {
             "hourly_games": defaultdict(int),
             "active_users": set(),
-            "session_start": datetime.datetime.now()
+            "session_start": datetime.datetime.now(KST)
         }
         
         # ✅ 디버깅 카운터 추가
@@ -97,8 +100,8 @@ class StatisticsManager:
             },
             "total_games": 0,
             "total_users": 0,
-            "created_date": datetime.datetime.now().isoformat(),
-            "last_updated": datetime.datetime.now().isoformat()
+            "created_date": datetime.datetime.now(KST).isoformat(),
+            "last_updated": datetime.datetime.now(KST).isoformat()
         }
 
     def load_game_stats(self) -> Dict:
@@ -194,7 +197,7 @@ class StatisticsManager:
             
             # 게임 통계 저장
             if isinstance(self.game_stats, dict):
-                self.game_stats["last_updated"] = datetime.datetime.now().isoformat()
+                self.game_stats["last_updated"] = datetime.datetime.now(KST).isoformat()
                 with open(STATS_CONFIG["game_stats_file"], 'w', encoding='utf-8') as f:
                     json.dump(self.game_stats, f, indent=2, ensure_ascii=False)
                 print(f"💾 게임 통계 저장됨: {self.game_stats.get('total_games', 0)}게임")
@@ -245,7 +248,7 @@ class StatisticsManager:
         try:
             # ✅ 디버깅 카운터 업데이트
             self.debug_stats["record_calls"] += 1
-            self.debug_stats["last_record_time"] = datetime.datetime.now().isoformat()
+            self.debug_stats["last_record_time"] = datetime.datetime.now(KST).isoformat()
             self.debug_stats["last_game_recorded"] = game_name
             
             print(f"🎮 게임 기록 시도: {game_name} | 사용자: {username} | 승리: {is_win} | 배팅: {bet_amount} | 지급: {payout}")
@@ -301,8 +304,8 @@ class StatisticsManager:
                 if user_id not in self.user_activity:
                     self.user_activity[user_id] = {
                         "username": username,
-                        "first_game": datetime.datetime.now().isoformat(),
-                        "last_game": datetime.datetime.now().isoformat(),
+                        "first_game": datetime.datetime.now(KST).isoformat(),
+                        "last_game": datetime.datetime.now(KST).isoformat(),
                         "total_games": 0,
                         "total_won": 0,
                         "total_bet": 0,
@@ -313,7 +316,7 @@ class StatisticsManager:
                 
                 user_stats = self.user_activity[user_id]
                 user_stats["username"] = username  # 이름 업데이트
-                user_stats["last_game"] = datetime.datetime.now().isoformat()
+                user_stats["last_game"] = datetime.datetime.now(KST).isoformat()
                 user_stats["total_games"] = user_stats.get("total_games", 0) + 1
                 
                 if is_win:
@@ -338,7 +341,7 @@ class StatisticsManager:
 
             # 실시간 캐시 업데이트
             self.real_time_cache["active_users"].add(user_id)
-            current_hour = datetime.datetime.now().strftime("%Y-%m-%d-%H")
+            current_hour = datetime.datetime.now(KST).strftime("%Y-%m-%d-%H")
             self.real_time_cache["hourly_games"][current_hour] += 1
 
             # 자동 저장 (백업 카운터 기반)
@@ -484,7 +487,7 @@ class StatisticsManager:
     def _get_real_time_stats(self) -> Dict:
         """실시간 통계 계산"""
         try:
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(KST)
             session_duration = now - self.real_time_cache["session_start"]
             
             # 시간 단위로 변환
@@ -639,7 +642,7 @@ class StatisticsCog(commands.Cog):
             # StatisticsManager에서 데이터를 가져옴
             games = self.stats.game_stats.get("games", {})
             server_stats = self.stats.get_server_stats(interaction.guild_id)
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(KST)
             
             # ✅ 통계 기간 계산
             start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)

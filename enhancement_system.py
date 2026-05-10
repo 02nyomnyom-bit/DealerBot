@@ -9,8 +9,11 @@ import os
 import time
 import asyncio
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple, Optional
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 # 통계 시스템
 try:
@@ -277,7 +280,7 @@ class EnhancementDataManager:
     def generate_event_code(self, creator_id: str, item_name: str) -> str:
         """3시간 유효한 히든 이벤트 코드 생성 (아이템 정보 포함)"""
         code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-        expires_at = (datetime.now() + timedelta(hours=3)).isoformat()
+        expires_at = (datetime.now(KST) + timedelta(hours=3)).isoformat()
         
         if "event_codes" not in self.data:
             self.data["event_codes"] = {}
@@ -311,7 +314,7 @@ class EnhancementDataManager:
         except Exception:
             return False, "❌ 코드 데이터 형식 오류입니다."
             
-        if datetime.now() > expires_at:
+        if datetime.now(KST) > expires_at:
             return False, "⏰ 해당 코드는 이미 만료되었습니다 (3시간 경과)."
             
         if user_id in event.get("used_by", []):
@@ -332,7 +335,7 @@ class EnhancementDataManager:
         item_data = self.data["items"][item_key]
         
         if buff_type == "SUCCESS_BOOST":
-            until = (datetime.now() + timedelta(minutes=30)).isoformat()
+            until = (datetime.now(KST) + timedelta(minutes=30)).isoformat()
             self.data["user_buffs"][user_id]["success_boost_until"] = until
             buff_msg = "✨ **[버프 획득] 30분 동안 성공 확률 30% 상승!**\n지금 바로 강화를 시도해보세요!"
         elif buff_type == "ATTACK_SHIELD":
@@ -360,7 +363,7 @@ class EnhancementDataManager:
         if "event_codes" not in self.data:
             return
             
-        current_time = datetime.now()
+        current_time = datetime.now(KST)
         to_delete = []
         for code, info in self.data["event_codes"].items():
             try:
@@ -395,7 +398,7 @@ class EnhancementDataManager:
             "downgrade_count": 0, 
             "total_levels_gained": 0,
             "total_levels_lost": 0,
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now(KST).isoformat(),
             "last_attempt": None,
             "consecutive_fails": 0,
             "shield_count": 0
@@ -454,8 +457,8 @@ class EnhancementDataManager:
             if banned_until:
                 try:
                     banned_time = datetime.fromisoformat(banned_until)
-                    if datetime.now() < banned_time:
-                        remaining = (banned_time - datetime.now()).total_seconds()
+                    if datetime.now(KST) < banned_time:
+                        remaining = (banned_time - datetime.now(KST)).total_seconds()
                         return False, 0, 0, 0, 0, f"BANNED_{int(remaining//60)}", 0, 0
                 except (ValueError, TypeError):
                     # 유효하지 않은 날짜 형식이면 무시하고 진행
@@ -471,7 +474,7 @@ class EnhancementDataManager:
             
             # 2. 성공 확률 보정 버프 적용
             boost_until = buffs.get("success_boost_until")
-            if boost_until and datetime.now() < datetime.fromisoformat(boost_until):
+            if boost_until and datetime.now(KST) < datetime.fromisoformat(boost_until):
                 success_rate += 30.0 # +30% 합연산
                 
             downgrade_rate = get_downgrade_rate(current_level)
@@ -496,7 +499,7 @@ class EnhancementDataManager:
                     result_type = "fail"
 
             item_data["total_attempts"] += 1
-            item_data["last_attempt"] = datetime.now().isoformat()
+            item_data["last_attempt"] = datetime.now(KST).isoformat()
             
             if isinstance(self.data.get("server_stats"), dict):
                 self.data["server_stats"]["total_attempts"] += 1
@@ -691,7 +694,7 @@ class EnhancementSystemCog(commands.Cog):
             display_rate = next_s
             buffs = self.enhancement_data.data.get("user_buffs", {}).get(user_id, {})
             boost_until = buffs.get("success_boost_until")
-            if boost_until and datetime.now() < datetime.fromisoformat(boost_until):
+            if boost_until and datetime.now(KST) < datetime.fromisoformat(boost_until):
                 display_rate += 30.0
                 rate_text = f"**{display_rate:.1f}%** (기본 {next_s:.1f}% + 🚀**30%**)"
             else:
@@ -702,7 +705,7 @@ class EnhancementSystemCog(commands.Cog):
             if c_fails >= 3:
                 embed.add_field(name="🛡️ 연속 실패 보호", value=f"🔥 연속 **{c_fails}회** 실패!\n💡 **{5 - c_fails}회** 더 실패하면\n🎯 다음 강화는 **성공 보장**!", inline=False)
 
-            embed.set_footer(text=f"소유자: {username} | {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+            embed.set_footer(text=f"소유자: {username} | {datetime.now(KST).strftime('%Y-%m-%d %H:%M')}")
             await interaction.response.send_message(embed=embed)
         except Exception as e:
             print(f"❌ 강화 명령어 오류: {e}")
@@ -740,7 +743,7 @@ class EnhancementSystemCog(commands.Cog):
         self.enhancement_data.data["user_buffs"][user_id]["ban_rights"] = rights - 1
         
         # 아이템별 강화 금지 적용
-        target_item["banned_until"] = (datetime.now() + timedelta(hours=1)).isoformat()
+        target_item["banned_until"] = (datetime.now(KST) + timedelta(hours=1)).isoformat()
         self.enhancement_data.save_data()
         
         embed = discord.Embed(title="🚫 강화 금지 발동!", description=f"**{interaction.user.display_name}**님이 **{target_name}**님의 **{아이템명}**을 겨냥해 이용금지권을 사용했습니다!", color=discord.Color.dark_red())
@@ -764,7 +767,7 @@ class EnhancementSystemCog(commands.Cog):
             
             ban_rights = buffs.get("ban_rights", 0)
             boost_until = buffs.get("success_boost_until")
-            boost_msg = f"활성 중 ({int((datetime.fromisoformat(boost_until)-datetime.now()).total_seconds()//60)}분 남음)" if boost_until and datetime.now() < datetime.fromisoformat(boost_until) else "없음"
+            boost_msg = f"활성 중 ({int((datetime.fromisoformat(boost_until)-datetime.now(KST)).total_seconds()//60)}분 남음)" if boost_until and datetime.now(KST) < datetime.fromisoformat(boost_until) else "없음"
             embed.add_field(name="🎁 보유 권한/버프", value=f"• 이용금지권: {ban_rights}개\n• 확률업: {boost_msg}", inline=False)
             embed.set_footer(text=f"{username}님의 아이템 목록 • 순수 강화 시스템")
             await interaction.response.send_message(embed=embed)
@@ -803,7 +806,7 @@ class EnhancementSystemCog(commands.Cog):
         tier_name = get_level_tier_info(my_item['level'])['tier']
         limits = {"챌린저": 1, "그랜드마스터": 2, "마스터": 2, "플래티넘": 3, "골드": 5}
         if tier_name in limits:
-            max_daily, today = limits[tier_name], datetime.now().strftime("%Y-%m-%d")
+            max_daily, today = limits[tier_name], datetime.now(KST).strftime("%Y-%m-%d")
             if my_item.get("last_attack_date") != today:
                 my_item["last_attack_date"], my_item["daily_attack_count"] = today, 0
             if my_item["daily_attack_count"] >= max_daily:

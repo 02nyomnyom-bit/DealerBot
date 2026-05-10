@@ -8,6 +8,9 @@ import json
 import os
 from typing import Dict, List, Optional
 
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
+
 # ✅ 설정 파일 경로
 DATA_DIR = "data"
 REALTIME_UPDATES_FILE = os.path.join(DATA_DIR, "realtime_updates.json")
@@ -68,8 +71,8 @@ def add_realtime_update(title: str, description: str, author: str, priority: str
             "description": description,
             "author": author,
             "priority": priority,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "date": datetime.datetime.now().strftime("%Y-%m-%d")
+            "timestamp": datetime.datetime.now(KST).isoformat(),
+            "date": datetime.datetime.now(KST).strftime("%Y-%m-%d")
         }
         
         updates.append(new_update)
@@ -314,7 +317,7 @@ class HelpCategoryView(discord.ui.View):
 class HelpCommandCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bot_start_time = datetime.datetime.now(datetime.timezone.utc)
+        self.bot_start_time = datetime.datetime.now(KST)
         print("✅ 도움말 시스템 로드 완료")
 
     # 일반 사용자를 위한 도움말 명령어

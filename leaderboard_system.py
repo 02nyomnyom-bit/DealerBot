@@ -8,6 +8,9 @@ from typing import Dict, Optional, List, Any
 import math
 from database_manager import DEFAULT_LEADERBOARD_SETTINGS
 
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
+
 # ✅ 안전한 의존성 import (point_manager는 그대로 유지)
 def safe_import_point_manager():
     try:
@@ -91,7 +94,7 @@ class IntegratedLeaderboardCog(commands.Cog):
             title=f"📊 {interaction.guild.name} 통합 데이터 리포트",
             description="서버의 전체 경제 및 성장 지표입니다.",
             color=discord.Color.gold(),
-            timestamp=datetime.datetime.now()
+            timestamp=datetime.datetime.now(KST)
         )
 
         # XP 섹션

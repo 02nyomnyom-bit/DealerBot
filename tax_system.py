@@ -3,8 +3,12 @@ from __future__ import annotations
 import discord
 from discord import app_commands
 from discord.ext import commands
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple, Literal
 import os
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 # --- 기존 유틸리티 및 임포트 로직 유지 ---
 try:
@@ -14,7 +18,7 @@ except ImportError:
     def format_xp(xp: int) -> str: return f"{xp:,} XP"
     def now_str() -> str:
         from datetime import datetime
-        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
 
 def safe_import_database():
     try:
@@ -151,7 +155,7 @@ class TaxSystemCog(commands.Cog):
             title=f"💰 {type_name} 세금 수거 완료",
             description=f"**역할:** {역할.name}\n**비율:** {퍼센트}%\n**총 수거액:** ✨ `{total_collected:,}{unit}` ✨",
             color=discord.Color.gold() if tax_type == "cash" else discord.Color.purple(),
-            timestamp=discord.utils.utcnow()
+            timestamp=datetime.now(KST)
         )
 
         chunk_size = 15

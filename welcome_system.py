@@ -6,8 +6,11 @@ from discord import app_commands
 from typing import Optional
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import asyncio
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 class WelcomeSystem(commands.Cog):
     """
@@ -85,7 +88,7 @@ class WelcomeSystem(commands.Cog):
             return
         
         # 중복 처리 방지 체크
-        member_key = f"{member.guild.id}-{member.id}-{datetime.utcnow().strftime('%Y%m%d%H%M')}"
+        member_key = f"{member.guild.id}-{member.id}-{datetime.now(KST).strftime('%Y%m%d%H%M')}"
         if member_key in self.processed_members:
             print(f"❌ 중복 환영 메시지 방지: {member.display_name} ({member.guild.name})")
             return
@@ -169,7 +172,7 @@ class WelcomeSystem(commands.Cog):
                     title="🎉 새로운 멤버가 도착했어요!",
                     description=message,
                     color=discord.Color.green(),
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.now(KST)
                 )
                 
                 # 사용자 아바타 추가
@@ -207,7 +210,7 @@ class WelcomeSystem(commands.Cog):
                 title=f"🎊 {member.guild.name}에 오신 것을 환영합니다!",
                 description=message,
                 color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(KST)
             )
             
             embed.set_thumbnail(url=member.guild.icon.url if member.guild.icon else None)

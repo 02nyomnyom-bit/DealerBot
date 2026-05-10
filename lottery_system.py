@@ -6,8 +6,10 @@ import random
 import json
 import os
 import datetime
-import traceback
 from typing import List, Dict, Optional
+
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
 
 # 상금 테이블 및 설정
 PRIZE_TABLE = {
@@ -84,7 +86,7 @@ class PurchaseConfirmView(discord.ui.View):
                 "round": store['data']['round'],
                 "numbers": self.numbers,
                 "bonus": self.bonus,
-                "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "time": datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
             })
             self.lottery_system.manager.save_all_data()
 
@@ -127,7 +129,7 @@ class LotteryTickets:
             "round": round_num,
             "numbers": sorted(numbers),
             "bonus": bonus,
-            "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "time": datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
         })
         self.save_tickets()
 

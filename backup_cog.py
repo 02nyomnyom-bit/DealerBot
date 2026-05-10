@@ -10,8 +10,11 @@ import json
 import hashlib
 import signal
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 from pathlib import Path
 import traceback
 import discord
@@ -130,7 +133,7 @@ class BackupSystem:
         """백업 생성"""
         try:
             self.stats["total_backups"] += 1
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(KST).strftime("%Y%m%d_%H%M%S")
             filename = f"{backup_name}_{timestamp}.zip" if backup_name else f"backup_{timestamp}.zip"
             backup_path = self.backup_dir / filename
             
@@ -143,7 +146,7 @@ class BackupSystem:
             
             with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 backup_info = {
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(KST).isoformat(),
                     "backup_type": "manual" if backup_name else "auto",
                     "backup_version": "2.0",
                     "total_files": len(files_to_backup),
@@ -165,7 +168,7 @@ class BackupSystem:
             
             backup_size = backup_path.stat().st_size
             self.stats["successful_backups"] += 1
-            self.stats["last_backup_time"] = datetime.now().isoformat()
+            self.stats["last_backup_time"] = datetime.now(KST).isoformat()
             self.stats["last_backup_size"] = backup_size
             
             self.cleanup_old_backups()
@@ -312,7 +315,7 @@ class BackupSystem:
                 
                 if self.stats["last_backup_time"]:
                     last_backup = datetime.fromisoformat(self.stats["last_backup_time"])
-                    if datetime.now() - last_backup < timedelta(seconds=interval_seconds):
+                    if datetime.now(KST) - last_backup < timedelta(seconds=interval_seconds):
                         continue
                 
                 self.create_backup()

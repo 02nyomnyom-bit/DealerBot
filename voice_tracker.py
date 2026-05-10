@@ -10,6 +10,9 @@ from discord import app_commands, Member
 from discord.ext import commands, tasks
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
+
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
 from database_manager import get_guild_db_manager
 from xp_leaderboard import check_and_send_levelup_notification
 from xp_leaderboard import load_xp_settings
@@ -343,7 +346,7 @@ class VoiceTracker(commands.Cog):
                 inline=False
             )
             
-            embed.set_footer(text=f"확인자: {interaction.user.display_name} | {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            embed.set_footer(text=f"확인자: {interaction.user.display_name} | {datetime.datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')}")
             await interaction.followup.send(embed=embed)
              
         except Exception as e:
@@ -413,7 +416,7 @@ class VoiceTracker(commands.Cog):
                     inline=False
                 )
             
-            embed.set_footer(text=f"조회자: {interaction.user.display_name} | {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            embed.set_footer(text=f"조회자: {interaction.user.display_name} | {datetime.datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')}")
             await interaction.followup.send(embed=embed)
             
         except Exception as e:

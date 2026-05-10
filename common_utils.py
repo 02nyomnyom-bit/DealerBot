@@ -276,18 +276,25 @@ def format_datetime(dt: datetime.datetime, format_type: str = "default") -> str:
 
 # ==================== 시간 관련 함수들 ====================
 
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
+
+def kst_now() -> datetime.datetime:
+    """현재 한국 시간을 반환합니다."""
+    return datetime.datetime.now(KST)
+
 def now_str(format_string: str = "[%Y-%m-%d %H:%M:%S]") -> str:
-    """현재 시간을 문자열로 반환합니다."""
-    return datetime.datetime.now().strftime(format_string)
+    """현재 한국 시간을 문자열로 반환합니다."""
+    return kst_now().strftime(format_string)
 
 def today_str(format_string: str = "%Y-%m-%d") -> str:
-    """오늘 날짜를 문자열로 반환합니다."""
-    return datetime.date.today().strftime(format_string)
+    """오늘 한국 날짜를 문자열로 반환합니다."""
+    return kst_now().strftime(format_string)
 
 def parse_date_range(date_string: str, year: int = None) -> Tuple[datetime.datetime, datetime.datetime]:
     """날짜 범위 문자열을 파싱합니다. (예: "08.01-08.08", "2024.01.15-2024.01.20")"""
     if year is None:
-        year = datetime.datetime.now().year
+        year = kst_now().year
     
     # 다양한 날짜 형식 지원
     patterns = [
@@ -309,16 +316,16 @@ def parse_date_range(date_string: str, year: int = None) -> Tuple[datetime.datet
             if len(groups) == 4:  # MM.dd-MM.dd 형식
                 start_month, start_day, end_month, end_day = map(int, groups)
                 try:
-                    start_date = datetime.datetime(year, start_month, start_day, 0, 0, 0)
-                    end_date = datetime.datetime(year, end_month, end_day, 23, 59, 59)
+                    start_date = datetime.datetime(year, start_month, start_day, 0, 0, 0, tzinfo=KST)
+                    end_date = datetime.datetime(year, end_month, end_day, 23, 59, 59, tzinfo=KST)
                 except ValueError as e:
                     raise ValueError(f"잘못된 날짜: {e}")
                     
             elif len(groups) == 6:  # YYYY.MM.dd-YYYY.MM.dd 형식
                 start_year, start_month, start_day, end_year, end_month, end_day = map(int, groups)
                 try:
-                    start_date = datetime.datetime(start_year, start_month, start_day, 0, 0, 0)
-                    end_date = datetime.datetime(end_year, end_month, end_day, 23, 59, 59)
+                    start_date = datetime.datetime(start_year, start_month, start_day, 0, 0, 0, tzinfo=KST)
+                    end_date = datetime.datetime(end_year, end_month, end_day, 23, 59, 59, tzinfo=KST)
                 except ValueError as e:
                     raise ValueError(f"잘못된 날짜: {e}")
             
@@ -342,7 +349,11 @@ def parse_date_range(date_string: str, year: int = None) -> Tuple[datetime.datet
 def get_time_until(target_time: datetime.datetime) -> Dict:
     """특정 시간까지 남은 시간을 계산합니다."""
     try:
-        now = datetime.datetime.now()
+        now = kst_now()
+        # target_time이 timezone 정보가 없다면 KST로 가정
+        if target_time.tzinfo is None:
+            target_time = target_time.replace(tzinfo=KST)
+            
         delta = target_time - now
         
         if delta.total_seconds() <= 0:

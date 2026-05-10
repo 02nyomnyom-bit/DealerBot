@@ -6,10 +6,13 @@ from discord.ext import commands
 import traceback
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 import asyncio
 from functools import wraps
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 # ✅ 로깅 설정
 os.makedirs('logs', exist_ok=True)
@@ -84,7 +87,7 @@ class ErrorHandler(commands.Cog):
             title=title,
             description=description,
             color=discord.Color.red(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(KST)
         )
         embed.set_footer(text="문제가 지속되면 관리자에게 문의해주세요.")
         
@@ -113,7 +116,7 @@ class ErrorHandler(commands.Cog):
         self._increment_error_count(error_type)
         
         error_info = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': datetime.now(KST).isoformat(),
             'error_type': error_type,
             'error_message': str(error),
             'command': command_name,
@@ -346,7 +349,7 @@ class ErrorHandler(commands.Cog):
         
         if exc_type:
             error_info = {
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(KST).isoformat(),
                 'event': event,
                 'error_type': exc_type.__name__,
                 'error_message': str(exc_value),
@@ -363,7 +366,7 @@ class ErrorHandler(commands.Cog):
             title="📊 에러 발생 통계",
             description="봇에서 발생한 에러들의 통계입니다.",
             color=discord.Color.orange(),
-            timestamp=datetime.now()
+            timestamp=datetime.now(KST)
         )
         
         if not self.error_counts:

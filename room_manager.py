@@ -4,7 +4,10 @@ from discord.ext import commands
 from typing import Optional
 import logging
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 logger = logging.getLogger("room_manager")
 
@@ -66,7 +69,7 @@ class RoomManager(commands.Cog):
         if not is_temp:
             return await interaction.response.send_message("❌ 이 방은 자동 생성된 임시 음성방이 아닙니다.", ephemeral=True)
 
-        now = datetime.now()
+        now = datetime.now(KST)
         user_id = interaction.user.id
         if user_id in self.rename_cooldown:
             elapsed = now - self.rename_cooldown[user_id]

@@ -9,11 +9,13 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import traceback
 import psutil
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-from datetime import datetime, timedelta, timezone
+
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
 
 # 프로젝트 루트 디렉토리 설정
 PROJECT_ROOT = Path(__file__).parent.absolute()
@@ -420,7 +422,7 @@ class EnhancedBot(commands.Bot):
                     description=f"**서버명**: {guild.name}\n"
                                 f"**서버 ID**: `{guild.id}`",
                     color=discord.Color.blue(),
-                    timestamp=datetime.now(timezone.utc)
+                    timestamp=datetime.now(KST)
                 )
             await owner.send(embed=embed)
         except Exception as e:
@@ -470,7 +472,7 @@ class EnhancedBot(commands.Bot):
             self.logger.warning(f"⚠️ 일부 기능이 제한될 수 있습니다.")
     
     async def setup_hook(self):
-        self.startup_time = datetime.now(timezone.utc)
+        self.startup_time = datetime.now(KST)
         if not self.update_daily_status.is_running():
             self.update_daily_status.start()
 

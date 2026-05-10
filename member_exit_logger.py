@@ -8,6 +8,9 @@ import json
 from typing import Optional, Dict, Any, List
 from database_manager import DatabaseManager
 
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
+
 class MemberExitLogger(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -63,7 +66,7 @@ class MemberExitLogger(commands.Cog):
             "username": member.name,
             "display_name": member.display_name,
             "joined_at": member.joined_at.isoformat() if member.joined_at else None,
-            "left_at": datetime.datetime.now().isoformat(),
+            "left_at": datetime.datetime.now(KST).isoformat(),
             "server_time": server_time_str,
             "avatar_url": member.avatar.url if member.avatar else member.default_avatar.url,
             "is_bot": int(member.bot),
@@ -96,7 +99,7 @@ class MemberExitLogger(commands.Cog):
                 title="🤖 봇이 퇴장했어요",
                 description=f"**{member.display_name}**이 서버를 떠났습니다.",
                 color=discord.Color.light_grey(),
-                timestamp=datetime.datetime.now()
+                timestamp=datetime.datetime.now(KST)
             )
             embed.add_field(
                 name="🤖 봇 정보",
@@ -108,7 +111,7 @@ class MemberExitLogger(commands.Cog):
                 title="👋 멤버가 퇴장했어요",
                 description=f"**{member.display_name}**님이 서버를 떠났습니다.",
                 color=discord.Color.red(),
-                timestamp=datetime.datetime.now()
+                timestamp=datetime.datetime.now(KST)
             )
             embed.add_field(
                 name="👤 사용자 정보",
@@ -119,7 +122,7 @@ class MemberExitLogger(commands.Cog):
                 joined_date = member.joined_at.strftime("%Y년 %m월 %d일")
                 embed.add_field(
                     name="📅 가입 정보",
-                    value=f"가입일: {joined_date}\n퇴장일: {datetime.datetime.now().strftime('%Y년 %m월 %d일')}",
+                    value=f"가입일: {joined_date}\n퇴장일: {datetime.datetime.now(KST).strftime('%Y년 %m월 %d일')}",
                     inline=True
                 )
             if roles_list:
@@ -197,7 +200,7 @@ class MemberExitLogger(commands.Cog):
             if 일수 <= 0:
                 return await interaction.followup.send("일수는 1 이상으로 설정해주세요.", ephemeral=True)
             
-            cutoff_date = (datetime.datetime.now() - datetime.timedelta(days=일수)).isoformat()
+            cutoff_date = (datetime.datetime.now(KST) - datetime.timedelta(days=일수)).isoformat()
         
             db = DatabaseManager(str(interaction.guild.id))
             # ✅ 데이터베이스에서 최근 로그 조회

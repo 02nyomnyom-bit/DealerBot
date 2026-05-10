@@ -142,17 +142,19 @@ class ExchangeSystem:
         return sum(1 for entry in self.exchange_history if entry.get('user_id') == user_id and entry['date'].startswith(today_str))
 
     def check_cooldown(self, user_id: str) -> bool:
-        """쿨다운 체크"""
+        """쿨다운 체크 (KST 기준)"""
+        timezone_kst = datetime.timezone(datetime.timedelta(hours=9))
         if user_id in self.cooldowns:
             last_use = self.cooldowns[user_id]
             cooldown_period = datetime.timedelta(minutes=self.settings['쿨다운_분'])
-            if datetime.datetime.now() < last_use + cooldown_period:
+            if datetime.datetime.now(timezone_kst) < last_use + cooldown_period:
                 return False
         return True
 
     def update_cooldown(self, user_id: str):
-        """쿨다운 업데이트"""
-        self.cooldowns[user_id] = datetime.datetime.now()
+        """쿨다운 업데이트 (KST 기준)"""
+        timezone_kst = datetime.timezone(datetime.timedelta(hours=9))
+        self.cooldowns[user_id] = datetime.datetime.now(timezone_kst)
 
     def record_exchange(self, interaction: discord.Interaction, exchange_type: str, amount: int, result: int):
         """교환 기록 저장 (KST 기준)"""

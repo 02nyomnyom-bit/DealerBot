@@ -8,6 +8,9 @@ import json
 import os
 from typing import Dict, Optional
 
+# 한국 시간대 설정 (UTC+9)
+KST = datetime.timezone(datetime.timedelta(hours=9))
+
 # 설정 파일 경로
 DATA_DIR = "data"                                                       # 데이터 저장 폴더
 REALTIME_UPDATES_FILE = os.path.join(DATA_DIR, "realtime_updates.json") # 현재 활성 업데이트 파일
@@ -69,7 +72,7 @@ def remove_old_updates() -> int:
     try:
         updates = load_realtime_updates()
         archived = load_archived_updates()
-        current_date = datetime.datetime.now()
+        current_date = datetime.datetime.now(KST)
         
         filtered_updates = []
         removed_count = 0
@@ -156,7 +159,7 @@ def get_update_statistics() -> Dict:
             if p in priority_counts:
                 priority_counts[p] += 1
                 
-        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        today_str = datetime.datetime.now(KST).strftime("%Y-%m-%d")
         today_count = sum(1 for u in updates if u.get("timestamp", "").startswith(today_str))
         
         return {
@@ -217,7 +220,7 @@ class RealtimeUpdateSystem(commands.Cog):
             
             updates = load_realtime_updates()
             new_id = max([u.get("id", 0) for u in updates], default=0) + 1
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(KST)
             
             # 통일된 JSON 규격
             new_update = {
@@ -248,7 +251,7 @@ class RealtimeUpdateSystem(commands.Cog):
             
             if target:
                 updates.remove(target)
-                target["archived_date"] = datetime.datetime.now().isoformat()
+                target["archived_date"] = datetime.datetime.now(KST).isoformat()
                 target["archived_reason"] = "관리자에 의한 수동 삭제"
                 archived.append(target)
                 
@@ -288,7 +291,7 @@ class RealtimeUpdateSystem(commands.Cog):
             color=discord.Color.gold()
         )
         
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(KST)
         embed.add_field(name="🕐 현재 시간", value=now.strftime("%Y년 %m월 %d일 %H시 %M분"), inline=True)
         embed.add_field(name="⚡ 시스템 상태", value="🟢 정상 운영 중", inline=True)
         
