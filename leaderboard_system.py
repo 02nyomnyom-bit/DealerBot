@@ -261,36 +261,16 @@ class IntegratedLeaderboardCog(commands.Cog):
     @app_commands.command(name="현금순위_자동업데이트", description="[관리자 전용] 3시간마다 현금 순위를 자동으로 업데이트합니다.")
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(채널="순위를 업데이트할 채널", 스레드_id="[선택] 포럼 게시물(스레드) ID")
-    async def auto_cash_update(self, interaction: discord.Interaction, 채널: discord.TextChannel, 스레드_id: Optional[str] = None):
-        target_channel = 채널
-        
-        if 스레드_id:
-            try:
-                # 1. 먼저 봇의 캐시에서 시도
-                thread = self.bot.get_channel(int(스레드_id))
-                
-                # 2. 캐시에 없으면 서버를 통해 fetch 시도
-                if not thread:
-                    thread = await interaction.guild.fetch_channel(int(스레드_id))
-                
-                # 포럼 스레드나 일반 스레드인지 확인
-                if isinstance(thread, (discord.Thread, discord.ForumChannel, discord.TextChannel)):
-                    target_channel = thread
-                else:
-                    return await interaction.response.send_message(f"❌ '{스레드_id}'는 인식할 수 없는 채널/스레드 형식입니다.", ephemeral=True)
-            except discord.NotFound:
-                return await interaction.response.send_message("❌ 해당 ID를 가진 채널이나 스레드를 찾을 수 없습니다.", ephemeral=True)
-            except discord.Forbidden:
-                return await interaction.response.send_message("❌ 해당 채널/스레드에 접근할 권한이 없습니다.", ephemeral=True)
-            except Exception as e:
-                return await interaction.response.send_message(f"❌ 오류 발생: {e}", ephemeral=True)
+    @app_commands.describe(대상="순위를 업데이트할 채널 또는 게시물(스레드)")
+    async def auto_cash_update(self, interaction: discord.Interaction, 대상: discord.abc.GuildChannel):
+        if not isinstance(대상, discord.abc.Messageable):
+            return await interaction.response.send_message("❌ 이 채널에는 메시지를 보낼 수 없습니다.", ephemeral=True)
         
         if self.auto_cash_leaderboard.is_running():
             self.auto_cash_leaderboard.stop()
         
-        self.auto_cash_leaderboard.start(target_channel)
-        await interaction.response.send_message(f"✅ {target_channel.mention} 채널에서 3시간마다 현금 순위가 자동 업데이트됩니다.", ephemeral=True)
+        self.auto_cash_leaderboard.start(대상)
+        await interaction.response.send_message(f"✅ {대상.mention}에서 3시간마다 현금 순위가 자동 업데이트됩니다.", ephemeral=True)
 
 # ✅ setup 함수
 async def setup(bot: commands.Bot):
