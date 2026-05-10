@@ -3,10 +3,10 @@ from __future__ import annotations
 import datetime
 import discord
 from discord import app_commands, Interaction, Member
-from discord.ext import commands
+from discord.ext import commands, tasks
 from typing import Dict, Optional, List, Any
 import math
-from database_manager import DEFAULT_LEADERBOARD_SETTINGS
+from database_manager import DEFAULT_LEADERBOARD_SETTINGS, get_guild_db_manager
 
 # 한국 시간대 설정 (UTC+9)
 KST = datetime.timezone(datetime.timedelta(hours=9))
@@ -223,6 +223,51 @@ class IntegratedLeaderboardCog(commands.Cog):
         
         embed.set_footer(text=f"변경자: {interaction.user.display_name}")
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @tasks.loop(hours=3)
+    async def auto_cash_leaderboard(self, channel: discord.TextChannel):
+        """3시간마다 현금 순위를 업데이트하여 전송합니다."""
+        guild_id = str(channel.guild.id)
+        db = get_guild_db_manager(guild_id)
+        
+        # 순위 정보 가져오기
+        results = db.execute_query('''
+            SELECT u.display_name, u.cash 
+            FROM users u
+            WHERE u.guild_id = ? AND u.cash > 0
+            ORDER BY u.cash DESC
+            LIMIT 20
+        ''', (guild_id,), 'all')
+        
+        if not results:
+            return
+
+        embed = discord.Embed(
+            title="💰 서버 현금 순위 (자동 업데이트)",
+            description="3시간마다 갱신되는 현금 순위입니다.",
+            color=discord.Color.green(),
+            timestamp=datetime.datetime.now(KST)
+        )
+        
+        leaderboard_text = []
+        for j, user in enumerate(results, 1):
+            name = user['display_name'] or "알 수 없음"
+            emoji = "👑" if j == 1 else "🥈" if j == 2 else "🥉" if j == 3 else f"**{j}.**"
+            leaderboard_text.append(f"{emoji} {name} : {format_money(user['cash'])}")
+            
+        embed.add_field(name="상위 20위 목록", value="\n".join(leaderboard_text), inline=False)
+        await channel.send(embed=embed)
+
+    @app_commands.command(name="현금순위_자동업데이트", description="[관리자 전용] 3시간마다 현금 순위를 자동으로 업데이트합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(채널="순위를 업데이트할 채널")
+    async def auto_cash_update(self, interaction: discord.Interaction, 채널: discord.TextChannel):
+        if self.auto_cash_leaderboard.is_running():
+            self.auto_cash_leaderboard.stop()
+        
+        self.auto_cash_leaderboard.start(채널)
+        await interaction.response.send_message(f"✅ {채널.mention} 채널에서 3시간마다 현금 순위가 자동 업데이트됩니다.", ephemeral=True)
 
 # ✅ setup 함수
 async def setup(bot: commands.Bot):

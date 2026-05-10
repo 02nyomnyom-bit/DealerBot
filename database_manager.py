@@ -22,7 +22,10 @@ DEFAULT_LEADERBOARD_SETTINGS = {
     "monthly_cash_bonus": 10000,
     "monthly_xp_bonus": 5000,
     "exchange_fee_percent": 5,
-    "daily_exchange_limit": 10
+    "daily_exchange_limit": 10,
+    "auto_update_level_channel": None, # 레벨 순위 자동 업데이트 채널 ID
+    "auto_update_cash_channel": None,  # 현금 순위 자동 업데이트 채널 ID
+    "last_leaderboard_update": None    # 마지막 업데이트 시간 (ISO 형식)
 }
 
 # ✅ 로깅 설정
@@ -199,6 +202,9 @@ class DatabaseManager:
             monthly_cash_bonus INTEGER DEFAULT 10000,
             monthly_xp_bonus INTEGER DEFAULT 5000,
             gift_fee_rate REAL DEFAULT 0.1,
+            auto_update_level_channel TEXT,
+            auto_update_cash_channel TEXT,
+            last_leaderboard_update TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
