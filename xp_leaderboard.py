@@ -528,10 +528,15 @@ class XPLeaderboardCog(commands.Cog):
                 await interaction.response.send_message("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
 
     @tasks.loop(hours=3)
-    async def auto_level_leaderboard(self, channel: discord.TextChannel):
+    async def auto_level_leaderboard(self, channel: discord.abc.Messageable):
         """3시간마다 레벨 순위를 업데이트하여 전송합니다."""
-        guild_id = str(channel.guild.id)
+        # channel이 guild 속성을 가지고 있는지 확인 (guild_id 추출용)
+        guild_id = str(channel.guild.id) if hasattr(channel, 'guild') else None
         
+        # guild가 없으면 순위 정보 조회가 불가능하므로 종료
+        if not guild_id:
+            return
+
         # 순위 정보 가져오기
         db = get_guild_db_manager(guild_id)
         results = db.execute_query('''
