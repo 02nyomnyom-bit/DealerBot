@@ -234,7 +234,7 @@ class EnhancementDataManager:
         }
 
     def save_data(self) -> bool:
-        """데이터 저장 (안전성 강화)"""
+        """데이터 저장 (안전성 강화 - 원자적 저장 시도)"""
         try:
             if not isinstance(self.data, dict):
                 print("❌ self.data가 dict가 아닙니다. 저장을 건너뜁니다.")
@@ -254,8 +254,21 @@ class EnhancementDataManager:
                 self.data["server_stats"] = {}
             self.data["server_stats"]["total_users"] = len(unique_users)
             
-            with open(self.data_file, 'w', encoding='utf-8') as f:
+            # 원자적 저장을 위해 임시 파일 사용
+            temp_file = f"{self.data_file}.tmp"
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
+            
+            # 성공적으로 쓰여졌다면 교체 (Windows에서는 os.replace 사용 권장)
+            if os.path.exists(self.data_file):
+                try:
+                    os.replace(temp_file, self.data_file)
+                except PermissionError:
+                    # Windows에서 파일이 열려있거나 하는 경우를 위한 차선책
+                    os.remove(self.data_file)
+                    os.rename(temp_file, self.data_file)
+            else:
+                os.rename(temp_file, self.data_file)
             return True
         except Exception as e:
             print(f"❌ 강화 데이터 저장 실패: {e}")
@@ -361,7 +374,7 @@ class EnhancementDataManager:
             del self.data["event_codes"][code]
 
     def get_item_data(self, item_name: str, owner_id: str, owner_name: str, guild_id: str) -> Dict:
-        """아이템 데이터 조회/생성 (완전 수정)"""
+        """아이템 데이터 조회/생성 및 모든 필드 보정"""
         item_key = f"{owner_id}_{item_name.lower()}"
         
         if not isinstance(self.data, dict):
@@ -370,53 +383,65 @@ class EnhancementDataManager:
         if "items" not in self.data or not isinstance(self.data["items"], dict):
             self.data["items"] = {}
         
-        if "server_stats" not in self.data or not isinstance(self.data["server_stats"], dict):
-            self.data["server_stats"] = {
-                "total_attempts": 0,
-                "total_successes": 0,
-                "highest_level": 0,
-                "total_users": 0
-            }
-        
-        # 새 아이템 생성
+        # 기본 필드 구조 정의
+        default_fields = {
+            "item_name": item_name,
+            "owner_id": owner_id,
+            "guild_id": guild_id,
+            "owner_name": owner_name,
+            "level": 0,
+            "total_attempts": 0,
+            "success_count": 0,
+            "downgrade_count": 0, 
+            "total_levels_gained": 0,
+            "total_levels_lost": 0,
+            "created_at": datetime.now().isoformat(),
+            "last_attempt": None,
+            "consecutive_fails": 0,
+            "shield_count": 0
+        }
+
+        # 새 아이템 생성 또는 기존 아이템 가져오기
         if item_key not in self.data["items"]:
-            self.data["items"][item_key] = {
-                "item_name": item_name,
-                "owner_id": owner_id,
-                "guild_id": guild_id,
-                "owner_name": owner_name,
-                "level": 0,
-                "total_attempts": 0,
-                "success_count": 0,
-                "downgrade_count": 0, 
-                "total_levels_gained": 0,
-                "total_levels_lost": 0,
-                "created_at": datetime.now().isoformat(),
-                "last_attempt": None,
-                "consecutive_fails": 0,
-                "shield_count": 0
-            }
+            self.data["items"][item_key] = default_fields.copy()
             
+            # 서버 통계 업데이트 (새 유저인 경우)
             unique_users = set()
             for existing_key, existing_data in self.data["items"].items():
                 if isinstance(existing_data, dict) and "owner_id" in existing_data:
                     unique_users.add(existing_data["owner_id"])
             
+            if "server_stats" not in self.data:
+                self.data["server_stats"] = {"total_attempts": 0, "total_successes": 0, "highest_level": 0, "total_users": 0}
             self.data["server_stats"]["total_users"] = len(unique_users)
         
-        # 데이터 보정
+        # 데이터 보정 (누락된 모든 필드 추가)
         item = self.data["items"][item_key]
-        for field in ["downgrade_count", "total_levels_gained", "total_levels_lost", "shield_count"]:
-            if field not in item: item[field] = 0
+        if not isinstance(item, dict):
+            # 만약 데이터가 깨져서 dict가 아니라면 초기화
+            item = default_fields.copy()
+            self.data["items"][item_key] = item
+
+        for field, default_value in default_fields.items():
+            if field not in item:
+                item[field] = default_value
             
         return item
 
     def get_existing_item_data(self, item_name: str, owner_id: str) -> Optional[Dict]:
-        """아이템 데이터 조회 (존재하지 않으면 None 반환)"""
+        """아이템 데이터 조회 (존재하면 필드 보정 후 반환)"""
         item_key = f"{owner_id}_{item_name.lower()}"
         items = self.data.get("items", {})
         if isinstance(items, dict) and item_key in items:
-            return items[item_key]
+            item = items[item_key]
+            if isinstance(item, dict):
+                # 데이터 보정을 위해 get_item_data 호출 (아이템 이름 등은 기존 데이터에서 가져옴)
+                return self.get_item_data(
+                    item.get("item_name", item_name),
+                    item.get("owner_id", owner_id),
+                    item.get("owner_name", "Unknown"),
+                    item.get("guild_id", "0")
+                )
         return None
 
     def attempt_enhancement(self, item_name: str, owner_id: str, owner_name: str, guild_id: str) -> Tuple:
@@ -426,9 +451,15 @@ class EnhancementDataManager:
             
             # 1. 강화 금지 여부 확인 (아이템별)
             banned_until = item_data.get("banned_until")
-            if banned_until and datetime.now() < datetime.fromisoformat(banned_until):
-                remaining = (datetime.fromisoformat(banned_until) - datetime.now()).total_seconds()
-                return False, 0, 0, 0, 0, f"BANNED_{int(remaining//60)}", 0, 0
+            if banned_until:
+                try:
+                    banned_time = datetime.fromisoformat(banned_until)
+                    if datetime.now() < banned_time:
+                        remaining = (banned_time - datetime.now()).total_seconds()
+                        return False, 0, 0, 0, 0, f"BANNED_{int(remaining//60)}", 0, 0
+                except (ValueError, TypeError):
+                    # 유효하지 않은 날짜 형식이면 무시하고 진행
+                    item_data["banned_until"] = None
 
             buffs = self.data.get("user_buffs", {}).get(owner_id, {})
             current_level = int(item_data.get("level", 0))
@@ -517,8 +548,16 @@ class EnhancementDataManager:
                 item_data["consecutive_fails"]
             )
         except Exception as e:
+            import traceback
             print(f"❌ 강화 시도 중 오류: {e}")
-            return False, 0, 0, 0, 0, "오류", 0, 0
+            traceback.print_exc()
+            try:
+                # 오류 발생 시 최대한 현재 레벨이라도 반환하여 Lv0 방지
+                item_key = f"{owner_id}_{item_name.lower()}"
+                curr_lv = self.data.get("items", {}).get(item_key, {}).get("level", 0)
+                return False, curr_lv, curr_lv, 0, 0, "오류", 0, 0
+            except:
+                return False, 0, 0, 0, 0, "오류", 0, 0
 
     def get_user_items(self, user_id: str) -> List[Dict]:
         """사용자의 모든 아이템 조회"""

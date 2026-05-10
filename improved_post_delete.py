@@ -7,6 +7,9 @@ from datetime import datetime, timedelta, timezone
 import asyncio
 from typing import Literal, Optional
 
+# 한국 시간대 설정 (UTC+9)
+KST = timezone(timedelta(hours=9))
+
 # ===== 모달 클래스들 =====
 
 class CountInputModal(discord.ui.Modal):
@@ -17,18 +20,18 @@ class CountInputModal(discord.ui.Modal):
 
     count_input = discord.ui.TextInput(
         label="삭제할 메시지 개수",
-        placeholder="1부터 500까지 입력 가능합니다",
+        placeholder="1부터 1500까지 입력 가능합니다",
         min_length=1,
-        max_length=3,
+        max_length=4,
         required=True
     )
 
     async def on_submit(self, interaction: Interaction):
         try:
             count = int(self.count_input.value)
-            if count < 1 or count > 500:
+            if count < 1 or count > 1500:
                 await interaction.response.send_message(
-                    "❌ 개수는 1부터 500까지만 입력 가능합니다.", 
+                    "❌ 개수는 1부터 1500까지만 입력 가능합니다.", 
                     ephemeral=True
                 )
                 return
@@ -80,11 +83,11 @@ class DateInputModal(discord.ui.Modal):
             start_month, start_day = int(start_parts[0]), int(start_parts[1])
             end_month, end_day = int(end_parts[0]), int(end_parts[1])
             
-            current_year = datetime.now().year
+            current_year = datetime.now(KST).year
             
-            # UTC timezone으로 날짜 생성
-            start_date = datetime(current_year, start_month, start_day, tzinfo=timezone.utc)
-            end_date = datetime(current_year, end_month, end_day, 23, 59, 59, tzinfo=timezone.utc)
+            # KST timezone으로 날짜 생성
+            start_date = datetime(current_year, start_month, start_day, tzinfo=KST)
+            end_date = datetime(current_year, end_month, end_day, 23, 59, 59, tzinfo=KST)
             
             # 날짜 검증
             if start_date > end_date:
@@ -94,10 +97,10 @@ class DateInputModal(discord.ui.Modal):
                 )
                 return
             
-            # 2주 제한 확인
-            if (end_date - start_date).days > 14:
+            # 한 달 제한 확인
+            if (end_date - start_date).days > 31:
                 await interaction.response.send_message(
-                    "❌ 날짜 범위는 최대 2주까지만 가능합니다.", 
+                    "❌ 날짜 범위는 최대 한 달(31일)까지만 가능합니다.", 
                     ephemeral=True
                 )
                 return
@@ -106,7 +109,7 @@ class DateInputModal(discord.ui.Modal):
             self.end_date = end_date
             
             await interaction.response.send_message(
-                f"✅ {start_date.strftime('%m.%d')} ~ {end_date.strftime('%m.%d')} 기간으로 설정되었습니다.", 
+                f"✅ {start_date.strftime('%m.%d')} ~ {end_date.strftime('%m.%d')} (한국 시간) 기간으로 설정되었습니다.", 
                 ephemeral=True
             )
             
@@ -484,13 +487,13 @@ class ImprovedPostDeleteCog(commands.Cog):
         
         embed.add_field(
             name="🔢 개수로 삭제",
-            value="최근 메시지부터 지정한 개수만큼 삭제\n(최대 500개)",
+            value="최근 메시지부터 지정한 개수만큼 삭제\n(최대 1500개)",
             inline=True
         )
         
         embed.add_field(
             name="📅 날짜로 삭제",
-            value="특정 날짜 범위의 모든 메시지 삭제\n(최대 2주 범위)",
+            value="특정 날짜 범위의 모든 메시지 삭제\n(최대 한 달 범위)",
             inline=True
         )
         
@@ -532,7 +535,7 @@ class ImprovedPostDeleteCog(commands.Cog):
         else:
             embed.add_field(
                 name="📅 삭제 조건",
-                value=f"**{delete_info['start_date'].strftime('%m.%d')}** ~ **{delete_info['end_date'].strftime('%m.%d')}** 기간",
+                value=f"**{delete_info['start_date'].strftime('%m.%d')}** ~ **{delete_info['end_date'].strftime('%m.%d')}** 기간 (KST)",
                 inline=False
             )
         
