@@ -2940,7 +2940,9 @@ class FishingSystemCog(commands.Cog):
 
             for i in items:
                 fish_data = dict(i)
-                fish_price = int(fish_data['length'] * fish_data['price_per_cm'] * best_multiplier)
+                length = float(fish_data.get('length') or 0)
+                price_per_cm = float(fish_data.get('price_per_cm') or 0)
+                fish_price = int(length * price_per_cm * best_multiplier)
                 fish_rarity = fish_data.get('rarity', '흔함')
                 cap_limit = RARITY_CAPS.get(fish_rarity, 5000)
                 calculated_total += min(fish_price, cap_limit)
