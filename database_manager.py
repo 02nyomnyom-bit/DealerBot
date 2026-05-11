@@ -23,8 +23,6 @@ DEFAULT_LEADERBOARD_SETTINGS = {
     "monthly_xp_bonus": 5000,
     "exchange_fee_percent": 5,
     "daily_exchange_limit": 10,
-    "auto_update_level_channel": None, # 레벨 순위 자동 업데이트 채널 ID
-    "auto_update_cash_channel": None,  # 현금 순위 자동 업데이트 채널 ID
     "last_leaderboard_update": None    # 마지막 업데이트 시간 (ISO 형식)
 }
 

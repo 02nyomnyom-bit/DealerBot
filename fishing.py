@@ -11,6 +11,14 @@ from datetime import datetime, timedelta, timezone
 # 한국 시간대 설정 (UTC+9)
 KST = timezone(timedelta(hours=9))
 
+def parse_kst(date_str: str) -> datetime:
+    """날짜 문자열을 KST aware datetime으로 변환"""
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=KST)
+    except (ValueError, TypeError):
+        # 파싱 실패 시 아주 오래된 과거 시간을 반환하여 이미 만료된 것으로 처리
+        return datetime(2000, 1, 1, tzinfo=KST)
+
 from database_manager import DatabaseManager
 
 # ==========================================
@@ -1375,19 +1383,19 @@ class FishingGameView(discord.ui.View):
                 user_data_buff = self.db.execute_query("SELECT trash_buff_until, fish_buff_until, appeal_buff_until FROM users WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
                 if user_data_buff:
                     if user_data_buff['trash_buff_until']:
-                        buff_until = datetime.strptime(user_data_buff['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
+                        buff_until = parse_kst(user_data_buff['trash_buff_until'])
                         if datetime.now(KST) < buff_until:
                             trash_chance -= 0.1 # 10% 감소
                     
                     # 🧜‍♀️ [추가] 세이렌의 노래 버프 체크 (쓰레기 확률 -10%)
                     if user_data_buff['fish_buff_until']:
-                        f_buff_until = datetime.strptime(user_data_buff['fish_buff_until'], '%Y-%m-%d %H:%M:%S')
+                        f_buff_until = parse_kst(user_data_buff['fish_buff_until'])
                         if datetime.now(KST) < f_buff_until:
                             trash_chance -= 0.1 # 10% 감소 (물고기 확률 10% 증가와 동일)
 
                     # 📜 [추가] 커커님의 항소문 버프 체크 (쓰레기 확률 -5%)
                     if user_data_buff['appeal_buff_until']:
-                        a_buff_until = datetime.strptime(user_data_buff['appeal_buff_until'], '%Y-%m-%d %H:%M:%S')
+                        a_buff_until = parse_kst(user_data_buff['appeal_buff_until'])
                         if datetime.now(KST) < a_buff_until:
                             trash_chance -= 0.05 # 5% 감소
 
@@ -2205,7 +2213,7 @@ class FishingSystemCog(commands.Cog):
             user_data = dict(user_data)
         
         if user_data and user_data.get('fishing_ban_until'):
-            ban_until = datetime.strptime(user_data['fishing_ban_until'], '%Y-%m-%d %H:%M:%S')
+            ban_until = parse_kst(user_data['fishing_ban_until'])
             if datetime.now(KST) < ban_until:
                 remain = ban_until - datetime.now(KST)
                 minutes, seconds = divmod(int(remain.total_seconds()), 60)
@@ -2260,7 +2268,7 @@ class FishingSystemCog(commands.Cog):
         # 사유지 입장 제한 로직
         if ground['owner_id'] and ground['owner_id'] != uid and ground['is_public'] != 1:
             p = db.execute_query("SELECT expire_time FROM fishing_passes WHERE user_id = ? AND channel_id = ? AND guild_id = ?", (uid, chid, gid), 'one')
-            if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=KST) <= datetime.now(KST):
+            if not p or parse_kst(p['expire_time']) <= datetime.now(KST):
                 view = GroundAccessView(interaction.user, ground['entry_fee'], 3, ground['owner_id'], db)
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
@@ -2362,7 +2370,7 @@ class FishingSystemCog(commands.Cog):
             glove_buff = 0.0
             u = db.get_user(uid)
             if u and u.get('trash_buff_until'):
-                buff_until = datetime.strptime(u['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
+                buff_until = parse_kst(u['trash_buff_until'])
                 if datetime.now(KST) < buff_until:
                     glove_buff = -0.1
 
@@ -2869,7 +2877,7 @@ class FishingSystemCog(commands.Cog):
 
             # 🧤 [추가] 낚시 장갑 버프 정보 표시
             if u.get('trash_buff_until'):
-                buff_until = datetime.strptime(u['trash_buff_until'], '%Y-%m-%d %H:%M:%S')
+                buff_until = parse_kst(u['trash_buff_until'])
                 if datetime.now(KST) < buff_until:
                     remain = buff_until - datetime.now(KST)
                     h, m = divmod(int(remain.total_seconds() // 60), 60)

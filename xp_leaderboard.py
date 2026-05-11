@@ -527,60 +527,6 @@ class XPLeaderboardCog(commands.Cog):
             else:
                 await interaction.response.send_message("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
 
-    @tasks.loop(hours=3)
-    async def auto_level_leaderboard(self, channel: discord.abc.Messageable):
-        """3시간마다 레벨 순위를 업데이트하여 전송합니다."""
-        # channel이 guild 속성을 가지고 있는지 확인 (guild_id 추출용)
-        guild_id = str(channel.guild.id) if hasattr(channel, 'guild') else None
-        
-        # guild가 없으면 순위 정보 조회가 불가능하므로 종료
-        if not guild_id:
-            return
-
-        # 순위 정보 가져오기
-        db = get_guild_db_manager(guild_id)
-        results = db.execute_query('''
-            SELECT u.user_id, u.username, u.display_name, ux.level, ux.xp 
-            FROM users u
-            JOIN user_xp ux ON u.user_id = ux.user_id
-            WHERE ux.guild_id = ? AND ux.xp > 0
-            ORDER BY ux.level DESC, ux.xp DESC
-            LIMIT 20
-        ''', (guild_id,), 'all')
-        
-        if not results:
-            return
-
-        embed = discord.Embed(
-            title="✨ 서버 레벨 순위 (자동 업데이트)",
-            description="3시간마다 갱신되는 레벨 순위입니다.",
-            color=discord.Color.blue(),
-            timestamp=datetime.now(KST)
-        )
-        
-        leaderboard_text = []
-        for j, user in enumerate(results, 1):
-            name = user['display_name'] or user['username'] or "알 수 없음"
-            emoji = "👑" if j == 1 else "🥈" if j == 2 else "🥉" if j == 3 else f"**{j}.**"
-            leaderboard_text.append(f"{emoji} {name} : `Lv.{user['level']}` (XP: {user['xp']:,})")
-            
-        embed.add_field(name="상위 20위 목록", value="\n".join(leaderboard_text), inline=False)
-        await channel.send(embed=embed)
-
-    @app_commands.command(name="레벨순위_자동업데이트", description="[관리자 전용] 3시간마다 레벨 순위를 자동으로 업데이트합니다.")
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(대상="순위를 업데이트할 채널 또는 게시물(스레드)")
-    async def auto_level_update(self, interaction: discord.Interaction, 대상: discord.abc.GuildChannel):
-        if not isinstance(대상, discord.abc.Messageable):
-            return await interaction.response.send_message("❌ 이 채널에는 메시지를 보낼 수 없습니다.", ephemeral=True)
-        
-        if self.auto_level_leaderboard.is_running():
-            self.auto_level_leaderboard.stop()
-        
-        self.auto_level_leaderboard.start(대상)
-        await interaction.response.send_message(f"✅ {대상.mention}에서 3시간마다 레벨 순위가 자동 업데이트됩니다.", ephemeral=True)
-    
     # ===== 관리자 명령어들 =====
     @app_commands.command(name="경험치관리", description="[관리자 전용] 특정 사용자의 XP 및 레벨 직접 수정")
     @app_commands.checks.has_permissions(administrator=True)
