@@ -2260,7 +2260,7 @@ class FishingSystemCog(commands.Cog):
         # 사유지 입장 제한 로직
         if ground['owner_id'] and ground['owner_id'] != uid and ground['is_public'] != 1:
             p = db.execute_query("SELECT expire_time FROM fishing_passes WHERE user_id = ? AND channel_id = ? AND guild_id = ?", (uid, chid, gid), 'one')
-            if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S') <= datetime.now(KST):
+            if not p or datetime.strptime(p['expire_time'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=KST) <= datetime.now(KST):
                 view = GroundAccessView(interaction.user, ground['entry_fee'], 3, ground['owner_id'], db)
                 return await interaction.response.send_message(embed=discord.Embed(title="🛑 입장권이 필요합니다", description=f"비용: **{ground['entry_fee']:,}원**\n구매하시겠습니까?", color=discord.Color.orange()), view=view)
 
