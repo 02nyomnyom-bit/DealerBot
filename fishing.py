@@ -2498,12 +2498,12 @@ class FishingSystemCog(commands.Cog):
                         
                         # 이미 쥬라기인 경우 연장 불가 로직 (필요시)
                         if ground['ground_type'] != "쥬라기":
-                            expire_time = (datetime.now(KST) + timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+                            expire_time = (datetime.now(KST) + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
                             db.execute_query(
                                 "UPDATE fishing_ground SET original_ground_type = ?, temp_terrain_expire = ? WHERE channel_id = ? AND guild_id = ?",
                                 (ground['ground_type'], expire_time, chid, gid)
                             )
-                            revert_msg = "\n⚠️ **주의:** 운영진 권한으로 고대 생태계가 개방되었습니다! **1시간 후** 원래 지형으로 복구됩니다."
+                            revert_msg = "\n⚠️ **주의:** 운영진 권한으로 고대 생태계가 개방되었습니다! **30분 후** 원래 지형으로 복구됩니다."
                         new_type = "쥬라기"
                     else:
                         # 일반 지형으로 변경 시 임시 타이머 초기화
