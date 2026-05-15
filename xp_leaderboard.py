@@ -463,22 +463,20 @@ class XPLeaderboardCog(commands.Cog):
         return True
     
     # ===== 슬래시 명령어들 =====
-    @app_commands.command(name="레벨순위", description="XP 리더보드를 확인합니다")
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1)")
+    @app_commands.command(name="레벨순위", description="XP 리더보드를 확인합니다 (한 번에 최대 10개 임베드)")
+    @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1, 각 페이지당 200명 표시)")
     async def leaderboard(self, interaction: discord.Interaction, 페이지: int = 1):
-        await self.send_leaderboard(interaction, 페이지)
-
-    async def send_leaderboard(self, interaction: discord.Interaction, 페이지: int = 1):
-        """순위 데이터를 임베드로 전송하는 공통 함수"""
+        """레벨 순위를 확인합니다. 한 번에 최대 10개의 임베드(총 200명)를 전송합니다."""
         if 페이지 < 1:
-            return await interaction.followup.send("❌ 페이지 번호는 1 이상이어야 합니다.", ephemeral=True)
+            return await interaction.response.send_message("❌ 페이지 번호는 1 이상이어야 합니다.", ephemeral=True)
+
+        await interaction.response.defer()
 
         try:
             guild_id = str(interaction.guild_id)
             db = get_guild_db_manager(guild_id)
 
+            # 전체 순위 데이터 가져오기
             results = db.execute_query('''
                 SELECT u.user_id, u.username, u.display_name, ux.level, ux.xp 
                 FROM users u
@@ -490,49 +488,58 @@ class XPLeaderboardCog(commands.Cog):
             if not results:
                 return await interaction.followup.send("📊 해당 서버에 레벨 데이터가 없습니다.")
 
-            users_per_page = 20
-            total_pages = (len(results) - 1) // users_per_page + 1
+            users_per_embed = 30
+            embeds_per_page = 10
+            users_per_page = users_per_embed * embeds_per_page # 300명
+            
+            total_users = len(results)
+            total_pages = (total_users - 1) // users_per_page + 1
 
             if 페이지 > total_pages:
-                return await interaction.followup.send(f"❌ 데이터가 부족합니다. (최대 페이지: {total_pages})", ephemeral=True)
+                return await interaction.followup.send(f"❌ 데이터가 부족합니다. (최대 페이지: {total_pages})")
 
             start_idx = (페이지 - 1) * users_per_page
-            page_data = results[start_idx:start_idx + users_per_page]
+            end_idx = min(start_idx + users_per_page, total_users)
+            page_data = results[start_idx:end_idx]
 
-            # 금색 테마로 임베드 생성
-            embed = discord.Embed(
-                title=f"🏆 {interaction.guild.name} 레벨 리더보드",
-                description="서버 내 레벨 및 XP 순위입니다.",
-                color=discord.Color.gold(),
-                timestamp=datetime.now(KST)
-            )
-            
-            leaderboard_text = []
-            for j, user in enumerate(page_data, start_idx + 1):
-                name = user['display_name'] or user['username'] or "알 수 없음"
+            embeds = []
+            # 데이터를 20명씩 나누어 임베드 생성 (최대 10개)
+            for i in range(0, len(page_data), users_per_embed):
+                chunk = page_data[i:i + users_per_embed]
+                chunk_start_rank = start_idx + i + 1
+                chunk_end_rank = start_idx + i + len(chunk)
                 
-                # 순위별 이모지
-                if j == 1: emoji = "🥇"
-                elif j == 2: emoji = "🥈"
-                elif j == 3: emoji = "🥉"
-                else: emoji = f"**{j}.**"
+                embed = discord.Embed(
+                    title=f"🏆 {interaction.guild.name} 레벨 순위 ({chunk_start_rank}~{chunk_end_rank}위)",
+                    color=discord.Color.gold(),
+                    timestamp=datetime.now(KST)
+                )
                 
-                leaderboard_text.append(f"{emoji} {name} | `Lv.{user['level']}` | `XP: {user['xp']:,}`")
-            
-            embed.add_field(name="랭킹 리스트", value="\n".join(leaderboard_text) if leaderboard_text else "데이터 없음", inline=False)
-            embed.set_footer(text=f"페이지 {페이지} / {total_pages} | 총 {len(results)}명")
+                leaderboard_text = []
+                for j, user in enumerate(chunk, chunk_start_rank):
+                    name = user['display_name'] or user['username'] or "알 수 없음"
+                    
+                    # 순위별 이모지
+                    if j == 1: emoji = "🥇"
+                    elif j == 2: emoji = "🥈"
+                    elif j == 3: emoji = "🥉"
+                    else: emoji = f"**{j}.**"
+                    
+                    leaderboard_text.append(f"{emoji} {name} | `Lv.{user['level']}` | `XP: {user['xp']:,}`")
+                
+                embed.description = "\n".join(leaderboard_text)
+                embeds.append(embed)
 
-            if interaction.response.is_done():
-                await interaction.followup.send(embed=embed)
-            else:
-                await interaction.response.send_message(embed=embed)
+            # 마지막 임베드에 페이지 정보 추가
+            if embeds:
+                embeds[-1].set_footer(text=f"페이지 {페이지} / {total_pages} | 총 {total_users}명")
+
+            # 최대 10개의 임베드를 한 번에 전송
+            await interaction.followup.send(embeds=embeds)
             
         except Exception as e:
             print(f"❌ 레벨 순위 조회 오류: {e}")
-            if interaction.response.is_done():
-                await interaction.followup.send("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
-            else:
-                await interaction.response.send_message("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
+            await interaction.followup.send("❌ 순위 정보를 불러오는 중 오류가 발생했습니다.")
 
     # ===== 관리자 명령어들 =====
     @app_commands.command(name="경험치관리", description="[관리자 전용] 특정 사용자의 XP 및 레벨 직접 수정")

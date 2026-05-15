@@ -650,8 +650,9 @@ class PointManager(commands.Cog):
     @app_commands.command(name="현금순위", description="해당 서버의 현금 보유 순위를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1)")
+    @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1, 각 페이지당 200명 표시)")
     async def cash_ranking(self, interaction: Interaction, 페이지: int = 1):
+        """서버 현금 순위를 확인합니다. 한 번에 최대 10개의 임베드(총 200명)를 전송합니다."""
         await interaction.response.defer()
         
         if 페이지 < 1:
@@ -670,28 +671,31 @@ class PointManager(commands.Cog):
             if not results:
                 return await interaction.followup.send("📊 해당 서버에 순위 데이터가 없습니다.")
 
-           # 설정: 한 페이지에 100명 (임베드 5개 x 20명)
-            users_per_page = 100
-            chunk_size = 20
-            total_pages = (len(results) - 1) // users_per_page + 1
+           # 설정: 한 페이지에 200명 (임베드 10개 x 20명)
+            users_per_embed = 20
+            embeds_per_page = 10
+            users_per_page = users_per_embed * embeds_per_page # 200명
+            
+            total_users = len(results)
+            total_pages = (total_users - 1) // users_per_page + 1
 
             if 페이지 > total_pages:
                 return await interaction.followup.send(f"❌ 데이터가 부족합니다. (최대 페이지: {total_pages})", ephemeral=True)
             
             # 해당 페이지에 해당하는 유저 슬라이싱
             start_idx = (페이지 - 1) * users_per_page
-            end_idx = start_idx + users_per_page
+            end_idx = min(start_idx + users_per_page, total_users)
             page_data = results[start_idx:end_idx]
 
             embeds = []
-            # 20명씩 끊어서 임베드 생성 (최대 5개)
-            for i in range(0, len(page_data), chunk_size):
-                chunk = page_data[i:i + chunk_size]
+            # 20명씩 끊어서 임베드 생성 (최대 10개)
+            for i in range(0, len(page_data), users_per_embed):
+                chunk = page_data[i:i + users_per_embed]
                 current_rank_start = start_idx + i + 1
+                current_rank_end = start_idx + i + len(chunk)
                 
                 embed = discord.Embed(
-                    title=f"💰 서버 현금 순위 ({페이지}/{total_pages} 페이지)" if i == 0 else None,
-                    description=f"**{current_rank_start}위 ~ {current_rank_start + len(chunk) - 1}위**",
+                    title=f"💰 서버 현금 순위 ({current_rank_start}위 ~ {current_rank_end}위)",
                     color=discord.Color.gold(),
                     timestamp=datetime.now(KST)
                 )
@@ -704,10 +708,10 @@ class PointManager(commands.Cog):
                     cash_str = f"🛑 `-{abs(cash):,}원`" if cash < 0 else f"`{cash:,}원`"
                     ranking_text.append(f"{emoji} {name} : {cash_str}")
                 
-                embed.add_field(name="목록", value="\n".join(ranking_text), inline=False)
+                embed.description = "\n".join(ranking_text)
                 
-                if i + chunk_size >= len(page_data): # 마지막 임베드
-                    embed.set_footer(text=f"페이지 {페이지} / {total_pages} | 총 {len(results)}명")
+                if i + users_per_embed >= len(page_data): # 마지막 임베드
+                    embed.set_footer(text=f"페이지 {페이지} / {total_pages} | 총 {total_users}명")
                 
                 embeds.append(embed)
 
