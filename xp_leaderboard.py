@@ -491,28 +491,35 @@ class XPLeaderboardCog(commands.Cog):
                 return await interaction.followup.send("📊 해당 서버에 레벨 데이터가 없습니다.")
 
             users_per_page = 20
-            chunk_size = 20
             total_pages = (len(results) - 1) // users_per_page + 1
 
             if 페이지 > total_pages:
                 return await interaction.followup.send(f"❌ 데이터가 부족합니다. (최대 페이지: {total_pages})", ephemeral=True)
 
             start_idx = (페이지 - 1) * users_per_page
-            page_data = results[start_idx:start_idx + chunk_size]
+            page_data = results[start_idx:start_idx + users_per_page]
 
+            # 금색 테마로 임베드 생성
             embed = discord.Embed(
-                title=f"✨ 서버 레벨 순위 (1~{len(page_data)}위)",
-                color=discord.Color.blue(),
+                title=f"🏆 {interaction.guild.name} 레벨 리더보드",
+                description="서버 내 레벨 및 XP 순위입니다.",
+                color=discord.Color.gold(),
                 timestamp=datetime.now(KST)
             )
             
             leaderboard_text = []
             for j, user in enumerate(page_data, start_idx + 1):
                 name = user['display_name'] or user['username'] or "알 수 없음"
-                emoji = "👑" if j == 1 else "🥈" if j == 2 else "🥉" if j == 3 else f"**{j}.**"
-                leaderboard_text.append(f"{emoji} {name} : `Lv.{user['level']}` (XP: {user['xp']:,})")
+                
+                # 순위별 이모지
+                if j == 1: emoji = "🥇"
+                elif j == 2: emoji = "🥈"
+                elif j == 3: emoji = "🥉"
+                else: emoji = f"**{j}.**"
+                
+                leaderboard_text.append(f"{emoji} {name} | `Lv.{user['level']}` | `XP: {user['xp']:,}`")
             
-            embed.add_field(name="랭킹 목록", value="\n".join(leaderboard_text) if leaderboard_text else "데이터 없음", inline=False)
+            embed.add_field(name="랭킹 리스트", value="\n".join(leaderboard_text) if leaderboard_text else "데이터 없음", inline=False)
             embed.set_footer(text=f"페이지 {페이지} / {total_pages} | 총 {len(results)}명")
 
             if interaction.response.is_done():

@@ -241,12 +241,12 @@ CATEGORY_FACILITIES = {
 
 FACILITIES = {
     # 🎫 수수료 조정 매표소 (입장료 수익 최적화)
-    "간이매표소": {"req_rep": 2000, "req_cash": 150000, "tier": 1, "effect": {"fee_adj": 0.01}, "desc": "수수료 조정 범위 +-1%"},
-    "매표소": {"req_rep": 12000, "req_cash": 450000, "tier": 2, "effect": {"fee_adj": 0.03}, "desc": "수수료 조정 범위 +-3%"},
-    "일반매표소": {"req_rep": 40000, "req_cash": 1200000, "tier": 3, "effect": {"fee_adj": 0.05}, "desc": "수수료 조정 범위 +-5%"},
-    "중형매표소": {"req_rep": 150000, "req_cash": 3500000, "tier": 3, "effect": {"fee_adj": 0.10}, "desc": "수수료 조정 범위 +-10%"},
-    "대형매표소": {"req_rep": 500000, "req_cash": 8000000, "tier": 4, "effect": {"fee_adj": 0.15}, "desc": "수수료 조정 범위 +-15%"},
-    "거대한매표소": {"req_rep": 1500000, "req_cash": 25000000, "tier": 5, "effect": {"fee_adj": 0.30}, "desc": "수수료 조정 범위 +-30%"},
+    "간이매표소": {"req_rep": 2000, "req_cash": 150000, "tier": 1, "effect": {"fee_adj": 0.01, "upkeep_mult": 0.01}, "desc": "수수료 조정 범위 +-1%, 유지비 1% 증가"},
+    "매표소": {"req_rep": 12000, "req_cash": 450000, "tier": 2, "effect": {"fee_adj": 0.03, "upkeep_mult": 0.02}, "desc": "수수료 조정 범위 +-3%, 유지비 2% 증가"},
+    "일반매표소": {"req_rep": 40000, "req_cash": 1200000, "tier": 3, "effect": {"fee_adj": 0.05, "upkeep_mult": 0.03}, "desc": "수수료 조정 범위 +-5%, 유지비 3% 증가"},
+    "중형매표소": {"req_rep": 150000, "req_cash": 3500000, "tier": 3, "effect": {"fee_adj": 0.10, "upkeep_mult": 0.04}, "desc": "수수료 조정 범위 +-10%, 유지비 4% 증가"},
+    "대형매표소": {"req_rep": 500000, "req_cash": 8000000, "tier": 4, "effect": {"fee_adj": 0.15, "upkeep_mult": 0.04}, "desc": "수수료 조정 범위 +-15%, 유지비 4% 증가"},
+    "거대한매표소": {"req_rep": 1500000, "req_cash": 25000000, "tier": 5, "effect": {"fee_adj": 0.30, "upkeep_mult": 0.05}, "desc": "수수료 조정 범위 +-30%, 유지비 5% 증가"},
 
     # 📦 물고기 확률 조정 (희귀 어종 포획의 핵심)
     "창고": {"req_rep": 5000, "req_cash": 250000, "tier": 1, "effect": {"fish_rate": 0.03, "base_fee": 0.01, "upkeep_mult": 0.05}, "desc": "확률 +3%, 유지비 +5%"},
@@ -279,12 +279,12 @@ FACILITIES = {
     "쓰레기소각장": {"req_rep": 120000, "req_cash": 320000, "tier": 3, "effect": {"fish_price_mult": 1.0, "trash_rate": -0.10, "upkeep_mult": 0.20}, "desc": "가격 1.1배, 쓰레기 10% 감소, 유지비 20% 증가"},
     "환경부": {"req_rep": 440000, "req_cash": 940000, "tier": 5, "effect": {"fish_price_mult": 1.5, "trash_rate": -0.25, "upkeep_mult": 0.30}, "desc": "가격 1.5배, 쓰레기 25% 감소, 유지비 30% 증가"},
 
-    # 🛒 유틸리티 사업 (유지비 절감 + 명성 시너지)
+    # 🛒 유틸리티 사업 (유지비 절감 + 쓰레기 증가)
     "리안마켓": {"req_rep": 3000, "req_cash": 20000, "tier": 1, "effect": {"upkeep_discount": 0.03}, "desc": "유지비 3% 감소"},
     "묵이편의점": {"req_rep": 20000, "req_cash": 70000, "tier": 2, "effect": {"upkeep_discount": 0.06}, "desc": "유지비 6% 감소"},
-    "할인마트": {"req_rep": 80000, "req_cash": 330000, "tier": 3, "effect": {"upkeep_discount": 0.09, "rep_mult": 1.0}, "desc": "유지비 9% 감소, 명성 1.0배"},
-    "정E-마트": {"req_rep": 150000, "req_cash": 700000, "tier": 4, "effect": {"upkeep_discount": 0.12, "rep_mult": 1.5}, "desc": "유지비 12% 감소, 명성 1.5배"},
-    "해외수출사업": {"req_rep": 800000, "req_cash": 1090000, "tier": 5, "effect": {"upkeep_discount": 0.15, "rep_mult": 2.0}, "desc": "유지비 15% 감소, 명성 2.0배"},
+    "할인마트": {"req_rep": 80000, "req_cash": 330000, "tier": 3, "effect": {"upkeep_discount": 0.09, "trash_rate": 0.10}, "desc": "유지비 9% 감소, 쓰레기 10% 증가"},
+    "정E-마트": {"req_rep": 150000, "req_cash": 700000, "tier": 4, "effect": {"upkeep_discount": 0.12, "trash_rate": 0.15}, "desc": "유지비 12% 감소, 쓰레기 15% 증가"},
+    "해외수출사업": {"req_rep": 800000, "req_cash": 1090000, "tier": 5, "effect": {"upkeep_discount": 0.15, "trash_rate": 0.20}, "desc": "유지비 15% 감소, 쓰레기 20% 증가"},
 
     # 🏪 상업 제국 (물고기 판매가 극대화)
     "노상": {"req_rep": 5000, "req_cash": 50000, "tier": 1, "effect": {"fish_price_mult": 1.1}, "desc": "판매가 1.1배"},
@@ -293,12 +293,12 @@ FACILITIES = {
     "회전문공장": {"req_rep": 800000, "req_cash": 980000, "tier": 4, "effect": {"fish_price_mult": 1.4, "upkeep_mult": 0.25}, "desc": "판매가 1.4배, 유지비 25% 증가"},
     "세계1위기업": {"req_rep": 1000000, "req_cash": 1050000, "tier": 5, "effect": {"fish_price_mult": 1.5, "upkeep_mult": 0.30}, "desc": "판매가 1.5배, 유지비 30% 증가"},
 
-    # 🏫 공공 시설 (실패 리스크 감수형 파격 유지비 절감)
-    "어린이집": {"req_rep": 1000, "req_cash": 30000, "tier": 1, "effect": {"fail_rate": 0.05, "upkeep_discount": 0.10}, "desc": "실패 5%, 유지비 10% 감소"},
-    "유치원": {"req_rep": 30000, "req_cash": 170000, "tier": 2, "effect": {"fail_rate": 0.10, "upkeep_discount": 0.15}, "desc": "실패 10%, 유지비 15% 감소"},
-    "초등학교": {"req_rep": 70000, "req_cash": 650000, "tier": 3, "effect": {"fail_rate": 0.15, "upkeep_discount": 0.20}, "desc": "실패 15%, 유지비 20% 감소"},
-    "중학교": {"req_rep": 150000, "req_cash": 990000, "tier": 4, "effect": {"fail_rate": 0.30, "upkeep_discount": 0.25}, "desc": "실패 30%, 유지비 25% 감소"},
-    "고등학교": {"req_rep": 870000, "req_cash": 2070000, "tier": 5, "effect": {"fail_rate": 0.50, "upkeep_discount": 0.30}, "desc": "실패 50%, 유지비 30% 감소"},
+    # 🏫 공공 시설 (쓰레기 리스크 감수형 파격 유지비 절감)
+    "어린이집": {"req_rep": 1000, "req_cash": 30000, "tier": 1, "effect": {"trash_rate": 0.05, "upkeep_discount": 0.10}, "desc": "쓰레기 5% 증가, 유지비 10% 감소"},
+    "유치원": {"req_rep": 30000, "req_cash": 170000, "tier": 2, "effect": {"trash_rate": 0.10, "upkeep_discount": 0.15}, "desc": "쓰레기 10% 증가, 유지비 15% 감소"},
+    "초등학교": {"req_rep": 70000, "req_cash": 650000, "tier": 3, "effect": {"trash_rate": 0.15, "upkeep_discount": 0.20}, "desc": "쓰레기 15% 증가, 유지비 20% 감소"},
+    "중학교": {"req_rep": 150000, "req_cash": 990000, "tier": 4, "effect": {"trash_rate": 0.30, "upkeep_discount": 0.25}, "desc": "쓰레기 30% 증가, 유지비 25% 감소"},
+    "고등학교": {"req_rep": 870000, "req_cash": 2070000, "tier": 5, "effect": {"trash_rate": 0.50, "upkeep_discount": 0.30}, "desc": "쓰레기 50% 증가, 유지비 30% 감소"},
 }
 
 active_sessions = {}
@@ -2359,8 +2359,6 @@ class FishingSystemCog(commands.Cog):
                         r_mult = effects.get("rep_mult", 1.0)
                         if r_mult > rep_mult:
                             rep_mult = r_mult
-                            
-                        fail_rate += effects.get("fail_rate", 0.0)
 
             # ⚖️ [쓰레기 확률 최종 연동 계산]
             current_pollution = ground['pollution'] if ground['pollution'] is not None else 0
@@ -2395,14 +2393,10 @@ class FishingSystemCog(commands.Cog):
             embed.add_field(name="🏗️ 설치 시설", value=f_list, inline=False)
 
             effect_summary = (
-                f"🎫 **수수료 조정 범위:** `±{adj_fee * 100:.1f}%`\n"
                 f"📦 **희귀 물고기 확률:** `+{fish_rate * 100:.1f}%`\n"
-                f"💰 **창고 기본 수수료:** `+{base_fee * 100:.1f}%`\n"
                 f"🗑️ **현재 쓰레기 낚일 확률:** `{final_trash_chance * 100:.1f}%` (기본+오염도+시설합산)\n"
-                f"⚡ **최종 유지비 변동률:** `{final_upkeep_mod:+.1f}%`\n"
                 f"✨ **명성 획득 배율:** `{rep_mult:.1f}배`\n"
                 f"🏪 **물고기 판매가 보너스:** `{fish_price_mult:.1f}배`\n"
-                f"🏫 **낚시 실패 확률 증가:** `+{fail_rate * 100:.1f}%`\n"
             )
             embed.add_field(name="📊 현재 낚시터 적용 효과 종합", value=effect_summary, inline=False)
 
@@ -2469,9 +2463,12 @@ class FishingSystemCog(commands.Cog):
                 if 입장료 < 0:
                     return await interaction.response.send_message("❌ 입장료는 음수로 설정할 수 없습니다.", ephemeral=True)
                 
+                # 🏷️ [티어별 입장료 제한]
+                tier_limits = {1: 100000, 2: 150000, 3: 300000, 4: 400000, 5: 500000}
+                max_fee = tier_limits.get(ground['tier'], 100000)
+                
                 percent_limit = max(1000, int(user_cash * 0.8))
-                ABSOLUTE_MAX_FEE = 100000 
-                final_limit = min(percent_limit, ABSOLUTE_MAX_FEE)
+                final_limit = min(percent_limit, max_fee)
 
                 if 입장료 > final_limit:
                     embed = discord.Embed(
