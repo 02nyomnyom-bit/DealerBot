@@ -464,6 +464,8 @@ class XPLeaderboardCog(commands.Cog):
     
     # ===== 슬래시 명령어들 =====
     @app_commands.command(name="레벨순위", description="XP 리더보드를 확인합니다 (한 번에 최대 10개 임베드)")
+    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
+    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1, 각 페이지당 200명 표시)")
     async def leaderboard(self, interaction: discord.Interaction, 페이지: int = 1):
         """레벨 순위를 확인합니다. 한 번에 최대 10개의 임베드(총 200명)를 전송합니다."""
