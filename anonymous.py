@@ -45,7 +45,7 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
         super().__init__()
         self.db = db_manager
     async def on_submit(self, interaction: discord.Interaction):
-        if self.pw_input.value == "18697418":
+        if self.pw_input.value == "69697474":
             view = discord.ui.View()
             btn = discord.ui.Button(label="메시지 번호 입력", style=discord.ButtonStyle.primary)
             btn.callback = lambda i: i.response.send_modal(AnonymousTrackModal(self.db))
