@@ -512,6 +512,10 @@ class BlackjackCog(commands.Cog):
 
         user_id = interaction.user.id
         
+        # 배팅 범위 체크
+        if 배팅 < 100 or 배팅 > MAX_BET:
+            return await interaction.response.send_message(f"❌ 배팅 금액은 100원부터 {MAX_BET:,}원까지만 가능합니다.", ephemeral=True)
+        
         # 이미 게임을 플레이 중인지 확인
         if user_id in self.processing_users:
             return await interaction.response.send_message("❌ 이미 블랙잭 게임을 플레이 중입니다.", ephemeral=True)

@@ -11,6 +11,7 @@ import asyncio
 SUCCESS_RATES = [0.6, 0.55, 0.5, 0.45, 0.4] # 각 라운드 별 성공률
 MAX_CHALLENGES = 5                          # 최대 도전 가능 횟수 (5연승 시 자동 종료)
 WINNER_RETENTION = 0.8                      # 승리 시 수수료 (20%)
+MAX_BET = 3000                              # 최대 배팅 가능 금액
 active_games_by_user = set()                # 중복 게임 방지를 위한 현재 진행 중인 유저 목록
 
 # 통계 시스템 연동 (모듈이 없을 경우를 대비한 예외 처리)
@@ -246,6 +247,18 @@ class YabawiGameCog(commands.Cog):
                 ephemeral=True
             )
         
+        # 배팅 금액 제한 체크
+        if not (100 <= 배팅 <= MAX_BET):
+            return await interaction.response.send_message(
+                f"❌ 배팅 금액은 100원부터 {MAX_BET:,}원까지만 가능합니다.", 
+                ephemeral=True
+            )
+        
+        user_id = str(interaction.user.id)
+        # 중복 게임 체크
+        if user_id in active_games_by_user:
+            return await interaction.response.send_message("❌ 이미 게임이 진행 중입니다!", ephemeral=True)
+
         # 게임 시작 등록
         active_games_by_user.add(user_id)
 

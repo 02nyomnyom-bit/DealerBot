@@ -282,6 +282,10 @@ class OddEvenCog(commands.Cog):
                 ephemeral=True
             )
         
+        # 배팅 범위 체크
+        if 배팅 < 100 or 배팅 > MAX_BET:
+            return await interaction.response.send_message(f"❌ 배팅 금액은 100원부터 {MAX_BET:,}원까지만 가능합니다.", ephemeral=True)
+        
         if POINT_MANAGER_AVAILABLE:
             balance = await point_manager.get_point(self.bot, interaction.guild_id, str(interaction.user.id))
             if balance < 배팅: return await interaction.response.send_message("❌ 잔액 부족!", ephemeral=True)
