@@ -479,12 +479,12 @@ class TrashActionView(discord.ui.View):
             if self.value_name == "홍초의 분노":
                 buff_until = (datetime.now(KST) + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute("UPDATE users SET appeal_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
-                msg = "항소문을 읽고 감동했습니다! **5분간 쓰레기 확률이 5% 감소**합니다."
-                title = "📜 항소문 정독"
+                msg = "스트레스를 대신 풀어줬습니다! **5분간 쓰레기 확률이 5% 감소**합니다."
+                title = "📜 분노삭히기"
             elif self.value > 0: # 🎁 [추가] 양수 보상인 경우 (홍초의 분노 등)
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (self.value, uid, gid))
                 conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                             (uid, "낚시", self.value, current_cash + self.value, f"{self.value_name} 정독 보너스"))
+                             (uid, "낚시", self.value, current_cash + self.value, f"{self.value_name} 보너스"))
                 msg = f"공지를 정독하여 **{self.value:,}원**이 입금되었습니다!"
                 title = "✨ 공지 정독 완료"
             else: # 🚮 일반 쓰레기 처리 비용 지불
