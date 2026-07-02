@@ -57,15 +57,15 @@ TRASH_LIST = [
     # 🏛️ [Group 5] 5티어 쓰레기 (14~20% 현금 지출)
     {"name": "폐업하기 일보직전인 SM Bar", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
     {"name": "로프 본디지에서 쓴 로프", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
-    {"name": "니니님의 직설적인 욕", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
+    {"name": "홍초의 직설적인 욕", "min_rate": 0.14, "max_rate": 0.20, "group": 5},
 
     # ❓ [Group 6] 히든 쓰레기 (1~80% 현금 지출 / 혹은 이득)
     {"name": "수호자가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.30, "group": 6},
     {"name": "지배자가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.50, "group": 6},
     {"name": "순두부가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.70, "group": 6},
     {"name": "김묵이가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.80, "group": 6},
-    {"name": "정이가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.03, "group": 6},
-    {"name": "커커님의 항소문", "min_rate": 0.0, "max_rate": 0.0, "group": 6},
+    {"name": "홍초의 분노", "min_rate": 0.01, "max_rate": 0.03, "group": 6},
+    {"name": "노트님의 본디지 강연비", "min_rate": 0.0, "max_rate": 0.0, "group": 6},
 
     # 🦖 [Jurassic Trash]
     {"name": "부서진 공룡 뼈", "min_rate": 0.01, "max_rate": 0.03, "group": 1},
