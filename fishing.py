@@ -65,7 +65,7 @@ TRASH_LIST = [
     {"name": "순두부가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.70, "group": 6},
     {"name": "김묵이가 올린 공지사항", "min_rate": 0.01, "max_rate": 0.80, "group": 6},
     {"name": "홍초의 분노", "min_rate": 0.01, "max_rate": 0.03, "group": 6},
-    {"name": "노트님의 본디지 강연비", "min_rate": 0.0, "max_rate": 0.0, "group": 6},
+    {"name": "홍초의 잔소리", "min_rate": 0.0, "max_rate": 0.0, "group": 6},
 
     # 🦖 [Jurassic Trash]
     {"name": "부서진 공룡 뼈", "min_rate": 0.01, "max_rate": 0.03, "group": 1},
@@ -283,7 +283,7 @@ FACILITIES = {
     "리안마켓": {"req_rep": 3000, "req_cash": 20000, "tier": 1, "effect": {"upkeep_discount": 0.03}, "desc": "유지비 3% 감소"},
     "묵이편의점": {"req_rep": 20000, "req_cash": 70000, "tier": 2, "effect": {"upkeep_discount": 0.06}, "desc": "유지비 6% 감소"},
     "할인마트": {"req_rep": 80000, "req_cash": 330000, "tier": 3, "effect": {"upkeep_discount": 0.09, "trash_rate": 0.10}, "desc": "유지비 9% 감소, 쓰레기 10% 증가"},
-    "정E-마트": {"req_rep": 150000, "req_cash": 700000, "tier": 4, "effect": {"upkeep_discount": 0.12, "trash_rate": 0.15}, "desc": "유지비 12% 감소, 쓰레기 15% 증가"},
+    "과일-마트": {"req_rep": 150000, "req_cash": 700000, "tier": 4, "effect": {"upkeep_discount": 0.12, "trash_rate": 0.15}, "desc": "유지비 12% 감소, 쓰레기 15% 증가"},
     "해외수출사업": {"req_rep": 800000, "req_cash": 1090000, "tier": 5, "effect": {"upkeep_discount": 0.15, "trash_rate": 0.20}, "desc": "유지비 15% 감소, 쓰레기 20% 증가"},
 
     # 🏪 상업 제국 (물고기 판매가 극대화)
@@ -334,10 +334,10 @@ class TrashActionView(discord.ui.View):
         self.responded = False # ✅ 추가: 응답 여부 확인용
 
         # 🎁 이득이 되는 공지(양수 값)일 경우 버튼 이름 변경
-        if self.value > 0 or self.value_name == "커커님의 항소문":
-            self.clean.label = "📖 내용 읽어보기" if self.value_name == "커커님의 항소문" else "📖 공지 정독하기"
+        if self.value > 0 or self.value_name == "홍초의 잔소리":
+            self.clean.label = "📖 내용 읽어보기" if self.value_name == "홍초의 잔소리" else "📖 귀에서 피나기"
             self.clean.style = discord.ButtonStyle.primary
-            self.dump.label = "🗑️ 쪽지 버리기"
+            self.dump.label = "🗑️ 귀마개쓰기"
 
     def is_finished(self):
         """이미 버튼을 눌러 처리가 완료되었는지 확인"""
@@ -354,13 +354,13 @@ class TrashActionView(discord.ui.View):
             self.responded = True # ✅ 추가: 중복 처리 방지
             
             # 🎁 이득이 되는 공지인데 무시한 경우, 그냥 소멸 처리 (오염도는 상승)
-            if self.value > 0 or self.value_name == "커커님의 항소문":
+            if self.value > 0 or self.value_name == "홍초의 분노":
                 chid, gid = str(self.channel_id), str(self.guild_id)
                 self.db.execute_query("UPDATE fishing_ground SET pollution = pollution + 0.5 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 
-                msg = f"**[{self.value_name}]**을 읽지 않고 버려 바람에 날아갔습니다.\n(낚시터 오염도 약간 상승)"
-                if self.value_name == "커커님의 항소문":
-                    msg = "항소문을 읽지 않고 버렸습니다. 커커님이 실망한 듯합니다.\n(낚시터 오염도 약간 상승)"
+                msg = f"**[{self.value_name}]**을 무시했습니다\n(낚시터 오염도 약간 상승)"
+                if self.value_name == "홍초의 분노":
+                    msg = "분노는 그냥 물속에 들어갔습니다.\n(낚시터 오염도 약간 상승)"
                 
                 embed = discord.Embed(title="🌬️ 저언...", description=msg, color=discord.Color.light_gray())
                 await self.message.edit(embed=embed, view=None)
@@ -476,12 +476,12 @@ class TrashActionView(discord.ui.View):
         try:
             conn.execute("BEGIN")
             
-            if self.value_name == "커커님의 항소문":
+            if self.value_name == "홍초의 분노":
                 buff_until = (datetime.now(KST) + timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')
                 conn.execute("UPDATE users SET appeal_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
                 msg = "항소문을 읽고 감동했습니다! **5분간 쓰레기 확률이 5% 감소**합니다."
                 title = "📜 항소문 정독"
-            elif self.value > 0: # 🎁 [추가] 양수 보상인 경우 (정이가 올린 공지사항 등)
+            elif self.value > 0: # 🎁 [추가] 양수 보상인 경우 (홍초의 분노 등)
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (self.value, uid, gid))
                 conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
                              (uid, "낚시", self.value, current_cash + self.value, f"{self.value_name} 정독 보너스"))
@@ -519,9 +519,9 @@ class TrashActionView(discord.ui.View):
         uid = self.user_id
 
         # 🎁 [추가] 이득이 되는 쪽지(공지/항소문)를 그냥 버리는 경우 패널티 면제
-        if self.value > 0 or self.value_name == "커커님의 항소문":
+        if self.value > 0 or self.value_name == "홍초의 분노":
             self.db.execute_query("UPDATE fishing_ground SET pollution = pollution + 0.5 WHERE channel_id = ? AND guild_id = ?", (chid, gid))
-            msg = f"**[{self.value_name}]**을 읽지 않고 그냥 버렸습니다.\n(오염도가 미량 상승합니다)"
+            msg = f"**[{self.value_name}]**을 무시했습니다.\n(오염도가 미량 상승합니다)"
             await interaction.response.edit_message(embed=discord.Embed(title="🌬️ 쪽지 폐기", description=msg, color=discord.Color.light_gray()), view=None)
             self._clear_session()
             return
@@ -1393,7 +1393,7 @@ class FishingGameView(discord.ui.View):
                         if datetime.now(KST) < f_buff_until:
                             trash_chance -= 0.1 # 10% 감소 (물고기 확률 10% 증가와 동일)
 
-                    # 📜 [추가] 커커님의 항소문 버프 체크 (쓰레기 확률 -5%)
+                    # 📜 [추가] 홍초의 분노 버프 체크 (쓰레기 확률 -5%)
                     if user_data_buff['appeal_buff_until']:
                         a_buff_until = parse_kst(user_data_buff['appeal_buff_until'])
                         if datetime.now(KST) < a_buff_until:
@@ -1485,10 +1485,10 @@ class FishingGameView(discord.ui.View):
                     calculated_fine = int(current_cash * rate)
                     
                     # 🎁 [수정] 특수 아이템 정산 처리
-                    if trash["name"] == "정이가 올린 공지사항":
+                    if trash["name"] == "홍초의 분노":
                         actual_fine = calculated_fine
-                    elif trash["name"] == "커커님의 항소문":
-                        actual_fine = 0 # 📜 항소문은 읽는 데 돈이 들지 않음
+                    elif trash["name"] == "홍초의 잔소리":
+                        actual_fine = 0
                     else:
                         actual_fine = -max(1000, calculated_fine) 
             
