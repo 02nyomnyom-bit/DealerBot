@@ -484,7 +484,7 @@ class TrashActionView(discord.ui.View):
                 conn.execute("UPDATE users SET appeal_buff_until = ? WHERE user_id = ? AND guild_id = ?", (buff_until, uid, gid))
                 msg = "스트레스를 대신 풀어줬습니다! **5분간 쓰레기 확률이 5% 감소**합니다."
                 title = "📜 분노삭히기"
-            elif self.value > 0: # 🎁 [추가] 양수 보상인 경우 (홍초의 분노 등)
+            elif self.value > 0: # 🎁 양수 보상인 경우
                 conn.execute("UPDATE users SET cash = cash + ? WHERE user_id = ? AND guild_id = ?", (self.value, uid, gid))
                 conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
                              (uid, "낚시", self.value, current_cash + self.value, f"{self.value_name} 보너스"))
@@ -1397,7 +1397,7 @@ class FishingGameView(discord.ui.View):
                         if datetime.now(KST) < f_buff_until:
                             trash_chance -= 0.1 # 10% 감소 (물고기 확률 10% 증가와 동일)
 
-                    # 📜 [추가] 홍초의 분노 버프 체크 (쓰레기 확률 -5%)
+                    # 📜 [추가] 분노 버프 체크 (쓰레기 확률 -5%)
                     if user_data_buff['appeal_buff_until']:
                         a_buff_until = parse_kst(user_data_buff['appeal_buff_until'])
                         if datetime.now(KST) < a_buff_until:
@@ -1489,9 +1489,9 @@ class FishingGameView(discord.ui.View):
                     calculated_fine = int(current_cash * rate)
                     
                     # 🎁 [수정] 특수 아이템 정산 처리
-                    if trash["name"] == "홍초의 분노":
+                    if trash["name"] == "{user}의 분노":
                         actual_fine = calculated_fine
-                    elif trash["name"] == "홍초의 잔소리":
+                    elif trash["name"] == "{user}의 잔소리":
                         actual_fine = 0
                     else:
                         actual_fine = -max(1000, calculated_fine) 
