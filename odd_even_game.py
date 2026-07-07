@@ -1,4 +1,4 @@
-# odd_even_game.py - 홀짝
+# odd_even_game.py - [게임] 홀짝
 from __future__ import annotations
 import discord
 from discord import app_commands

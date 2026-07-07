@@ -1,4 +1,4 @@
-# help_command.py - 도움말
+# help_command.py - [시스템] 도움말
 from __future__ import annotations
 import datetime
 import discord

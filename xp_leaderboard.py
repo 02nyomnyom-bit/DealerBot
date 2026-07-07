@@ -1,4 +1,4 @@
-# xp_leaderboard.py - XP 리더보드
+# xp_leaderboard.py - [서버관리] 경험치 관리
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member

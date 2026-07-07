@@ -1,4 +1,4 @@
-# point_manager.py - 포인트 시스템
+# point_manager.py - [서버관리] 포인트 관리
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member, User

@@ -1,4 +1,4 @@
-# slot_machine.py - 슬롯머신
+# slot_machine.py - [게임] 슬롯머신
 import random
 import asyncio
 import discord

@@ -1,4 +1,4 @@
-# rock_paper_scissors.py - 가위바위보(중단)
+# rock_paper_scissors.py - [게임] 가위바위보 (임시중단)
 import discord
 from discord import app_commands
 from discord.ext import commands

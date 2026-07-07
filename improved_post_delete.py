@@ -1,4 +1,4 @@
-# improved_post_delete.py - 글 삭제
+# improved_post_delete.py - [서버관리] 글 삭제
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, TextChannel

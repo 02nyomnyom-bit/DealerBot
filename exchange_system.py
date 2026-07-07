@@ -1,4 +1,4 @@
-# exchange_system.py - 교환 시스템
+# exchange_system.py - [편의성] 경험치, 머니 교환
 from __future__ import annotations
 import discord
 from discord import app_commands

@@ -1,4 +1,4 @@
-# enhancement_system.py - 강화 시스템
+# enhancement_system.py - [게임] 강화
 from __future__ import annotations
 import discord
 from discord import app_commands

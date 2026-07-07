@@ -1,4 +1,4 @@
-# dice_game.py - 주사위 게임
+# dice_game.py - [게임] 주사위
 import discord
 from discord import app_commands
 from discord.ext import commands

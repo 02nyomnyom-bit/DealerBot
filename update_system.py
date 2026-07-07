@@ -1,4 +1,4 @@
-# update_system.py - 업데이트 시스템
+# update_system.py - [서버관리] 공지 업로드
 from __future__ import annotations
 import datetime
 import discord

@@ -1,4 +1,4 @@
-# birthday.py - 생일 시스템
+# birthday.py - [편의성] 생일
 import datetime
 import sqlite3
 import discord

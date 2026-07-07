@@ -1,4 +1,4 @@
-# database_manager.py - 데이터베이스 관리
+# database_manager.py - [시스템] 데이터베이스 관리 매니저
 from __future__ import annotations
 import sqlite3
 import os

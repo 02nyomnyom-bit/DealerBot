@@ -1,4 +1,4 @@
-# tax_system.py - 세금 시스템
+# tax_system.py - [서버관리] 세금
 from __future__ import annotations
 import discord
 from discord import app_commands

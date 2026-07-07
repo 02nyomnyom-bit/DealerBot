@@ -1,4 +1,4 @@
-# attendance_master.py - 출석 시스템
+# attendance_master.py - [편의성] 서버 출석
 from __future__ import annotations
 import discord
 from discord import app_commands

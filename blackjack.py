@@ -1,4 +1,4 @@
-# blackjack.py - 블랙잭
+# blackjack.py - [게임] 블랙잭
 from __future__ import annotations
 import discord
 from discord import app_commands

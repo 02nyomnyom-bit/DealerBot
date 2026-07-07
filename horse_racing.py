@@ -1,4 +1,4 @@
-#horse_racing.py - 경마 게임
+#horse_racing.py - [게임] 경마
 from __future__ import annotations
 import random
 import asyncio

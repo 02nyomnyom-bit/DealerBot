@@ -1,4 +1,4 @@
-# error_handler.py - 통합 에러 처리 시스템
+# error_handler.py - [시스템] 에러 처리
 from __future__ import annotations
 import discord
 from discord import app_commands

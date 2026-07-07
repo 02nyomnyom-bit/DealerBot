@@ -1,4 +1,4 @@
-# fishing.py
+# fishing.py - [게임] 낚시
 import discord
 from discord import app_commands
 from discord import embeds

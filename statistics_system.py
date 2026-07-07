@@ -1,4 +1,4 @@
-# statistics_system.py - 통계 명령어
+# statistics_system.py - [게임] 통계
 from __future__ import annotations
 import os
 import json

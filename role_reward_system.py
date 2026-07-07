@@ -1,4 +1,4 @@
-# role_reward_system.py - 역할 보상 시스템
+# role_reward_system.py - [서버관리] 레벨별 역할 지급
 from __future__ import annotations
 import discord
 from discord import app_commands

@@ -1,4 +1,4 @@
-# room_manager.py 대화방 생성
+# room_manager.py - [편의성] 대화방 설정
 import discord
 from discord import app_commands
 from discord.ext import commands

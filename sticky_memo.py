@@ -1,4 +1,4 @@
-# sticky_memo.py - 접착 메모
+# sticky_memo.py - [서버관리] 접착 메모
 import asyncio
 import discord
 from discord import app_commands

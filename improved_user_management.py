@@ -1,4 +1,4 @@
-# improved_user_management.py - 사용자 관리
+# improved_user_management.py - [서버관리] 사용자 관리
 from __future__ import annotations
 import discord
 from discord import app_commands, Interaction, Member

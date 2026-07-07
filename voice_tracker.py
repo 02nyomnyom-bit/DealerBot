@@ -1,4 +1,4 @@
-# voice_tracker.py - 음성 추적
+# voice_tracker.py - [시스템] 음성 추적
 from __future__ import annotations
 import datetime
 import discord

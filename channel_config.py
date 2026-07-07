@@ -1,4 +1,4 @@
-# Channel_Config.py - 채널 지정 파일
+# Channel_Config.py - [서버관리] 명령어 채널 지정
 import discord
 from discord import app_commands
 from discord.ext import commands

@@ -1,4 +1,4 @@
-# anonymous.py - 익명 대나무숲 시스템 (1달 통합 조회 + 개별 추적 완벽 결합 버전)
+# anonymous.py - [편의성] 익명 채팅
 import discord
 from discord import app_commands
 from discord.ext import commands

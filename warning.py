@@ -1,4 +1,4 @@
-# warning.py - 경고 시스템
+# warning.py - [서버관리] 경고제도
 import discord
 from discord import app_commands
 from discord.ext import commands

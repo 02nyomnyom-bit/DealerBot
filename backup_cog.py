@@ -1,4 +1,4 @@
-# backup_cog.py
+# backup_cog.py - [시스템] 백업
 from __future__ import annotations
 import os
 import shutil

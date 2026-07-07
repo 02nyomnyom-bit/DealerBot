@@ -1,4 +1,4 @@
-# member_exit_logger.py - 퇴장 로그 시스템
+# member_exit_logger.py - [서버관리] 퇴장인사
 from __future__ import annotations
 import discord
 from discord.ext import commands

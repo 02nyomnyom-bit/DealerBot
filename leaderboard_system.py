@@ -1,4 +1,4 @@
-# leaderboard_system.py - 통합 리더보드
+# leaderboard_system.py - [서버관리] 통합 리더보드
 from __future__ import annotations
 import datetime
 import discord

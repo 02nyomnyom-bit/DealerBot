@@ -1,4 +1,4 @@
-# lottery_system.py - 로또 시스템
+# lottery_system.py - [게임] 로또
 import discord
 from discord import app_commands
 from discord.ext import commands
