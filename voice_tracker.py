@@ -392,6 +392,7 @@ class VoiceTracker(commands.Cog):
         
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
+        is_allowed = True
     
         if config_cog:
         # 2. 현재 채널에 'voice' 권한이 있는지 체크 (channel_config.py의 value="voice"와 일치해야 함)

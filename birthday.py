@@ -41,9 +41,33 @@ class BirthdayCog(commands.Cog):
                     )
 
     def get_db(self, guild_id: int):
-        """프로젝트 표준 규격에 맞춘 안전한 길드 컨텍스트 DB 매니저 획득"""
+        """프로젝트 표준 규격에 맞춘 안전한 길드 컨텍스트 DB 매니저 획득 + 실시간 인프라 보장"""
         db_cog = self.bot.get_cog("DatabaseManager")
-        return db_cog.get_manager(guild_id) if db_cog else None
+        if not db_cog:
+            return None
+            
+        db = db_cog.get_manager(guild_id)
+        if db:
+            # 💡 명령어가 실행되는 순간, 테이블이 유실되어 있다면 즉시 실시간 복구/생성합니다.
+            db.create_table(
+                "user_birthdays",
+                """
+                user_id TEXT NOT NULL,
+                year INTEGER,
+                month INTEGER,
+                day INTEGER,
+                is_public INTEGER,
+                PRIMARY KEY (user_id)
+                """
+            )
+            db.create_table(
+                "birthday_config",
+                """
+                key TEXT PRIMARY KEY,
+                value TEXT
+                """
+            )
+        return db
 
     def cog_unload(self):
         self.birthday_check_loop.cancel()

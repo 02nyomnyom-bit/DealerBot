@@ -31,8 +31,34 @@ class StickyMemoCog(commands.Cog):
                     )
 
     def get_db(self, guild_id: int):
+        """서버 격리 DB를 획득하는 동시에, 과거 파편 스키마가 있다면 실시간으로 무결성을 교정합니다."""
         db_cog = self.bot.get_cog("DatabaseManager")
-        return db_cog.get_manager(guild_id) if db_cog else None
+        if not db_cog:
+            return None
+            
+        db = db_cog.get_manager(guild_id)
+        if db:
+            # 💡 [스키마 검증] 만약 기존 테이블에 아직도 'message_id'라는 구버전 찌꺼기가 남아있다면
+            info = db.execute_query("PRAGMA table_info(sticky_memos)", (), 'all')
+            has_old_column = any(row['name'] == 'message_id' for row in info) if info else False
+            
+            # 구버전 파편이 발견되면 테이블을 완전히 새로 구조 조정(Drop & Create)합니다.
+            if has_old_column:
+                db.execute_query("DROP TABLE IF EXISTS sticky_memos")
+            
+            # 프로젝트 안전 규격 표준 5대 컬럼으로 실시간 보장 빌드
+            db.create_table(
+                "sticky_memos",
+                """
+                channel_id TEXT NOT NULL,
+                title TEXT,
+                content TEXT,
+                use_embed INTEGER,
+                last_msg_id TEXT,
+                PRIMARY KEY (channel_id)
+                """
+            )
+        return db
 
     async def send_sticky_memo(self, channel: discord.TextChannel, title: str, content: str, use_embed: bool) -> discord.Message:
         """메모 모양에 맞춰 메시지를 전송하는 내부 함수"""
