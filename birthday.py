@@ -117,7 +117,7 @@ class BirthdayCog(commands.Cog):
 
     @tasks.loop(time=datetime.time(hour=0, minute=0, second=0, tzinfo=KST))
     async def birthday_check_loop(self):
-        """매일 자정(한국 시간)에 오늘 생일인 사람을 확인하고 쓰레드를 생성하는 루프"""
+        """매일 자정(한국 시간)에 오늘 생일인 사람을 확인하고 단체 멘션과 함께 쓰레드를 생성하는 루프"""
         now = datetime.datetime.now(KST)
         current_year = now.year
         current_month = now.month
@@ -127,13 +127,11 @@ class BirthdayCog(commands.Cog):
         if not db_cog:
             return
 
-        # 통합 멀티 서버 아키텍처 환경에 맞춰 각 서버(길드)를 순회하며 안전 정산 처리
         for guild in self.bot.guilds:
             db = db_cog.get_manager(guild.id)
             if not db:
                 continue
 
-            # 해당 길드 DB 내에서 오늘 생일자 추출
             birthdays = db.execute_query(
                 "SELECT user_id, year, is_public FROM user_birthdays WHERE month = ? AND day = ?",
                 (current_month, current_day), 'all'
@@ -142,7 +140,6 @@ class BirthdayCog(commands.Cog):
             if not birthdays:
                 continue
 
-            # 설정 채널 로드
             channel_row = db.execute_query("SELECT value FROM birthday_config WHERE key = 'target_channel'", (), 'one')
             if not channel_row:
                 continue
@@ -172,7 +169,14 @@ class BirthdayCog(commands.Cog):
                 embed.set_thumbnail(url=member.display_avatar.url)
 
                 try:
-                    msg = await channel.send(content=f"🎉 {member.mention}님의 생일을 축하합니다!", embed=embed)
+                    # 💡 [수정] 서버 전체 인원을 태그하고 싶다면 @everyone 을 문구 앞에 넣어줍니다.
+                    # 만약 서버에 무리가 간다면 @here 나 특정 역할 ID(<@&역할ID>)로 교체하셔도 됩니다.
+                    mention_prefix = "@here" 
+                    
+                    msg = await channel.send(
+                        content=f"🎉 {mention_prefix}! 오늘 생일인 소중한 멤버가 있어요! {member.mention}님의 생일을 축하합니다!", 
+                        embed=embed
+                    )
                     await msg.create_thread(name=f"🎂 {member.display_name}님의 생일 축하방", auto_archive_duration=1440)
                 except Exception as e:
                     print(f"[생일 시스템] {guild.name} 서버 쓰레드 생성 오류: {e}")
