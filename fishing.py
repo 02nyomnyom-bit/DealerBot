@@ -2334,7 +2334,7 @@ class FishingSystemCog(commands.Cog):
                     if not interaction.response.is_done():
                         await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
                     return
-        db = self._get_db(interaction)
+                
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
         ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
@@ -2583,12 +2583,12 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🔽 다운그레이드 (명성 일부 환급)", value="down")
     ])
     async def edit_tier(self, interaction: discord.Interaction, 액션: str):
-        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
-        db = self._get_db(interaction)
+
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
 
         ground = db.execute_query("SELECT owner_id, tier, ground_reputation FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
@@ -2672,12 +2672,12 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🚜 전문 방역 및 정화 (오염도 0으로 초기화 / 수치비례 고가)", value="full")
     ])
     async def clean_channel_pollution(self, interaction: discord.Interaction, 청소량: str):
-        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
-        db = self._get_db(interaction)
+
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
 
         ground = db.execute_query("SELECT pollution, tier FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
@@ -2764,6 +2764,11 @@ class FishingSystemCog(commands.Cog):
             return await interaction.response.send_message("❌ 선택하신 시설은 이 카테고리에 속해있지 않습니다.", ephemeral=True)
         
         db = self._get_db(interaction)
+        if not db.get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
+        
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
         ground = db.execute_query("SELECT owner_id, is_public FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
@@ -2852,6 +2857,11 @@ class FishingSystemCog(commands.Cog):
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
         db = self._get_db(interaction)
+        if not db.get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
+        
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
 
         ground = db.execute_query("SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
@@ -2904,7 +2914,10 @@ class FishingSystemCog(commands.Cog):
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
         db = self._get_db(interaction)
-        uid, gid = str(interaction.user.id), str(interaction.guild_id)
+        if not db.get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
         
         if 분류 == "me":
             u = db.get_user(uid)
@@ -2954,12 +2967,12 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🧪 냄새나는 입장권 (50,000원 / 다음 입장객 방해)", value="buy_sabotage")
     ])
     async def fish_shop(self, interaction: discord.Interaction, 액션: str, 수량: Optional[int] = None):
-        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
-        db = self._get_db(interaction)
+        
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
         if 액션 == "sell":
@@ -3194,7 +3207,10 @@ class FishingSystemCog(commands.Cog):
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
         db = self._get_db(interaction)
-        uid, gid = str(interaction.user.id), str(interaction.guild_id)
+        if not db.get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
 
         gear = db.execute_query("SELECT * FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
         if not gear:
@@ -3257,12 +3273,12 @@ class FishingSystemCog(commands.Cog):
         수치: Optional[int] = None, 
         유저: Optional[discord.Member] = None
     ):
-        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
-        db = self._get_db(interaction)
+        
         gid = str(interaction.guild_id)
         chid = str(interaction.channel_id)
 
@@ -3347,9 +3363,9 @@ class FishingSystemCog(commands.Cog):
 
     @app_commands.command(name="낚시초기화", description="[관리자 전용] 이 서버의 모든 낚시 관련 데이터(장비, 인벤토리, 명성, 낚시터 등)를 초기화합니다.")
     @app_commands.checks.has_permissions(administrator=True)
-    async def reset_all_fishing_data(self, interaction: discord.Interaction):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+    async def upgrade_gear(self, interaction: discord.Interaction, 강화대상: str):
+        db = self._get_db(interaction)
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
