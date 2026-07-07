@@ -28,8 +28,7 @@ class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인
         else:
             await interaction.response.send_message(f"❓ `{self.msg_num.value}` 번호를 찾을 수 없습니다.", ephemeral=True)
 
-
-# 2. [신규] 인증 성공 후 번호 조회를 위한 다리 역할을 하는 뷰
+# 2. [인증 성공 후 후속 제어] 개별 추적 입력창 유도 다리 뷰
 class AnonymousTrackLinkView(discord.ui.View):
     def __init__(self, db_manager):
         super().__init__(timeout=60)
@@ -37,12 +36,60 @@ class AnonymousTrackLinkView(discord.ui.View):
 
     @discord.ui.button(label='📌 번호 입력창 열기', style=discord.ButtonStyle.success, emoji="🔎")
     async def open_track_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 💡 일반 버튼 클릭 컨텍스트에서 모달을 열기 때문에 에러가 발생하지 않습니다.
         await interaction.response.send_modal(AnonymousTrackModal(self.db))
 
+# 3. 🎯 [신규] 1달 명단 조회를 위한 비밀번호 입력 모달
+class AnonymousListAuthModal(discord.ui.Modal, title='1달 기록 조회 인증'):
+    pw_input = discord.ui.TextInput(label='관리자 비밀번호', placeholder='비밀번호를 입력하세요.', required=True)
 
-# 3. [개별 추적] 관리자 패스워드 인증 모달 창 (수정본)
-class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
+    def __init__(self, db_manager):
+        super().__init__()
+        self.db = db_manager
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # 관리자 패스워드 확인
+        if self.pw_input.value != "69697474":
+            return await interaction.response.send_message(" Lincoln ❎ 비밀번호가 틀렸습니다.", ephemeral=True)
+
+        await interaction.response.defer(ephemeral=True)
+
+        # SQLite 내장 시계로 최근 1달 데이터 필터링
+        query = """
+            SELECT msg_id, user_name, user_id, content, timestamp 
+            FROM anonymous_messages 
+            WHERE timestamp >= datetime('now', '-30 days')
+            ORDER BY timestamp DESC
+        """
+        records = self.db.execute_query(query, (), 'all')
+        
+        embed = discord.Embed(
+            title="🌲 대나무숲 최근 1달간 원본 로그 현황", 
+            description="최근 30일 동안 유저들이 전송한 실시간 익명 메시지 명단입니다.",
+            color=discord.Color.green()
+        )
+        
+        if records:
+            count = 0
+            for row in records:
+                if count >= 10:
+                    embed.add_field(
+                        name="➕ 그 외 추가 기록 존재", 
+                        value=f"최근 1달간 쌓인 메시지가 총 **{len(records)}개** 있습니다. 이 외의 과거 기록은 개별 번호 조회를 이용하세요.", 
+                        inline=False
+                    )
+                    break
+                
+                summary = f"👤 **작성자**: {row['user_name']} (<@{row['user_id']}>)\n💬 **내용**: {row['content'][:60]}\n📅 **일시**: {row['timestamp']}"
+                embed.add_field(name=f"📌 익명 번호: {row['msg_id']}", value=summary, inline=False)
+                count += 1
+        else:
+            embed.description = "🌲 최근 30일 동안 전송된 익명 메시지가 전혀 없습니다."
+
+        # 명단과 함께 개별 추적도 연동할 수 있도록 버튼도 동봉하여 출력
+        await interaction.followup.send(embed=embed, view=AnonymousAdminView(self.db), ephemeral=True)
+
+# 4. [개별 추적] 관리자 패스워드 인증 모달 창
+class AnonymousAuthModal(discord.ui.Modal, title='개별 번호 추적 인증'):
     pw_input = discord.ui.TextInput(label='관리자 비밀번호', placeholder='비밀번호를 입력하세요.', required=True)
     
     def __init__(self, db_manager):
@@ -51,26 +98,29 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
         
     async def on_submit(self, interaction: discord.Interaction):
         if self.pw_input.value == "69697474":
-            # 💡 [핵심] 모달 안에서 또 모달을 열지 않고, 추적 버튼이 담긴 에펨 메시지를 띄워줍니다.
             await interaction.response.send_message(
                 "🔓 **관리자 인증에 성공했습니다.**\n아래 버튼을 눌러 추적할 익명 번호를 입력해 주세요.", 
                 view=AnonymousTrackLinkView(self.db), 
                 ephemeral=True
             )
         else:
-            await interaction.response.send_message("❎ 비밀번호가 틀렸습니다.", ephemeral=True)
+            await interaction.response.send_message("Lincoln ❎ 비밀번호가 틀렸습니다.", ephemeral=True)
 
-
-# 4. [통합 뷰] 1달 리스트 하단에 부착될 통합 버튼 UI (기존 동일)
+# 5. 🎯 [통합 컨트롤 뷰] 최초 명령어 및 하단 패널에 배치될 메뉴
 class AnonymousAdminView(discord.ui.View):
     def __init__(self, db_manager):
         super().__init__(timeout=None)
         self.db = db_manager
         
-    @discord.ui.button(label='🔍 번호로 개별 추적하기', style=discord.ButtonStyle.danger)
-    async def track_record(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AnonymousAuthModal(self.db))
+    @discord.ui.button(label='📋 최근 1달 명단 열람하기', style=discord.ButtonStyle.primary, emoji="📂")
+    async def view_monthly_list(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """1달간의 원본 내역을 비번을 입력하고 열람합니다."""
+        await interaction.response.send_modal(AnonymousListAuthModal(self.db))
 
+    @discord.ui.button(label='🔍 번호로 개별 추적하기', style=discord.ButtonStyle.danger, emoji="🚨")
+    async def track_record(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """특정 번호의 주인을 추적합니다."""
+        await interaction.response.send_modal(AnonymousAuthModal(self.db))
 
 # ==================== 메인 통합 Cog 시스템 ====================
 class AnonymousSystem(commands.Cog):
@@ -147,53 +197,22 @@ class AnonymousSystem(commands.Cog):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❌ 메시지 전송 중 오류가 발생했습니다.", ephemeral=True)
 
-    @app_commands.command(name="대나무숲", description="[관리자 전용] 최근 1달간의 기록 조회 및 개별 번호 추적을 진행합니다.")
+    @app_commands.command(name="대나무숲", description="[관리자 전용] 대나무숲 데이터 통합 관리 허브를 호출합니다.")
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
     async def anonymous_admin(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        
+        """🎯 명단을 가리고 비밀번호 모달을 띄우는 버튼형 대시보드 출력"""
         db = self.get_db(interaction.guild.id)
         if not db:
-            return await interaction.followup.send("❌ 데이터베이스 연동에 실패했습니다.", ephemeral=True)
-        
-        # SQLite 특화 내장 시계로 최근 1달 데이터 완벽 필터링
-        query = """
-            SELECT msg_id, user_name, user_id, content, timestamp 
-            FROM anonymous_messages 
-            WHERE timestamp >= datetime('now', '-30 days')
-            ORDER BY timestamp DESC
-        """
-        records = db.execute_query(query, (), 'all')
+            return await interaction.response.send_message("❌ 데이터베이스 연동에 실패했습니다.", ephemeral=True)
         
         embed = discord.Embed(
-            title="🌲 대나무숲 최근 1달간 통합 관리 시스템", 
-            description="최근 30일 동안 유저들이 전송한 익명 메시지 목록입니다.\n\n특정 익명 유저의 고유 원본 데이터를 추적하려면 하단의 **[🔍 번호로 개별 추적하기]** 버튼을 이용해 주세요.",
-            color=discord.Color.dark_green()
+            title="🌲 대나무숲 격리제어 대시보드",
+            description="⚠️ **보안 경고**\n본 메뉴는 관리자 전용 데이터 관리 허브입니다.\n아래의 버튼을 클릭한 후 비밀번호 인증을 통과해야 1달간의 명단 열람이 가능합니다.",
+            color=discord.Color.dark_gray()
         )
-        
-        if records:
-            count = 0
-            for row in records:
-                if count >= 10:
-                    embed.add_field(
-                        name="➕ 그 외 추가 기록 존재", 
-                        value=f"최근 1달간 쌓인 메시지가 총 **{len(records)}개** 있습니다. 이 외의 과거 기록은 아래 버튼을 눌러 개별 번호 조회를 이용하세요.", 
-                        inline=False
-                    )
-                    break
-                
-                summary = f"👤 **작성자**: {row['user_name']} (<@{row['user_id']}>)\n💬 **내용**: {row['content'][:60]}\n📅 **일시**: {row['timestamp']}"
-                embed.add_field(
-                    name=f"📌 익명 번호: {row['msg_id']}",
-                    value=summary,
-                    inline=False
-                )
-                count += 1
-        else:
-            embed.description = "🌲 최근 30일 동안 전송된 익명 메시지가 전혀 없습니다! 깨끗한 대나무숲이네요."
-            
-        await interaction.followup.send(embed=embed, view=AnonymousAdminView(db), ephemeral=True)
+        # 데이터를 노출시키지 않고 버튼 뷰만 전송
+        await interaction.response.send_message(embed=embed, view=AnonymousAdminView(db), ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AnonymousSystem(bot))
