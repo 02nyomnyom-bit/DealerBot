@@ -1,25 +1,15 @@
-# anonymous.py - 익명 시스템
+# anonymous.py - 익명 대나무숲 시스템 (1달 통합 조회 + 개별 추적 완벽 결합 버전)
 import discord
 from discord import app_commands
 from discord.ext import commands
 import random
 import logging
-from database_manager import DatabaseManager
-import random
 
 logger = logging.getLogger("anonymous_system")
 
-# 개발자 디스코드 ID
-DEVELOPER_ID = 533493429489893390
+# ==================== 대나무 숲 관련 관리자 View 시스템 ====================
 
-class Anonymous(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-
-    def get_db(self, guild_id: int):
-        return DatabaseManager(f"database/{guild_id}.db")
-
-# 대나무 숲 관련 View - 발신자 확인
+# 1. [개별 추적] 최종 발신자 확인 모달 창
 class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인'):
     msg_num = discord.ui.TextInput(label='확인할 번호', placeholder='예: 10.10 ~ 999.999', required=True, min_length=5, max_length=7)
 
@@ -38,47 +28,49 @@ class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인
         else:
             await interaction.response.send_message(f"❓ `{self.msg_num.value}` 번호를 찾을 수 없습니다.", ephemeral=True)
 
-# 대나무 숲 관련 View - 관리자 인증
+# 2. [개별 추적] 관리자 패스워드 인증 모달 창
 class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
     pw_input = discord.ui.TextInput(label='관리자 비밀번호', placeholder='비밀번호를 입력하세요.', required=True)
+    
     def __init__(self, db_manager):
         super().__init__()
         self.db = db_manager
+        
     async def on_submit(self, interaction: discord.Interaction):
         if self.pw_input.value == "69697474":
-            view = discord.ui.View()
-            btn = discord.ui.Button(label="메시지 번호 입력", style=discord.ButtonStyle.primary)
-            btn.callback = lambda i: i.response.send_modal(AnonymousTrackModal(self.db))
-            view.add_item(btn)
-            await interaction.response.send_message("✅ 인증 성공!", view=view, ephemeral=True)
+            # 패스워드가 인증되면 번호 입력 모달을 체인 형태로 열어줍니다.
+            await interaction.response.send_modal(AnonymousTrackModal(self.db))
         else:
             await interaction.response.send_message("❎ 비밀번호가 틀렸습니다.", ephemeral=True)
 
-# 대나무 숲 관련 View - 기록 조회
+# 3. [통합 뷰] 1달 리스트 하단에 부착될 통합 버튼 UI
 class AnonymousAdminView(discord.ui.View):
     def __init__(self, db_manager):
         super().__init__(timeout=None)
         self.db = db_manager
-    @discord.ui.button(label='기록 조회하기', style=discord.ButtonStyle.danger)
+        
+    @discord.ui.button(label='🔍 번호로 개별 추적하기', style=discord.ButtonStyle.danger)
     async def track_record(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AnonymousAuthModal(self.db))
 
-# 메인 Cog. 명령어
+
+# ==================== 메인 통합 Cog 시스템 ====================
 class AnonymousSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     def get_db(self, guild_id: int):
-        return DatabaseManager(f"database/{guild_id}.db")
+        """프로젝트 표준 규격에 맞춘 안전한 길드 컨텍스트 DB 매니저 획득"""
+        db_cog = self.bot.get_cog("DatabaseManager")
+        return db_cog.get_manager(guild_id) if db_cog else None
 
     @app_commands.command(name="익명", description="익명으로 메시지를 보냅니다.")
     @app_commands.describe(대화="익명으로 보낼 내용을 입력하세요")
     async def anonymous_send(self, interaction: discord.Interaction, 대화: str):
-        # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
+        is_allowed = True
     
         if config_cog:
-        # 2. 현재 채널에 'anonymous' 권한이 있는지 체크 (channel_config.py의 value="anonymous"와 일치해야 함)
             is_allowed = await config_cog.check_permission(interaction.channel_id, "anonymous", interaction.guild.id)
         
         if not is_allowed:
@@ -87,10 +79,10 @@ class AnonymousSystem(commands.Cog):
                 ephemeral=True
             )
 
-        # 3. 익명 메시지 로직 실행
         db = self.get_db(interaction.guild.id)
+        if not db:
+            return await interaction.response.send_message("❌ 데이터베이스 시스템을 로드할 수 없습니다.", ephemeral=True)
         
-        # 고유 ID 생성 (중복 방지)
         msg_id = ""
         attempts = 0
         while attempts < 10:
@@ -100,13 +92,11 @@ class AnonymousSystem(commands.Cog):
             attempts += 1
 
         try:
-            # 1. 웹훅 찾기 또는 생성
             webhooks = await interaction.channel.webhooks()
             webhook = discord.utils.get(webhooks, name="익명 대나무숲")
             if not webhook:
                 webhook = await interaction.channel.create_webhook(name="익명 대나무숲")
 
-            # 2. 아이콘 리스트 설정 (서버 아이콘 포함)
             icon_list = [
                 "https://media.discordapp.net/attachments/1468585489060855818/1523584690450071653/A.png?ex=6a4ca451&is=6a4b52d1&hm=b1909c1be5a94511cd89939b521443a0585acd3f3045dde5c001e7eb8d4ed42e&=&format=webp&quality=lossless",
                 "https://media.discordapp.net/attachments/1468585489060855818/1523584710834655312/B.png?ex=6a4ca455&is=6a4b52d5&hm=3221fa1f6ea5a1bc09ff2280881c26daa186f69997631c5bff7f5870197838d0&=&format=webp&quality=lossless",
@@ -118,17 +108,17 @@ class AnonymousSystem(commands.Cog):
                 "https://media.discordapp.net/attachments/1468585489060855818/1523585253057499279/H.png?ex=6a4ca4d7&is=6a4b5357&hm=1a50993a3918141544fcb68ced0a03041b99ed6fef0fd4b41961ac216098bfd9&=&format=webp&quality=lossless",
             ]
             
-            # 3. 무작위 아이콘 선택
+            if interaction.guild.icon:
+                icon_list.append(interaction.guild.icon.url)
+
             avatar_url = random.choice(icon_list)
 
-            # 4. 웹훅으로 메시지 전송
             await webhook.send(
                 content=대화,
                 username=f"익명 유저 [{msg_id}]",
                 avatar_url=avatar_url
             )
             
-            # 5. DB 저장
             db.execute_query("INSERT INTO anonymous_messages (msg_id, user_id, user_name, content) VALUES (?, ?, ?, ?)", 
                              (msg_id, str(interaction.user.id), str(interaction.user), 대화))
             
@@ -139,19 +129,53 @@ class AnonymousSystem(commands.Cog):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❌ 메시지 전송 중 오류가 발생했습니다.", ephemeral=True)
 
-    @app_commands.command(name="대나무숲", description="[관리자 전용] 최근 익명 메시지를 확인합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    @app_commands.command(name="대나무숲", description="[관리자 전용] 최근 1달간의 기록 조회 및 개별 번호 추적을 진행합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
     async def anonymous_admin(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
         db = self.get_db(interaction.guild.id)
+        if not db:
+            return await interaction.followup.send("❌ 데이터베이스 연동에 실패했습니다.", ephemeral=True)
+        
+        # SQLite 특화 내장 시계로 최근 1달 데이터 완벽 필터링
+        query = """
+            SELECT msg_id, user_name, user_id, content, timestamp 
+            FROM anonymous_messages 
+            WHERE timestamp >= datetime('now', '-30 days')
+            ORDER BY timestamp DESC
+        """
+        records = db.execute_query(query, (), 'all')
         
         embed = discord.Embed(
-            title="🌲 대나무숲 관리자 시스템", 
-            description="익명 메시지의 발신자를 확인하려면 아래 버튼을 눌러 인증해주세요.",
+            title="🌲 대나무숲 최근 1달간 통합 관리 시스템", 
+            description="최근 30일 동안 유저들이 전송한 익명 메시지 목록입니다.\n\n특정 익명 유저의 고유 원본 데이터를 추적하려면 하단의 **[🔍 번호로 개별 추적하기]** 버튼을 이용해 주세요.",
             color=discord.Color.dark_green()
         )
         
-        await interaction.response.send_message(embed=embed, view=AnonymousAdminView(db), ephemeral=True)
+        if records:
+            count = 0
+            for row in records:
+                if count >= 10:
+                    embed.add_field(
+                        name="➕ 그 외 추가 기록 존재", 
+                        value=f"최근 1달간 쌓인 메시지가 총 **{len(records)}개** 있습니다. 이 외의 과거 기록은 아래 버튼을 눌러 개별 번호 조회를 이용하세요.", 
+                        inline=False
+                    )
+                    break
+                
+                summary = f"👤 **작성자**: {row['user_name']} (<@{row['user_id']}>)\n💬 **내용**: {row['content'][:60]}\n📅 **일시**: {row['timestamp']}"
+                embed.add_field(
+                    name=f"📌 익명 번호: {row['msg_id']}",
+                    value=summary,
+                    inline=False
+                )
+                count += 1
+        else:
+            embed.description = "🌲 최근 30일 동안 전송된 익명 메시지가 전혀 없습니다! 깨끗한 대나무숲이네요."
+            
+        await interaction.followup.send(embed=embed, view=AnonymousAdminView(db), ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(AnonymousSystem(bot))
