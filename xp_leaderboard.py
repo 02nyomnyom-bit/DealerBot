@@ -745,11 +745,11 @@ class XPLeaderboardCog(commands.Cog):
                 
                 # 2. users에는 있지만 user_xp에는 없는 사용자들 찾기
                 registered_no_xp = db.execute_query('''
-                    SELECT u.user_id, u.username, u.display_name, u.registered_at
+                    SELECT u.user_id, u.username, u.display_name, u.created_at
                     FROM users u
                     LEFT JOIN user_xp ux ON u.user_id = ux.user_id AND ux.guild_id = ?
                     WHERE ux.user_id IS NULL
-                    ORDER BY u.registered_at DESC
+                    ORDER BY u.created_at DESC
                 ''', (guild_id,), 'all')
                 
                 # 3. 정상 등록된 사용자 수

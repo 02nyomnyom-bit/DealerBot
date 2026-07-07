@@ -2583,8 +2583,8 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🔽 다운그레이드 (명성 일부 환급)", value="down")
     ])
     async def edit_tier(self, interaction: discord.Interaction, 액션: str):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -2672,8 +2672,8 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🚜 전문 방역 및 정화 (오염도 0으로 초기화 / 수치비례 고가)", value="full")
     ])
     async def clean_channel_pollution(self, interaction: discord.Interaction, 청소량: str):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -2954,8 +2954,8 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🧪 냄새나는 입장권 (50,000원 / 다음 입장객 방해)", value="buy_sabotage")
     ])
     async def fish_shop(self, interaction: discord.Interaction, 액션: str, 수량: Optional[int] = None):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -3257,8 +3257,8 @@ class FishingSystemCog(commands.Cog):
         수치: Optional[int] = None, 
         유저: Optional[discord.Member] = None
     ):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        db = self._get_db(interaction) # 👈 주입형 매니저로 교체
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
