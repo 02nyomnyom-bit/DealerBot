@@ -208,7 +208,6 @@ def get_available_extensions() -> Dict[str, List[str]]:
         #'yabawi_game',                  # 야바위 게임
         #'rock_paper_scissors',          # 가위바위보   
         'odd_even_game',                # 홀짝
-        #'ladder_game',                  # 제비뽑기
         'fishing',                   # 낚시
     ]
     
@@ -218,6 +217,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'role_reward_system',           # 역할 보상 시스템
         'welcome_system',               # 환영 시스템
         'anonymous',                    # 익명 시스템
+        'sticky_memo',                  # 접착 메모 시스템
         'room_manager',                 # 대화방 생성
     ]
     
@@ -227,6 +227,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
         'common_utils',                 # 공통 유틸리티
         'statistics_system',            # 통계 명령어
         'error_handler',                # 통합 에러 처리 시스템
+        'birthday',                     # 생일 알림 시스템
     ]
     
     # ✨ 새로운 시스템들 (선택적 로드)
@@ -335,7 +336,7 @@ class EnhancedBot(commands.Bot):
         else: # 24시 ~ 5시
             greeting = "“새벽 밀수하는 중”"
 
-        status_text = f"📅{date_str} | {greeting} | (v1.11.2)"
+        status_text = f"📅{date_str} | {greeting} | (v1.12.0)"
         
         await self.change_presence(
             activity=discord.CustomActivity(name=status_text),
@@ -391,7 +392,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="보석상 v1.11.2 - 서버 제한 시스템")
+                    embed.set_footer(text="보석상 v1.12.0 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -500,7 +501,7 @@ class EnhancedBot(commands.Bot):
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
         
         print("=" * 50)
-        print("🎉 보석상 v1.11.2 구동 중 (60초 후 명령어 동기화 예정)")
+        print("🎉 보석상 v1.12.0 구동 중 (60초 후 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
 
@@ -584,7 +585,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 보석상 v1.11.2 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 보석상 v1.12.0 서버 제한 + 퇴장 로그 + 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

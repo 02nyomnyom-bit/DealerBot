@@ -105,26 +105,9 @@ class DatabaseManager:
             return False
 
     def _create_tables(self):
-        """테이블 생성 및 스키마 마이그레이션"""
-        # 1. users 테이블 (기존 코드)
-        self.execute_query("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id TEXT PRIMARY KEY,
-                username TEXT,
-                display_name TEXT,
-                cash INTEGER DEFAULT 0,
-                bank INTEGER DEFAULT 0,
-                registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        self.execute_query("""
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            )
-        """)
+        """테이블 생성 및 스키마 표준화 완료 (중복 및 인덴트 오류 완벽 제거)"""
         
+        # 1. 시스템 핵심 테이블 생성
         self.create_table(
             "users",
             """
@@ -133,11 +116,23 @@ class DatabaseManager:
             username TEXT DEFAULT '',
             display_name TEXT DEFAULT '',
             cash INTEGER DEFAULT 0,
+            bank INTEGER DEFAULT 0,
+            fishing_reputation INTEGER DEFAULT 0,
+            max_fish_length REAL DEFAULT 0.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (user_id, guild_id)
             """
         )
+
+        self.create_table(
+            "settings",
+            """
+            key TEXT PRIMARY KEY,
+            value TEXT
+            """
+        )
+
         self.create_table(
             "attendance",
             """
@@ -149,6 +144,7 @@ class DatabaseManager:
             UNIQUE(user_id, attendance_date)
             """
         )
+
         self.create_table(
             "enhancement",
             """
@@ -162,6 +158,7 @@ class DatabaseManager:
             UNIQUE(user_id)
             """
         )
+
         self.create_table(
             "point_history",
             """
@@ -174,6 +171,7 @@ class DatabaseManager:
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             """
         )
+
         self.create_table(
             "user_xp",
             """
@@ -186,6 +184,7 @@ class DatabaseManager:
             UNIQUE(user_id, guild_id)
             """
         )
+
         self.create_table(
             "leaderboard_settings",
             """
@@ -207,6 +206,7 @@ class DatabaseManager:
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
+
         self.create_table(
             "voice_time",
             """
@@ -218,6 +218,7 @@ class DatabaseManager:
             UNIQUE(user_id)
             """
         )
+
         self.create_table(
             "voice_time_log",
             """
@@ -238,7 +239,7 @@ class DatabaseManager:
             """
         )
 
-        self.create_table( # ✅ 퇴장 로그 설정 테이블 추가
+        self.create_table(
             "log_settings",
             """
             guild_id TEXT NOT NULL PRIMARY KEY,
@@ -248,7 +249,8 @@ class DatabaseManager:
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             """
         )
-        self.create_table( # ✅ 퇴장 로그 기록 테이블 추가
+
+        self.create_table(
             "exit_logs",
             """
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -266,7 +268,6 @@ class DatabaseManager:
             """
         )
 
-        # 익명 전용 서버 설정 테이블 추가 (익명 채널 설정 등 저장용)
         self.create_table(
             "server_settings",
             """
@@ -276,37 +277,27 @@ class DatabaseManager:
             """
         )
 
-        # 익명 대화 기록 테이블 추가
         self.create_table(
             "anonymous_messages",
-                """
-                msg_id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                user_name TEXT NOT NULL,
-                content TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-                """
-            )
+            """
+            msg_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            user_name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            """
+        )
 
-        self.execute_query('''
-            CREATE TABLE IF NOT EXISTS anonymous_messages (
-                msg_id TEXT PRIMARY KEY,
-                user_id TEXT,
-                user_name TEXT,
-                content TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-    
-        self.execute_query('''
-            CREATE TABLE IF NOT EXISTS channel_configs (
-                channel_id TEXT,
-                feature_type TEXT,
-                PRIMARY KEY (channel_id, feature_type)
-            )
-        ''')
+        self.create_table(
+            "channel_configs",
+            """
+            channel_id TEXT NOT NULL,
+            feature_type TEXT NOT NULL,
+            PRIMARY KEY (channel_id, feature_type)
+            """
+        )
 
-        # 🎣 낚시터 정보 테이블 (최신 규격으로 수정)
+        # 2. 🎣 낚시 시스템 테이블 규격 생성
         self.create_table(
             "fishing_ground",
             """
@@ -328,7 +319,6 @@ class DatabaseManager:
             """
         )
 
-        # 🎣 낚시 장비(인벤토리) 보관 테이블 추가
         self.create_table(
             "fishing_inventory",
             """
@@ -342,7 +332,6 @@ class DatabaseManager:
             """
         )
         
-        # 🎣 낚시 장비(레벨, 내구도, 미끼) 테이블 생성
         self.create_table(
             "fishing_gear",
             """
@@ -356,7 +345,6 @@ class DatabaseManager:
             """
         )
 
-        # 🏗️ 건설된 낚시터 시설물 테이블 생성
         self.create_table(
             "fishing_facilities",
             """
@@ -366,72 +354,57 @@ class DatabaseManager:
             PRIMARY KEY (channel_id, guild_id, facility_name)
             """
         )
-        
+
+        # 3. 데이터베이스 통합 안전 마이그레이션 검증 (구조 최적화 완료)
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                # [users 테이블 검증]
+                cursor.execute("PRAGMA table_info(users)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'display_name' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
+                if 'cash' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN cash INTEGER DEFAULT 0")
+                if 'bank' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN bank INTEGER DEFAULT 0")
+                if 'fishing_reputation' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
+                if 'max_fish_length' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
+
+                # [user_xp 테이블 검증]
+                cursor.execute("PRAGMA table_info(user_xp)")
+                user_xp_columns = [col[1] for col in cursor.fetchall()]
+                if 'guild_id' not in user_xp_columns:
+                    cursor.execute("ALTER TABLE user_xp ADD COLUMN guild_id TEXT")
+                    cursor.execute("UPDATE user_xp SET guild_id = ? WHERE guild_id IS NULL", (self.guild_id,))
+                    try:
+                        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_xp_unique ON user_xp (user_id, guild_id)")
+                    except sqlite3.IntegrityError:
+                        logger.warning("⚠️ user_xp 테이블에 기존 중복 데이터가 있어 UNIQUE 제약 조건 추가를 건너뜁니다.")
+                
+                conn.commit()
+                logger.info("✅ 모든 테이블 인프라 구축 및 안전 마이그레이션 통합 검증 완료.")
+            except sqlite3.Error as e:
+                conn.rollback()
+                logger.error(f"❌ 데이터베이스 마이그레이션 초기화 중 치명적 오류 발생: {e}")
+
     def add_fishing_reputation(self, user_id: str, amount: int):
         """개인 낚시 명성 추가"""
         if not self.guild_id: return None
         return self.execute_query('UPDATE users SET fishing_reputation = fishing_reputation + ? WHERE user_id = ? AND guild_id = ?', (amount, user_id, self.guild_id))
 
     def update_max_fish_length(self, user_id: str, new_length: float):
-        """최대 잡은 물고기 길이 경신"""
+        """최대 잡은 물고기 길이 경신 (독립 함수로 분리 완료)"""
         if not self.guild_id: return None
         current = self.get_user(user_id)
         current_max = current.get('max_fish_length', 0.0) if current else 0.0
         if new_length > current_max:
             return self.execute_query('UPDATE users SET max_fish_length = ? WHERE user_id = ? AND guild_id = ?', (new_length, user_id, self.guild_id))
-        
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            try:
-                # 스키마 마이그레이션: users 테이블에 display_name 컬럼이 없으면 추가
-                cursor.execute("PRAGMA table_info(users)")
-                columns = [col[1] for col in cursor.fetchall()]
-                
-                # 기존 users 테이블에 guild_id가 없는 경우 마이그레이션 로직 (복잡하므로 일단 생략)
-                # 이 변경은 기존 데이터베이스와의 호환성을 깨뜨릴 수 있습니다.
-                # 실제 배포 시에는 마이그레이션 스크립트가 필요합니다.
-                
-                if 'display_name' not in columns:
-                    cursor.execute("ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
-                    logger.info("✅ users 테이블에 'display_name' 컬럼 추가 완료.")
+        return None
 
-                # 스키마 마이그레이션: users 테이블에 cash 컬럼이 없으면 추가
-                if 'cash' not in columns:
-                    cursor.execute("ALTER TABLE users ADD COLUMN cash INTEGER DEFAULT 0")
-                    logger.info("✅ users 테이블에 'cash' 컬럼 추가 완료.")
-
-                # user_xp 테이블에 guild_id 컬럼이 없으면 추가
-                cursor.execute("PRAGMA table_info(user_xp)")
-                user_xp_columns = [col[1] for col in cursor.fetchall()]
-                if 'guild_id' not in user_xp_columns:
-                    cursor.execute("ALTER TABLE user_xp ADD COLUMN guild_id TEXT")
-                    logger.info("✅ user_xp 테이블에 'guild_id' 컬럼 추가 완료.")
-                    # 기존 레코드에 guild_id 채워넣기 (현재 DatabaseManager 인스턴스의 guild_id 사용)
-                    cursor.execute("UPDATE user_xp SET guild_id = ? WHERE guild_id IS NULL", (self.guild_id,))
-                    logger.info(f"✅ 기존 user_xp 레코드에 guild_id '{self.guild_id}' 채워넣기 완료.")
-                    # UNIQUE 제약 조건 다시 생성 (기존 데이터가 없거나 충돌이 없을 경우)
-                    # 이 부분은 기존 데이터에 따라 실패할 수 있으므로 주의
-                    try:
-                        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_xp_unique ON user_xp (user_id, guild_id)")
-                        logger.info("✅ user_xp 테이블에 UNIQUE(user_id, guild_id) 제약 조건 추가 완료.")
-                    except sqlite3.IntegrityError:
-                        logger.warning("⚠️ user_xp 테이블에 기존 중복 데이터가 있어 UNIQUE 제약 조건 추가 실패. 수동 확인 필요.")
-                # users 테이블에 낚시 개인 명성 컬럼이 없으면 추가
-                if 'fishing_reputation' not in columns:
-                    cursor.execute("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
-                    logger.info("✅ users 테이블에 'fishing_reputation' 컬럼 추가 완료.")
-
-                # users 테이블에 최대 크기 물고기 컬럼이 없으면 추가
-                if 'max_fish_length' not in columns:
-                    cursor.execute("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
-                    logger.info("✅ users 테이블에 'max_fish_length' 컬럼 추가 완료.")
-                    
-                conn.commit()
-                logger.info("✅ 모든 테이블 생성 및 스키마 검증 완료.")
-            except sqlite3.Error as e:
-                logger.error(f"❌ 테이블 생성/마이그레이션 중 심각한 오류 발생: {e}")
-                # 오류 발생 시 롤백
-                conn.rollback()
     def get_or_create_user(self, user_id: str, username: str) -> bool:
             """
             사용자를 조회하고, 없으면 생성합니다.
@@ -459,7 +432,7 @@ class DatabaseManager:
                 logger.error(f"get_or_create_user 실행 중 오류 발생: {e}")
                 return False
 
-    def execute_query(self, query: str, params: tuple = (), fetch_type: Literal['one', 'all', 'none'] = 'none') -> Optional[Union[sqlite3.Row, List[sqlite3.Row]]]:
+    def execute_query(self, query: str, params: tuple = (), fetch_type: Literal['one', 'all', 'none', 'rowcount', 'count'] = 'none') -> Optional[Union[sqlite3.Row, List[sqlite3.Row], int]]:
         """쿼리를 실행하고 결과를 반환 (자동 커밋 포함)"""
         try:
             with self.get_connection() as conn:
@@ -475,6 +448,8 @@ class DatabaseManager:
                     return cursor.fetchone()
                 elif fetch_type == 'all':
                     return cursor.fetchall()
+                elif fetch_type in ('rowcount', 'count'):
+                    return cursor.rowcount
                 else:
                     return None
         except sqlite3.Error as e:
@@ -684,33 +659,22 @@ class DatabaseManager:
             (user_id, minutes_to_add, minutes_to_add, user_id), 'none'
         )
     
-    def add_voice_activity(self, user_id: str, duration: int):
-        """음성 활동 로그를 추가하고, voice_time 테이블을 업데이트합니다."""
+    def log_completed_voice_session(self, user_id: str, join_time: str, leave_time: str, duration_minutes: int):
+        """세션이 종료되었을 때 한 번만 통화 기록 로그를 추가합니다."""
         if not self.guild_id:
-            logger.error("❌ add_voice_activity: guild_id가 설정되지 않았습니다.")
+            logger.error("❌ log_completed_voice_session: guild_id가 설정되지 않았습니다.")
             return False
         try:
             with self.get_connection() as conn:
-                # voice_time_log에 상세 기록 추가
                 conn.execute('''
-                    INSERT INTO voice_time_log (user_id, duration_minutes)
-                    VALUES (?, ?)
-                ''', (user_id, duration))
-
-                # voice_time에 총 시간 업데이트
-                conn.execute('''
-                    INSERT INTO voice_time (user_id, total_time)
-                    VALUES (?, ?)
-                    ON CONFLICT(user_id) DO UPDATE SET
-                    total_time = total_time + excluded.total_time,
-                    updated_at = CURRENT_TIMESTAMP
-                ''', (user_id, duration))
-                
+                    INSERT INTO voice_time_log (user_id, join_time, leave_time, duration_minutes)
+                    VALUES (?, ?, ?, ?)
+                ''', (user_id, join_time, leave_time, duration_minutes))
                 conn.commit()
-                logger.info(f"✅ 음성 활동 기록 성공: user_id={user_id}, duration={duration}분 (Guild: {self.guild_id})")
+                logger.info(f"✅ 음성 세션 기록 성공: user_id={user_id}, {duration_minutes}분 (Guild: {self.guild_id})")
                 return True
         except sqlite3.Error as e:
-            logger.error(f"❌ 음성 활동 기록 중 오류 발생: {e}", exc_info=True)
+            logger.error(f"❌ 음성 세션 기록 중 오류 발생: {e}", exc_info=True)
             return False
 
     # ==================== 출석 시스템 ====================
@@ -1073,7 +1037,7 @@ def is_registered(guild_id: str, user_id: str) -> bool:
     return db.get_user(user_id) is not None
 
 
-# ✅ 1. Cog 클래스 정의 (테스트 코드 없이 깔끔하게 유지)
+# 1. Cog 클래스 정의
 class DatabaseCog(commands.Cog, name="DatabaseManager"):
     def __init__(self, bot):
         self.bot = bot
@@ -1084,15 +1048,13 @@ class DatabaseCog(commands.Cog, name="DatabaseManager"):
         if gid_str not in self._managers:
             self._managers[gid_str] = DatabaseManager(gid_str)
         return self._managers[gid_str]
-
-
-# ✅ 2. 봇이 확장 프로그램으로 로드할 때 사용하는 셋업 함수
+    
+# 2. 봇이 확장 프로그램으로 로드할 때 사용하는 셋업 함수 (중복 제거 완료)
 async def setup(bot):
     await bot.add_cog(DatabaseCog(bot))
     logger.info("✅ DatabaseManager Cog가 로드되었습니다.")
 
-
-# ✅ 3. 로컬에서 파일 단독 실행 시에만 작동하는 테스트 코드
+# 3. 로컬에서 파일 단독 실행 시에만 작동하는 테스트 코드
 if __name__ == "__main__":
     test_guild_id = "test_guild_123"
     db = DatabaseManager(guild_id=test_guild_id)
@@ -1133,8 +1095,3 @@ if __name__ == "__main__":
     user2 = db2.get_user("user1")
     logger.info(f"User1 in Guild2: {user2}")
     logger.info(f"Stats for Guild2: {db2.get_database_stats()}")
-
-async def setup(bot):
-    # Cog 등록
-    await bot.add_cog(DatabaseCog(bot))
-    logger.info("✅ DatabaseManager Cog가 로드되었습니다.")

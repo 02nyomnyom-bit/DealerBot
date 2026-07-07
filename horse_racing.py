@@ -221,7 +221,7 @@ class ManualSignupView(discord.ui.View):
                 embed.add_field(name="🔥 상태", value="**인원 마감!**", inline=True)
                 embed.color = discord.Color.green()
             else:
-                embed.add_field(name="⏰ 남은 시간", value="자동 계산 중...", inline=True)
+                embed.add_field(name="⏰ 상태", value="모집 진행 중...", inline=True)
             
             if self.participants:
                 participants_text = "\n".join([f"{i+1}. {p['name']}" for i, p in enumerate(self.participants)])
@@ -347,21 +347,27 @@ class AutoHorseRacingView(discord.ui.View):
             # 경주 진행
             race_turn = 1
             while not self.racing.is_race_finished():
-                # 이 부분이 누락되어 있었습니다!
                 self.racing.move_horses() 
             
                 content = f"🏁 **경주 진행 중... (턴 {race_turn})**\n"
                 content += f"```\n{self.racing.generate_track_display()}\n```"
+                
+                if self.racing.finished_horses:
+                    current_finishers = len(self.racing.finished_horses)
+                    if current_finishers == 1:
+                        content += f"\n🎉 **{self.racing.finished_horses[0]}** 1위로 결승선 통과!"
+                    elif current_finishers <= 3:
+                        content += f"\n🏆 현재 {current_finishers}마리가 결승선 통과!"
             
                 try:
                     await self.message.edit(content=content, view=self)
                 except:
-                    break
+                    break # 💥 [필수 수정] pass에서 break로 변경하여 무한 루프 방지!
             
-                await asyncio.sleep(0.3) # 빠른 진행을 위해 설정하신 0.3초
+                await asyncio.sleep(0.5) # ⏱️ [추천] 1.2초는 너무 답답하므로 0.5초로 밸런스 조정
                 race_turn += 1
             
-                if race_turn > 50: # 무한루프 방지
+                if race_turn > 50:
                     break
         
             # 최종 결과 표시
@@ -465,26 +471,28 @@ class HorseRacingView(discord.ui.View):
             # 경주 진행
             race_turn = 1
             while not self.racing.is_race_finished():
-                self.racing.move_horses()
-                
+                self.racing.move_horses() 
+            
                 content = f"🏁 **경주 진행 중... (턴 {race_turn})**\n"
                 content += f"```\n{self.racing.generate_track_display()}\n```"
                 
-                # 결승선에 도착한 말이 있으면 알림
                 if self.racing.finished_horses:
                     current_finishers = len(self.racing.finished_horses)
                     if current_finishers == 1:
                         content += f"\n🎉 **{self.racing.finished_horses[0]}** 1위로 결승선 통과!"
                     elif current_finishers <= 3:
                         content += f"\n🏆 현재 {current_finishers}마리가 결승선 통과!"
-                
+            
                 try:
                     await self.message.edit(content=content, view=self)
                 except:
-                    break
-                
-                await asyncio.sleep(0.3)  # <-- **1.5초를 0.3초로 수정 (빠른 경주 진행)**
-                race_turn += 1  
+                    break # 💥 [필수 수정] pass에서 break로 변경하여 무한 루프 방지!
+            
+                await asyncio.sleep(0.5) # ⏱️ [추천] 1.2초는 너무 답답하므로 0.5초로 밸런스 조정
+                race_turn += 1
+            
+                if race_turn > 50:
+                    break 
                 
                 # 무한루프 방지 (최대 50턴)
                 if race_turn > 50:

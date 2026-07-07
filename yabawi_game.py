@@ -1,4 +1,4 @@
-# yabawi_game.py - 야바위 게임
+# yabawi_game.py - 야바위 게임(중단)
 from __future__ import annotations
 import discord
 from discord import app_commands

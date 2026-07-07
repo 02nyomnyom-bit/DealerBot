@@ -264,6 +264,10 @@ class VoiceTracker(commands.Cog):
     @app_commands.command(name="보이스랭크", description="사용자의 통화 시간을 공개적으로 확인합니다.")
     @app_commands.describe(사용자="확인할 사용자")
     async def voice_rank(self, interaction: discord.Interaction, 사용자: discord.Member):
+        from xp_leaderboard import is_user_registered
+        if not is_user_registered(str(interaction.user.id), guild_id):
+            return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
     
@@ -364,6 +368,11 @@ class VoiceTracker(commands.Cog):
         app_commands.Choice(name="📋 한달 (30일)", value="30")
     ])
     async def voice_statistics(self, interaction: discord.Interaction, 기간: app_commands.Choice[str]):
+        from database_manager import DatabaseManager
+        from xp_leaderboard import is_user_registered
+        if not is_user_registered(str(interaction.user.id), guild_id):
+            return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+        
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
     
@@ -428,6 +437,11 @@ class VoiceTracker(commands.Cog):
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(사용자="초기화할 사용자 (미지정시 전체 초기화)")
     async def reset_voice_data_cmd(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None):
+        from database_manager import DatabaseManager
+        if not DatabaseManager().get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
         # The rest of the function remains the same
         try:
             if 사용자:

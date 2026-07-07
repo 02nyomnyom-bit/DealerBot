@@ -187,6 +187,10 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="아니오", value="False")
     ])
     async def level(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None, 비공개: str = "True"):
+        from database_manager import DatabaseManager
+        if not is_user_registered(str(interaction.user.id), guild_id):
+            return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+
         # 1. 관리자 권한 체크 (다른 사용자를 조회하려고 할 때)
         if 사용자 and 사용자 != interaction.user:
             if not interaction.user.guild_permissions.administrator:
@@ -267,6 +271,11 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def set_levelup_channel(self, interaction: Interaction, channel: discord.TextChannel):
+        from database_manager import DatabaseManager
+        if not DatabaseManager().get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
         if interaction.guild is None:
             await interaction.response.send_message("이 명령어는 서버에서만 사용할 수 있습니다.", ephemeral=True)
             return
@@ -468,6 +477,11 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1, 각 페이지당 200명 표시)")
     async def leaderboard(self, interaction: discord.Interaction, 페이지: int = 1):
+        from database_manager import DatabaseManager
+        if not DatabaseManager().get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
         """레벨 순위를 확인합니다. 한 번에 최대 10개의 임베드(총 200명)를 전송합니다."""
         if 페이지 < 1:
             return await interaction.response.send_message("❌ 페이지 번호는 1 이상이어야 합니다.", ephemeral=True)
@@ -555,6 +569,11 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="레벨 설정", value="set_level")
     ])
     async def xp_management(self, interaction: discord.Interaction, 작업: str, 대상자: discord.Member, 수량: int = 0):
+        from database_manager import DatabaseManager
+        if not DatabaseManager().get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
         await interaction.response.defer(ephemeral=True) # 지연 응답 시작
 
         user_id = str(대상자.id)
@@ -640,6 +659,11 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="⏰ 채팅 쿨다운 설정", value="set_chat_cooldown")
     ])
     async def manage_xp_rates(self, interaction: discord.Interaction, 작업: str, 수량: Optional[int] = None):
+        from database_manager import DatabaseManager
+        if not DatabaseManager().get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
         """서버 전체의 XP 시스템 수치를 관리합니다."""
         if 작업 == "view_settings":
             embed = discord.Embed(title="⚙️ 현재 XP 시스템 설정", color=discord.Color.blue())
@@ -685,6 +709,11 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="❌ 아니오", value="cancelled")
     ])
     async def check_xp_data_integrity(self, interaction: Interaction, 작업: str, 확인: str = "cancelled"):
+        from database_manager import DatabaseManager
+        if not DatabaseManager().get_user(str(interaction.user.id)):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return
         guild_id = str(interaction.guild.id)
         await interaction.response.defer(ephemeral=True)
 

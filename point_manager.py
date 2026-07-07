@@ -232,39 +232,42 @@ class PointManager(commands.Cog):
                 self.db_managers[guild_id_str] = MockDatabaseManager()
         return self.db_managers[guild_id_str]
 
-    def _get_daily_count(self, user_id: str) -> int:
+    def _get_daily_count(self, guild_id: str, user_id: str) -> int:
         """오늘 선물 횟수를 KST 기준으로 조회하고, 날짜가 바뀌었으면 초기화합니다."""
         today_kst = datetime.now(KST).strftime('%Y-%m-%d')
+        key = f"{guild_id}_{user_id}"
         
-        if user_id not in self.daily_gift_counts or self.daily_gift_counts[user_id].get('date') != today_kst:
-            # 날짜가 다르거나, 기록이 없으면 새로 생성
-            self.daily_gift_counts[user_id] = {'date': today_kst, 'count': 0}
+        if key not in self.daily_gift_counts or self.daily_gift_counts[key].get('date') != today_kst:
+            self.daily_gift_counts[key] = {'date': today_kst, 'count': 0}
         
-        return self.daily_gift_counts[user_id]['count']
+        return self.daily_gift_counts[key]['count']
 
-    def _increment_daily_count(self, user_id: str):
+    def _increment_daily_count(self, guild_id: str, user_id: str):
         """일일 선물 횟수를 KST 기준으로 1 증가시킵니다."""
-        # _get_daily_count를 호출하여 리셋 로직을 먼저 수행
-        current_count = self._get_daily_count(user_id)
-        self.daily_gift_counts[user_id]['count'] = current_count + 1
+        key = f"{guild_id}_{user_id}"
+        current_count = self._get_daily_count(guild_id, user_id)
+        self.daily_gift_counts[key]['count'] = current_count + 1
 
-    def _check_cooldown(self, user_id: str) -> Optional[int]:
+    def _check_cooldown(self, guild_id: str, user_id: str) -> Optional[int]:
         """쿨다운 체크 (KST 기준)"""
-        if user_id in self.user_cooldowns:
-            # 모든 시간을 KST 기준으로 통일하여 계산
+        key = f"{guild_id}_{user_id}"
+        if key in self.user_cooldowns:
             now_kst = datetime.now(KST)
-            cooldown_end_time = self.user_cooldowns[user_id]
+            cooldown_end_time = self.user_cooldowns[key]
             
             if now_kst < cooldown_end_time:
                 remaining = cooldown_end_time - now_kst
                 return int(remaining.total_seconds())
+            else:
+                del self.user_cooldowns[key] # 지난 쿨다운 삭제 (메모리 최적화)
         return None
 
-    def _set_cooldown(self, user_id: str):
+    def _set_cooldown(self, guild_id: str, user_id: str):
         """쿨다운 설정 (KST 기준)"""
+        key = f"{guild_id}_{user_id}"
         now_kst = datetime.now(KST)
         cooldown_duration = timedelta(minutes=self.gift_settings.settings["cooldown_minutes"])
-        self.user_cooldowns[user_id] = now_kst + cooldown_duration
+        self.user_cooldowns[key] = now_kst + cooldown_duration
 
     # 기본 포인트 관리 명령어들
 
@@ -412,9 +415,6 @@ class PointManager(commands.Cog):
                         'UPDATE users SET display_name = ?, username = ? WHERE user_id = ? AND guild_id = ?',
                         (target.display_name, target.name, user_id, str(interaction.guild.id))
                     )
-
-            # 4. 사용자 데이터 조회
-            user_data = db.get_user(user_id)
             
             if not user_data:
                 embed = discord.Embed(
@@ -511,13 +511,15 @@ class PointManager(commands.Cog):
         
         # 받는 사람 등록 확인 (자동 등록)
         if not db.get_user(receiver_id):
-            success = db.create_user(receiver_id, 받는사람.name, 받는사람.display_name, initial_cash=0)
+            success = db.create_user(receiver_id, 받는사람.name, 받는사람.display_name, initial_cash=10000)
             if not success:
                 await interaction.response.send_message("❌ 받는 사람의 계정 생성에 실패했습니다.", ephemeral=True)
                 return
+            db.add_transaction(receiver_id, "회원가입", 10000, "신규 회원가입 보너스")
         
         # 쿨다운 확인
-        cooldown = self._check_cooldown(sender_id)
+        guild_id_str = str(interaction.guild_id)
+        cooldown = self._check_cooldown(guild_id_str, sender_id)
         if cooldown:
             minutes, seconds = divmod(cooldown, 60)
             await interaction.response.send_message(
@@ -527,7 +529,7 @@ class PointManager(commands.Cog):
             return
         
         # 일일 제한 확인
-        daily_count = self._get_daily_count(sender_id)
+        daily_count = self._get_daily_count(guild_id_str, sender_id)
         if daily_count >= settings["daily_limit"]:
             await interaction.response.send_message(
                 f"📊 오늘 선물 한도를 초과했습니다. (오늘: {daily_count}/{settings['daily_limit']}회)",
@@ -551,7 +553,17 @@ class PointManager(commands.Cog):
         
         # 선물 실행
         try:
-            db.add_user_cash(sender_id, -total_cost)
+            # 원자적 차감 실행 (조건: cash >= total_cost)
+            affected = db.execute_query(
+                "UPDATE users SET cash = cash - ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND guild_id = ? AND cash >= ?",
+                (total_cost, sender_id, str(interaction.guild_id), total_cost),
+                'rowcount'
+            )
+            
+            if not affected or affected == 0:
+                await interaction.response.send_message("❌ 잔액이 부족하거나 일시적인 오류가 발생했습니다. (마이너스 복사 방어됨)", ephemeral=True)
+                return
+                
             db.add_user_cash(receiver_id, 금액)
             
             # 거래 내역 기록
@@ -559,8 +571,8 @@ class PointManager(commands.Cog):
             db.add_transaction(receiver_id, "선물 받기", 금액, f"{interaction.user.display_name}님으로부터 선물")
             
             # 쿨다운 및 일일 카운트 설정
-            self._set_cooldown(sender_id)
-            self._increment_daily_count(sender_id)
+            self._set_cooldown(guild_id_str, sender_id)
+            self._increment_daily_count(guild_id_str, sender_id)
             
             # 성공 메시지
             embed = discord.Embed(
@@ -660,32 +672,34 @@ class PointManager(commands.Cog):
         
         try:
             db = self._get_db(interaction.guild_id)
-            # 해당 서버(guild_id) 데이터 전체 조회
-            results = db.execute_query('''
-                SELECT username, display_name, cash 
-                FROM users 
-                WHERE guild_id = ? 
-                ORDER BY cash DESC
-            ''', (str(interaction.guild_id),), 'all')
             
-            if not results:
+            # 1. 전체 인원수(COUNT)만 먼저 가볍게 조회
+            count_result = db.execute_query('SELECT COUNT(*) as cnt FROM users WHERE guild_id = ?', (str(interaction.guild_id),), 'one')
+            total_users = count_result['cnt'] if count_result else 0
+            
+            if total_users == 0:
                 return await interaction.followup.send("📊 해당 서버에 순위 데이터가 없습니다.")
 
-           # 설정: 한 페이지에 200명 (임베드 10개 x 20명)
+            # 설정: 한 페이지에 200명 (임베드 10개 x 20명)
             users_per_embed = 20
             embeds_per_page = 10
             users_per_page = users_per_embed * embeds_per_page # 200명
-            
-            total_users = len(results)
             total_pages = (total_users - 1) // users_per_page + 1
 
             if 페이지 > total_pages:
                 return await interaction.followup.send(f"❌ 데이터가 부족합니다. (최대 페이지: {total_pages})", ephemeral=True)
             
-            # 해당 페이지에 해당하는 유저 슬라이싱
-            start_idx = (페이지 - 1) * users_per_page
-            end_idx = min(start_idx + users_per_page, total_users)
-            page_data = results[start_idx:end_idx]
+            # 2. 필요한 페이지 데이터만 LIMIT, OFFSET으로 퍼오기 (메모리 절약)
+            offset = (페이지 - 1) * users_per_page
+            page_data = db.execute_query('''
+                SELECT username, display_name, cash 
+                FROM users 
+                WHERE guild_id = ? 
+                ORDER BY cash DESC
+                LIMIT ? OFFSET ?
+            ''', (str(interaction.guild_id), users_per_page, offset), 'all')
+            
+            start_idx = offset
 
             embeds = []
             # 20명씩 끊어서 임베드 생성 (최대 10개)

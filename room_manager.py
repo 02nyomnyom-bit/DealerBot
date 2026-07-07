@@ -1,3 +1,4 @@
+# room_manager.py 대화방 생성
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -197,6 +198,10 @@ class RoomManager(commands.Cog):
     # ⚙️ 음성방 자동 관리 리스너
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        # [추가] 봇에 의한 이벤트 체인 유발 차단 (보안)
+        if member.bot:
+            return
+        
         db = self.get_db(member.guild.id)
         if not db: return
 
@@ -204,11 +209,14 @@ class RoomManager(commands.Cog):
             gen_data = db.execute_query("SELECT value FROM settings WHERE key = ?", (f"v_gen_{after.channel.id}",), 'one')
             
             if gen_data:
+                # [추가] 카테고리 내부 제한 체크 (최대 50개)
+                generator_category = after.channel.category
+                if generator_category and len(generator_category.channels) >= 50:
+                    return # 카테고리 꽉 참 처리
+                
                 memo = gen_data['value'].split('|')
                 temp_name = memo[1].split(':')[1]
                 limit = int(memo[2].split(':')[1])
-
-                generator_category = after.channel.category
                 
                 new_channel = await member.guild.create_voice_channel(
                     name=temp_name, 

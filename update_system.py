@@ -1,4 +1,4 @@
-# update_system.py - 업데이트 시스템 (수정본)
+# update_system.py - 업데이트 시스템
 from __future__ import annotations
 import datetime
 import discord
@@ -241,7 +241,7 @@ class RealtimeUpdateSystem(commands.Cog):
             save_realtime_updates(updates)
             
             embed = discord.Embed(title="✅ 업데이트 등록 완료", color=discord.Color.green())
-            embed.add_field(name=f"{분류} ID: {new_id} | {제목}", value=설명, inline=False)
+            embed.add_field(name=f"{분류} ID: {new_id} | {제목}", value=new_update["description"], inline=False)
             await interaction.response.send_message(embed=embed)
 
         # 2. 업데이트 삭제
@@ -310,7 +310,7 @@ class RealtimeUpdateSystem(commands.Cog):
             value=f"활성: {stats['total_active']}개 | 오늘 추가: {stats['today_count']}개", 
             inline=True
         )
-        embed.set_footer(text="보석상 v1.11.2 | 실시간 업데이트 시스템 가동 중")
+        embed.set_footer(text="보석상 v1.12.0 | 실시간 업데이트 시스템 가동 중")
         
         await interaction.response.send_message(embed=embed, ephemeral=False)
 

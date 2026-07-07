@@ -1,4 +1,4 @@
-# rock_paper_scissors.py - 가위바위보
+# rock_paper_scissors.py - 가위바위보(중단)
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -96,8 +96,13 @@ class SingleRPSView(View):
 
         embed = discord.Embed(title="🎮 가위바위보 결과", color=discord.Color.gold() if result == "승리" else discord.Color.red())
         embed.description = f"**{self.user.display_name}**: {RPS_EMOJIS[user_choice]}\n**봇**: {RPS_EMOJIS[bot_choice]}\n\n**결과: {result}!**\n"
-        embed.description += f"정산: {payout:,}원\n*20%의 딜러비가 차감된 후 지급됩니다." if result == "무승부" else f"정산: {payout:,}원\n*20%의 딜러비가 차감된 후 지급됩니다."
         
+        # [수정] 패배 시 불필요한 딜러비 문구가 안 나오도록 조건부 분리
+        if result in ["승리", "무승부"]:
+            embed.description += f" 정산: {payout:,}원\n*20%의 딜러비가 차감된 후 지급됩니다."
+        else:
+            embed.description += f" 정산: 0원 (배팅금을 잃었습니다.)"
+            
         await interaction.response.edit_message(embed=embed, view=None)
 
 # --- [멀티 모드 로직] ---
@@ -116,6 +121,10 @@ class MultiSetupView(View):
                 return await inter.response.send_message("❌ 올바른 상대를 선택하세요.", ephemeral=True)
             
             if POINT_MANAGER_AVAILABLE:
+                p2_bal = await point_manager.get_point(self.bot, inter.guild_id, str(target.id))
+                if (p2_bal or 0) < self.bet:
+                    return await inter.response.send_message("❌ 상대방의 잔액이 부족하여 대결을 신청할 수 없습니다.", ephemeral=True)
+
                 await point_manager.add_point(self.bot, inter.guild_id, str(self.user.id), -self.bet)
                 await point_manager.add_point(self.bot, inter.guild_id, str(target.id), -self.bet)
             await self.start_multi(inter, target)

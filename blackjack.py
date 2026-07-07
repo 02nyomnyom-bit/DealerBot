@@ -98,9 +98,16 @@ class BlackjackGame:
         else: self.result = "push"
 
     def get_card_display(self, cards, hide_first=False):
+        suit_emojis = {'♠': '♠️', '♥': '♥️', '♦': '♦️', '♣': '♣️'}
+        def format_card(c):
+            rank = c[:-1]
+            suit = c[-1]
+            emoji_suit = suit_emojis.get(suit, suit)
+            return f"**[{rank} {emoji_suit}]**"
+            
         if hide_first:
-            return f"{CARD_BACK[0]} " + " ".join([CARD_DECK[c][0] for c in cards[1:]])
-        return " ".join([CARD_DECK[c][0] for c in cards])
+            return f"**[ ??? ]** " + " ".join([format_card(c) for c in cards[1:]])
+        return " ".join([format_card(c) for c in cards])
 
     def get_card_value(self, card):
         rank = card[:-1]
@@ -415,6 +422,18 @@ class BlackjackView(View):
         self.user, self.bet, self.bot = user, bet, bot
         self.game = BlackjackGame(bet)
         self.message = None
+
+    async def on_timeout(self):
+        # 1. 중복 방지 세션 해제
+        self.cog.processing_users.discard(self.user.id)
+        
+        # 2. 타임아웃 시 배팅금 환불
+        if POINT_MANAGER_AVAILABLE and self.message:
+            try:
+                await point_manager.add_point(self.bot, self.message.guild.id, str(self.user.id), self.bet)
+                await self.message.edit(content=f"⏰ 시간 초과로 게임이 무효화되어 **{self.bet:,}원**이 환불되었습니다.", embed=None, view=None)
+            except: pass
+        self.stop()
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
@@ -497,8 +516,13 @@ class BlackjackCog(commands.Cog):
     @app_commands.command(name="블랙잭", description="블랙잭을 시작합니다.(100원 ~ 6,000원)")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
+        from database_manager import DatabaseManager
+        if not DatabaseManager().get_user(str(interaction.user.id)):
+            return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
         config_cog = self.bot.get_cog("ChannelConfig")
+        is_allowed = True
     
         if config_cog:
         # 2. 현재 채널에 'blackjack' 권한이 있는지 체크 (channel_config.py의 value="blackjack"와 일치해야 함)
