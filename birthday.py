@@ -147,12 +147,9 @@ class BirthdayCog(commands.Cog):
         current_month = now.month
         current_day = now.day
 
-        db_cog = self.bot.get_cog("DatabaseManager")
-        if not db_cog:
-            return
-
+        # 💡 [보정] 생 매니저 대신 클래스 내부의 안전한 get_db 구조를 활용합니다.
         for guild in self.bot.guilds:
-            db = db_cog.get_manager(guild.id)
+            db = self.get_db(guild.id) 
             if not db:
                 continue
 

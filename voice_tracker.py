@@ -385,6 +385,9 @@ class VoiceTracker(commands.Cog):
         app_commands.Choice(name="📋 한달 (30일)", value="30")
     ])
     async def voice_statistics(self, interaction: discord.Interaction, 기간: app_commands.Choice[str]):
+        # 💡 [순서 보정] 컨텍스트 변수를 최상단으로 올립니다.
+        guild_id = str(interaction.guild.id)
+        
         from database_manager import DatabaseManager
         from xp_leaderboard import is_user_registered
         if not is_user_registered(str(interaction.user.id), guild_id):

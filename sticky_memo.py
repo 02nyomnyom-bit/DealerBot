@@ -13,22 +13,8 @@ class StickyMemoCog(commands.Cog):
 
     def _init_global_tables(self):
         """통합 DB에 접착 메모 영구 보관을 위한 테이블 구조 사전 생성"""
-        db_cog = self.bot.get_cog("DatabaseManager")
-        if db_cog:
-            for guild in self.bot.guilds:
-                db = db_cog.get_manager(guild.id)
-                if db:
-                    db.create_table(
-                        "sticky_memos",
-                        """
-                        channel_id TEXT NOT NULL,
-                        title TEXT,
-                        content TEXT,
-                        use_embed INTEGER,
-                        last_msg_id TEXT,
-                        PRIMARY KEY (channel_id)
-                        """
-                    )
+        for guild in self.bot.guilds:
+            self.get_db(guild.id)
 
     def get_db(self, guild_id: int):
         """서버 격리 DB를 획득하는 동시에, 과거 파편 스키마가 있다면 실시간으로 무결성을 교정합니다."""
