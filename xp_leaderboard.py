@@ -187,6 +187,9 @@ class XPLeaderboardCog(commands.Cog):
         app_commands.Choice(name="아니오", value="False")
     ])
     async def level(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None, 비공개: str = "True"):
+        # 💡 [순서 보정] 컨텍스트 확보를 위해 서버 ID 변수를 최상단으로 올립니다.
+        guild_id = str(interaction.guild.id)
+        
         from database_manager import DatabaseManager
         if not is_user_registered(str(interaction.user.id), guild_id):
             return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
@@ -215,7 +218,6 @@ class XPLeaderboardCog(commands.Cog):
         
         target = 사용자 if 사용자 else interaction.user
         user_id = str(target.id)
-        guild_id = str(interaction.guild.id)
         
         # 4. 등록 확인
         if not is_user_registered(user_id, guild_id):

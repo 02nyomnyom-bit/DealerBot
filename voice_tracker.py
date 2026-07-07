@@ -203,13 +203,26 @@ class VoiceTracker(commands.Cog):
                                     logger.error(f"❌ 역할 지급 중 오류 발생: {e}", exc_info=True)
 
                         # ==========================================================
-                        # 🎯 누락된 통화 시간 DB 기록 로직 추가
+                        # 🎯 누락된 통화 시간 DB 기록 로직 추가 (안전 인라인 트랜잭션 버전)
                         # ==========================================================
                         try:
                             db = get_guild_db_manager(guild_id)
-                            # add_voice_activity = voice_time_log 상세 기록, voice_time의 total_time 업데이트 (루프 1분)
-                            db.add_voice_activity(user_id, duration=1) 
-                            logger.info(f"✅ {member.name}의 통화 시간 1분 기록 완료! (voice_time, voice_time_log 업데이트)")
+                            
+                            # 1. voice_time 테이블에 총 누적 통화 분수(total_time) 추가 (기존 레코드 없을 시 기본 삽입)
+                            db.execute_query(
+                                "INSERT INTO voice_time (user_id, total_time, last_join, updated_at) VALUES (?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) "
+                                "ON CONFLICT(user_id) DO UPDATE SET total_time = total_time + 1, updated_at = CURRENT_TIMESTAMP",
+                                (user_id,)
+                            )
+                            
+                            # 2. voice_time_log 테이블에 1분 단위 상세 세션 로그 즉시 적립
+                            db.execute_query(
+                                "INSERT INTO voice_time_log (user_id, join_time, leave_time, duration_minutes, is_speaking) "
+                                "VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1, 1)",
+                                (user_id,)
+                            )
+                            
+                            logger.info(f"✅ {member.name}의 통화 시간 1분 기록 완료! (voice_time, voice_time_log 업데이트 완료)")
                         except Exception as db_e:
                             logger.error(f"❌ 통화 시간 DB 기록 실패: {db_e}", exc_info=True)
                         # ==========================================================
@@ -264,15 +277,20 @@ class VoiceTracker(commands.Cog):
     @app_commands.command(name="보이스랭크", description="사용자의 통화 시간을 공개적으로 확인합니다.")
     @app_commands.describe(사용자="확인할 사용자")
     async def voice_rank(self, interaction: discord.Interaction, 사용자: discord.Member):
+        # 💡 [순서 보정] 상단 컨텍스트 변수들을 먼저 확보합니다.
+        guild_id = str(interaction.guild.id)
+        user_id = str(사용자.id)
+        
         from xp_leaderboard import is_user_registered
         if not is_user_registered(str(interaction.user.id), guild_id):
             return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
 
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
-        config_cog = self.bot.get_cog("ChannelConfig")
+        config_cog = self.bot.get_get_cog("ChannelConfig") if hasattr(self.bot, "get_cog") else self.bot.get_cog("ChannelConfig")
+        is_allowed = True
     
         if config_cog:
-        # 2. 현재 채널에 'voice' 권한이 있는지 체크 (channel_config.py의 value="voice"와 일치해야 함)
+            # 2. 현재 채널에 'voice' 권한이 있는지 체크
             is_allowed = await config_cog.check_permission(interaction.channel_id, "voice", interaction.guild.id)
         
         if not is_allowed:
@@ -283,8 +301,7 @@ class VoiceTracker(commands.Cog):
         
         """보이스 랭크 확인 명령어 (공개)"""
         await interaction.response.defer()
-        user_id = str(사용자.id)
-        guild_id = str(interaction.guild.id)
+        # 💡 위에서 이미 선언했으므로 중복 정의 부분을 지우거나 연동해 둡니다.
         
         try:
             # 일일, 일주일, 한달, 전체 통계 조회

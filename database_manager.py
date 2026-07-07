@@ -354,17 +354,15 @@ class DatabaseManager:
             PRIMARY KEY (channel_id, guild_id, facility_name)
             """
         )
-
+        
         self.create_table(
             "sticky_memos",
             """
             channel_id TEXT NOT NULL,
-            message_id TEXT NOT NULL,
-            title TEXT DEFAULT '',
-            content TEXT NOT NULL,
-            use_embed INTEGER DEFAULT 1,
+            title TEXT,
+            content TEXT,
+            use_embed INTEGER,
             last_msg_id TEXT,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (channel_id)
             """
         )

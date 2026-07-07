@@ -98,7 +98,7 @@ class BirthdayCog(commands.Cog):
             await interaction.followup.send("❌ 올바르지 않은 날짜입니다. 다시 확인해 주세요.", ephemeral=True)
             return
 
-        user_id = str(interaction.user_id)
+        user_id = str(interaction.user.id) 
         is_public = 1 if 공개유무 else 0
 
         # [기능 개선] 기존에 이미 생일을 등록한 유저인지 선제 검사하여 가독성 확보
