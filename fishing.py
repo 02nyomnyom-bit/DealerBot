@@ -2325,11 +2325,15 @@ class FishingSystemCog(commands.Cog):
         공개: Optional[int] = None, 
         지형: Optional[str] = None
     ):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        db = self._get_db(interaction) # 인스턴스화된 안전한 DB 매니저 먼저 로드
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
-                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
-            return
+
+                from database_manager import DatabaseManager
+                if not DatabaseManager().get_user(str(interaction.user.id)):
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+                    return
         db = self._get_db(interaction)
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         

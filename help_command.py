@@ -179,6 +179,7 @@ class HelpCategorySelect(discord.ui.Select):
             # 기존 뷰 유지
             view = HelpCategoryView() 
             await interaction.response.edit_message(embed=embed, view=view)
+            view.message = await interaction.original_response()
             return
 
         elif category == "other":
@@ -199,6 +200,7 @@ class HelpCategorySelect(discord.ui.Select):
 
         view = HelpCategoryView()
         await interaction.response.edit_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 # 📖 관리자 도움말 카테고리 선택 드롭다운
 class AdminHelpCategorySelect(discord.ui.Select):
@@ -319,9 +321,16 @@ class HelpCategoryView(discord.ui.View):
         self.add_item(HelpCategorySelect())
 
     async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        await self.message.edit(view=self)
+    # 뷰 내부 컴포넌트 비활성화 로직 수행 후
+        for child in self.children:
+            child.disabled = True
+
+        # message 속성이 안전하게 존재하고 값이 있을 때만 edit 시도
+        if hasattr(self, 'message') and self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass # 이미 삭제된 메시지일 경우 에러 무시
 
 class HelpCommandCog(commands.Cog):
     def __init__(self, bot):
@@ -354,6 +363,7 @@ class HelpCommandCog(commands.Cog):
         
             view = HelpCategoryView()
             await interaction.response.send_message(embed=embed, view=view, ephemeral=False)
+            view.message = await interaction.original_response()
             
             message = await interaction.original_response()
             view.message = message

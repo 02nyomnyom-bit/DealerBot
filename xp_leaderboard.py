@@ -274,7 +274,9 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     async def set_levelup_channel(self, interaction: Interaction, channel: discord.TextChannel):
         from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        guild_id = str(interaction.guild_id)
+        db = get_guild_db_manager(guild_id)
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -480,7 +482,9 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.describe(페이지="확인할 페이지 번호 (기본: 1, 각 페이지당 200명 표시)")
     async def leaderboard(self, interaction: discord.Interaction, 페이지: int = 1):
         from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        guild_id = str(interaction.guild_id)
+        db = get_guild_db_manager(guild_id)
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -572,7 +576,9 @@ class XPLeaderboardCog(commands.Cog):
     ])
     async def xp_management(self, interaction: discord.Interaction, 작업: str, 대상자: discord.Member, 수량: int = 0):
         from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        guild_id = str(interaction.guild_id)
+        db = get_guild_db_manager(guild_id)
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -662,7 +668,9 @@ class XPLeaderboardCog(commands.Cog):
     ])
     async def manage_xp_rates(self, interaction: discord.Interaction, 작업: str, 수량: Optional[int] = None):
         from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        guild_id = str(interaction.guild_id)
+        db = get_guild_db_manager(guild_id)
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -712,7 +720,9 @@ class XPLeaderboardCog(commands.Cog):
     ])
     async def check_xp_data_integrity(self, interaction: Interaction, 작업: str, 확인: str = "cancelled"):
         from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        guild_id = str(interaction.guild_id)
+        db = get_guild_db_manager(guild_id)
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
