@@ -2908,16 +2908,13 @@ class FishingSystemCog(commands.Cog):
     @app_commands.command(name="낚시정보", description="내 낚시 기록과 장비 정보를 확인합니다.")
     @app_commands.choices(분류=[app_commands.Choice(name="내 정보", value="me"), app_commands.Choice(name="서버 랭킹", value="rank")])
     async def fish_info(self, interaction: discord.Interaction, 분류: str = "me"):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
-            if not interaction.response.is_done():
-                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
-            return
         db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
+        
+        uid, gid = str(interaction.user.id), str(interaction.guild_id)
         
         if 분류 == "me":
             u = db.get_user(uid)
@@ -2935,7 +2932,7 @@ class FishingSystemCog(commands.Cog):
             total_dump = u.get('illegal_dump_count', 0) + u.get('neglect_dump_count', 0)
             embed.add_field(name="🚮 투기 기록", value=f"⚠️ 총 {total_dump}회", inline=True)
 
-            # 🧤 [추가] 낚시 장갑 버프 정보 표시
+            # 🧤 낚시 장갑 버프 정보 표시
             if u.get('trash_buff_until'):
                 buff_until = parse_kst(u['trash_buff_until'])
                 if datetime.now(KST) < buff_until:
@@ -3201,16 +3198,13 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="🧪 미끼 등급 강화 (물고기 포획률 상승)", value="bait")
     ])
     async def upgrade_gear(self, interaction: discord.Interaction, 강화대상: str):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
-            if not interaction.response.is_done():
-                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
-            return
-        db = self._get_db(interaction)
+        db = self._get_db(interaction) # 인스턴스화된 DB 매니저 할당
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
+
+        uid, gid = str(interaction.user.id), str(interaction.guild_id) # 👈 에러 수정: NameError 완전 방지
 
         gear = db.execute_query("SELECT * FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
         if not gear:
@@ -3226,11 +3220,10 @@ class FishingSystemCog(commands.Cog):
                 if current_level >= 5:
                     return await interaction.response.send_message("❌ 낚싯대가 이미 마스터(5레벨) 단계입니다.", ephemeral=True)
                 
-                cost = (current_level + 1) * 10000 # 10000원 단위 증가
+                cost = (current_level + 1) * 10000 
                 if current_cash < cost:
                     return await interaction.response.send_message(f"❌ 강화 자금이 부족합니다. (비용: {cost:,}원)", ephemeral=True)
 
-                # 레벨을 올리고 최대 내구도를 올려줌
                 conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (cost, uid, gid))
                 conn.execute("UPDATE fishing_gear SET rod_level = rod_level + 1, rod_durability = rod_durability + 100 WHERE user_id = ? AND guild_id = ?", (uid, gid))
                 conn.commit()
@@ -3253,26 +3246,18 @@ class FishingSystemCog(commands.Cog):
         except Exception as e:
             conn.rollback()
             await interaction.response.send_message(f"❌ 강화 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
-
-            # === 👑 [여기에 붙여넣으세요!] 관리자 전용 낚시 시스템 조작 명령어 ===
     
     @app_commands.command(name="낚시관리", description="[관리자 전용] 명성 수정 및 현재 채널의 공용/개인 낚시터 상태를 관리합니다.")
     @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.default_permissions(administrator=True) # 디스코드 메뉴 노출 설정
+    @app_commands.default_permissions(administrator=True) 
     @app_commands.choices(대상=[
         app_commands.Choice(name="👤 특정 유저 개인 명성 수정", value="user"),
         app_commands.Choice(name="🏞️ 현재 채널의 낚시터 명성 수정", value="channel"),
         app_commands.Choice(name="💰 현재 채널의 기본 매입가 수정", value="price"),
         app_commands.Choice(name="⚙️ 현재 채널의 낚시터 유형 설정 (버튼)", value="set_type"),
-        app_commands.Choice(name="🧹 현재 채널 낚시 데이터 초기화 (공용화)", value="reset_channel") # 👈 추가된 부분
+        app_commands.Choice(name="🧹 현재 채널 낚시 데이터 초기화 (공용화)", value="reset_channel") 
     ])
-    async def admin_control(
-        self, 
-        interaction: discord.Interaction, 
-        대상: str, 
-        수치: Optional[int] = None, 
-        유저: Optional[discord.Member] = None
-    ):
+    async def admin_control(self, interaction: discord.Interaction, 대상: str, 수치: Optional[int] = None, 유저: Optional[discord.Member] = None):
         db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
@@ -3319,12 +3304,9 @@ class FishingSystemCog(commands.Cog):
         elif 대상 == "reset_channel":
             self._ensure_ground_exists(db, chid, gid, interaction.channel.name)
             
-            # 🔥 [추가] 현재 채널에서 낚시 중인 세션이나 락(Lock)이 있다면 메모리에서 강제 퇴출
-            # 이 채널의 ID를 사용하는 게임 인스턴스를 찾아 세션을 파괴합니다.
             active_uids = list(active_sessions.keys())
             for u_id in active_uids:
                 session = active_sessions.get(u_id)
-                # 세션 객체 내부의 channel_id가 현재 채널과 일치하면 메모리에서 지웁니다.
                 if hasattr(session, 'channel_id') and str(session.channel_id) == chid:
                     active_sessions.pop(u_id, None)
                     user_locks.pop(u_id, None)
@@ -3332,19 +3314,15 @@ class FishingSystemCog(commands.Cog):
             conn = db.get_connection()
             try:
                 conn.execute("BEGIN")
-                # 1. 낚시터 정보 초기화
                 conn.execute(
                     "UPDATE fishing_ground SET owner_id = NULL, purchasable = 1, is_public = 1, "
                     "ground_type = '호수', entry_fee = 0, ground_reputation = 0, tier = 1 "
                     "WHERE channel_id = ? AND guild_id = ?", 
                     (chid, gid)
                 )
-                
-                # 2. 시설 완전 철거 (DB 삭제)
                 conn.execute("DELETE FROM fishing_facilities WHERE channel_id = ? AND guild_id = ?", (chid, gid))
                 conn.commit()
 
-                # 3. 비동기 채널명 원복 (429 Rate Limit 방지)
                 async def safe_rename_reset():
                     try:
                         await interaction.channel.edit(name="🌊｜공용_낚시터")
@@ -3360,10 +3338,10 @@ class FishingSystemCog(commands.Cog):
             except Exception as e:
                 conn.rollback()
                 await interaction.response.send_message(f"❌ 채널 초기화 중 DB 오류가 발생했습니다. (에러: {e})", ephemeral=True)
-
+                
     @app_commands.command(name="낚시초기화", description="[관리자 전용] 이 서버의 모든 낚시 관련 데이터(장비, 인벤토리, 명성, 낚시터 등)를 초기화합니다.")
     @app_commands.checks.has_permissions(administrator=True)
-    async def upgrade_gear(self, interaction: discord.Interaction, 강화대상: str):
+    async def reset_all_fishing_data(self, interaction: discord.Interaction): # 👈 에러 수정: 불필요한 인자 제거 및 이름 정상화
         db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
@@ -3378,7 +3356,7 @@ class FishingSystemCog(commands.Cog):
             ),
             color=discord.Color.red()
         )
-        view = ResetConfirmView(interaction.user, self._get_db(interaction))
+        view = ResetConfirmView(interaction.user, db)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
     def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
