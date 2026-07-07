@@ -516,8 +516,11 @@ class BlackjackCog(commands.Cog):
     @app_commands.command(name="블랙잭", description="블랙잭을 시작합니다.(100원 ~ 6,000원)")
     @app_commands.describe(배팅="배팅할 금액을 입력하세요. (100원 ~ 6,000원)")
     async def blackjack_game(self, interaction: discord.Interaction, 배팅: int = 100):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        # 💡 격리된 길드 데이터베이스 매니저 호출 방식으로 수정
+        db_cog = self.bot.get_cog("DatabaseManager")
+        db = db_cog.get_manager(interaction.guild.id) if db_cog else None
+        
+        if not db or not db.get_user(str(interaction.user.id)):
             return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기

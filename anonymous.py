@@ -9,7 +9,7 @@ logger = logging.getLogger("anonymous_system")
 
 # ==================== 대나무 숲 관련 관리자 View 시스템 ====================
 
-# 1. [개별 추적] 최종 발신자 확인 모달 창
+# 1. [개별 추적] 최종 발신자 확인 모달 창 (기존 동일)
 class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인'):
     msg_num = discord.ui.TextInput(label='확인할 번호', placeholder='예: 10.10 ~ 999.999', required=True, min_length=5, max_length=7)
 
@@ -28,7 +28,20 @@ class AnonymousTrackModal(discord.ui.Modal, title='대나무숲 발신자 확인
         else:
             await interaction.response.send_message(f"❓ `{self.msg_num.value}` 번호를 찾을 수 없습니다.", ephemeral=True)
 
-# 2. [개별 추적] 관리자 패스워드 인증 모달 창
+
+# 2. [신규] 인증 성공 후 번호 조회를 위한 다리 역할을 하는 뷰
+class AnonymousTrackLinkView(discord.ui.View):
+    def __init__(self, db_manager):
+        super().__init__(timeout=60)
+        self.db = db_manager
+
+    @discord.ui.button(label='📌 번호 입력창 열기', style=discord.ButtonStyle.success, emoji="🔎")
+    async def open_track_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 💡 일반 버튼 클릭 컨텍스트에서 모달을 열기 때문에 에러가 발생하지 않습니다.
+        await interaction.response.send_modal(AnonymousTrackModal(self.db))
+
+
+# 3. [개별 추적] 관리자 패스워드 인증 모달 창 (수정본)
 class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
     pw_input = discord.ui.TextInput(label='관리자 비밀번호', placeholder='비밀번호를 입력하세요.', required=True)
     
@@ -38,12 +51,17 @@ class AnonymousAuthModal(discord.ui.Modal, title='관리자 인증'):
         
     async def on_submit(self, interaction: discord.Interaction):
         if self.pw_input.value == "69697474":
-            # 패스워드가 인증되면 번호 입력 모달을 체인 형태로 열어줍니다.
-            await interaction.response.send_modal(AnonymousTrackModal(self.db))
+            # 💡 [핵심] 모달 안에서 또 모달을 열지 않고, 추적 버튼이 담긴 에펨 메시지를 띄워줍니다.
+            await interaction.response.send_message(
+                "🔓 **관리자 인증에 성공했습니다.**\n아래 버튼을 눌러 추적할 익명 번호를 입력해 주세요.", 
+                view=AnonymousTrackLinkView(self.db), 
+                ephemeral=True
+            )
         else:
             await interaction.response.send_message("❎ 비밀번호가 틀렸습니다.", ephemeral=True)
 
-# 3. [통합 뷰] 1달 리스트 하단에 부착될 통합 버튼 UI
+
+# 4. [통합 뷰] 1달 리스트 하단에 부착될 통합 버튼 UI (기존 동일)
 class AnonymousAdminView(discord.ui.View):
     def __init__(self, db_manager):
         super().__init__(timeout=None)

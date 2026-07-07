@@ -2286,8 +2286,9 @@ class FishingSystemCog(commands.Cog):
 
     @app_commands.command(name="낚시", description="낚시 게임을 시작합니다.")
     async def fish_start(self, interaction: discord.Interaction):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        # 💡 현재 서버의 분리된 DB 인스턴스를 가져옵니다.
+        db = self.db_cog.get_manager(interaction.guild.id) if self.db_cog else None
+        if not db or not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -2295,8 +2296,9 @@ class FishingSystemCog(commands.Cog):
 
     @app_commands.command(name="ㄴㅅ", description="낚시를 즉시 시작합니다 (단축어)")
     async def fish_short(self, interaction: discord.Interaction):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        # 💡 단축어 명령어 공간도 동일하게 현재 서버의 DB 인스턴스를 찔러줍니다.
+        db = self.db_cog.get_manager(interaction.guild.id) if self.db_cog else None
+        if not db or not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
