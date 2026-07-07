@@ -286,7 +286,7 @@ class VoiceTracker(commands.Cog):
             return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
 
         # 1. 중앙 설정 Cog(ChannelConfig) 가져오기
-        config_cog = self.bot.get_get_cog("ChannelConfig") if hasattr(self.bot, "get_cog") else self.bot.get_cog("ChannelConfig")
+        config_cog = self.bot.get_cog("ChannelConfig")
         is_allowed = True
     
         if config_cog:
