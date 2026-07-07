@@ -354,6 +354,17 @@ class DatabaseManager:
             PRIMARY KEY (channel_id, guild_id, facility_name)
             """
         )
+        
+        self.create_table(
+            "sticky_memos",
+            """
+            channel_id TEXT NOT NULL,
+            message_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (channel_id)
+            """
+        )
 
         # 3. 데이터베이스 통합 안전 마이그레이션 검증 (구조 최적화 완료)
         with self.get_connection() as conn:
