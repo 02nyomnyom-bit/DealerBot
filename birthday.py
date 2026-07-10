@@ -11,9 +11,27 @@ KST = datetime.timezone(datetime.timedelta(hours=9))
 ZODIAC_LIST = ["Capricorn♑", "Aquarius♒", "Pisces♓", "Aries♈", "Taurus♉", "Gemini♊", "Cancer♋", "Leo♌", "Virgo♍", "Libra♎", "Scorpio♏", "Sagittarius♐"]
 STONE_LIST = ["Garnet🔴", "Amethyst🟣", "Aquamarine🔹", "Diamond💎", "Emerald🟢", "Pearl⚪", "Ruby🔻", "Peridot💚", "Sapphire🔷", "Opal💖", "Topaz🔸", "Turquoise💠"]
 
+# 🎨 요청하신 역할별 16진수 색상 코드 매핑 (0x 형식으로 변환)
+ROLE_COLORS = {
+    # 당일 생일 주인공 역할
+    "🎂오늘의 주인공🎂": 0xFFFDD0,
+    
+    # 별자리 색상
+    "Capricorn♑": 0x4A5568, "Aquarius♒": 0x3182CE, "Pisces♓": 0x63B3ED, 
+    "Aries♈": 0xE53E3E, "Taurus♉": 0xDD6B20, "Gemini♊": 0xD69E2E, 
+    "Cancer♋": 0xED64A6, "Leo♌": 0xED8936, "Virgo♍": 0x319795, 
+    "Libra♎": 0x4FD1C5, "Scorpio♏": 0x742A2A, "Sagittarius♐": 0x6B46C1,
+    
+    # 탄생석 색상
+    "Garnet🔴": 0xC53030, "Amethyst🟣": 0x805AD5, "Aquamarine🔹": 0x9DECF9, 
+    "Diamond💎": 0xE2E8F0, "Emerald🟢": 0x48BB78, "Pearl⚪": 0xEDF2F7, 
+    "Ruby🔻": 0xE53E3E, "Peridot💚": 0x9AE6B4, "Sapphire🔷": 0x2B6CB0, 
+    "Opal💖": 0xFED7E2, "Topaz🔸": 0xDD6B20, "Turquoise💠": 0x4FB1BA
+}
+
 def get_zodiac_and_stone(month: int, day: int):
     """월과 일을 기반으로 별자리(날짜 구간 기준)와 탄생석(순수 월 기준) 이름을 반환합니다."""
-    # 1. 탄생석 판정: 철저하게 태어난 '월' 기준으로만 결정 (12월생 = 터키석, 1월생 = 가넷)
+    # 1. 탄생석 판정
     stone = STONE_LIST[month - 1]
 
     # 2. 별자리 판정: 기존 날짜 구간 구조 유지
@@ -31,6 +49,7 @@ def get_zodiac_and_stone(month: int, day: int):
     else: zodiac = "Sagittarius♐"
 
     return zodiac, stone
+
 
 class BirthdayCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -100,10 +119,9 @@ class BirthdayCog(commands.Cog):
         guild = member.guild
         target_zodiac, target_stone = get_zodiac_and_stone(month, day)
 
-        # 🛠️ 깔끔한 버전(시나리오 A)에 맞춘 기존 역할 회수 로직 (오류 수정 완료)
+        # 1. 기존에 들고 있던 다른 별자리/탄생석 역할 제거 (생일 변경자 대응)
         roles_to_remove = []
         for role in member.roles:
-            # 역할 이름이 별자리/탄생석 목록에 포함되어 있으면서, 이번에 새로 받을 역할이 아니라면 회수
             if role.name in ZODIAC_LIST and role.name != target_zodiac:
                 roles_to_remove.append(role)
             if role.name in STONE_LIST and role.name != target_stone:
@@ -115,15 +133,18 @@ class BirthdayCog(commands.Cog):
             except discord.Forbidden:
                 print(f"[생일 시스템] {guild.name} 서버에서 역할을 제거할 권한이 없습니다.")
 
-        # 2. 새 역할 지급 (없으면 중복 없이 단 하나만 동적 생성)
+        # 2. 새 역할 지급 (없으면 지정된 색상으로 자동 생성)
         roles_to_add = []
         for role_name in [target_zodiac, target_stone]:
             role = discord.utils.get(guild.roles, name=role_name)
             
             if not role:
                 try:
+                    # 설정한 고유 색상 가져오기 (없으면 기본값)
+                    color_value = ROLE_COLORS.get(role_name, 0x000000)
                     role = await guild.create_role(
                         name=role_name, 
+                        color=discord.Color(color_value),
                         mentionable=True, 
                         reason="생일 시스템 동적 생성"
                     )
@@ -145,7 +166,6 @@ class BirthdayCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def set_birthday_channel(self, interaction: discord.Interaction):
         db = self.get_db(interaction.guild_id)
-        # 매니저 자체의 내장 가입 검증 기능 활용으로 안전성 향상
         if not db or not db.get_user(str(interaction.user.id)):
             return await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             
@@ -185,6 +205,7 @@ class BirthdayCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         try:
+            datetime.date(년도,월,일)
             datetime.date(년도, 월, 일)
         except ValueError:
             await interaction.followup.send("❌ 올바르지 않은 날짜입니다. 다시 확인해 주세요.", ephemeral=True)
@@ -196,13 +217,11 @@ class BirthdayCog(commands.Cog):
         exists = db.execute_query("SELECT 1 FROM user_birthdays WHERE user_id = ?", (user_id,), 'one')
         action_type = "변경" if exists else "등록"
 
-        # 🛠️ 오타 수정: 년度 ➡️ 년도
         db.execute_query(
             "INSERT OR REPLACE INTO user_birthdays (user_id, year, month, day, is_public) VALUES (?, ?, ?, ?, ?)",
             (user_id, 년도, 월, 일, is_public)
         )
 
-        # 생일 등록 완료 후 별자리 및 탄생석 역할 즉시 지급
         zodiac_name, stone_name = get_zodiac_and_stone(월, 일)
         if isinstance(interaction.user, discord.Member):
             await self._assign_birthday_roles(interaction.user, 월, 일)
@@ -216,7 +235,7 @@ class BirthdayCog(commands.Cog):
 
     @tasks.loop(time=datetime.time(hour=0, minute=0, second=0, tzinfo=KST))
     async def birthday_check_loop(self):
-        """매일 자정(한국 시간)에 오늘 생일인 사람을 확인하고 단체 멘션과 함께 쓰레드를 생성하는 루프"""
+        """매일 자정(한국 시간)에 오늘 생일인 사람을 확인하고 역할을 제어 및 쓰레드를 생성하는 루프"""
         now = datetime.datetime.now(KST)
         current_year = now.year
         current_month = now.month
@@ -227,6 +246,30 @@ class BirthdayCog(commands.Cog):
             if not db:
                 continue
 
+            # 1. '🎂오늘의 주인공🎂' 역할 준비 (없으면 자동으로 색상 설정하여 생성)
+            main_role_name = "🎂오늘의 주인공🎂"
+            hero_role = discord.utils.get(guild.roles, name=main_role_name)
+            if not hero_role:
+                try:
+                    hero_role = await guild.create_role(
+                        name=main_role_name,
+                        color=discord.Color(ROLE_COLORS[main_role_name]),
+                        mentionable=True,
+                        reason="생일 주인공 전용 역할 생성"
+                    )
+                except discord.Forbidden:
+                    print(f"[생일 시스템] {guild.name} 서버에서 주인공 역할을 생성할 권한이 없습니다.")
+                    continue
+
+            # 2. 어제 주인공이었던 유저들로부터 역할 전부 박탈 (초기화)
+            if hero_role:
+                for old_member in hero_role.members:
+                    try:
+                        await old_member.remove_roles(hero_role)
+                    except discord.Forbidden:
+                        pass
+
+            # 3. 오늘 당일 생일인 사람 전체 조회
             birthdays = db.execute_query(
                 "SELECT user_id, year, is_public FROM user_birthdays WHERE month = ? AND day = ?",
                 (current_month, current_day), 'all'
@@ -253,6 +296,13 @@ class BirthdayCog(commands.Cog):
                 if not member:
                     try: member = await guild.fetch_member(user_id)
                     except: continue
+
+                # 4. 오늘의 주인공 역할 지급
+                if hero_role:
+                    try:
+                        await member.add_roles(hero_role)
+                    except discord.Forbidden:
+                        print(f"[생일 시스템] {guild.name} 서버에서 {member.display_name}님에게 주인공 역할을 줄 수 없습니다.")
 
                 if is_public:
                     ordinal = current_year - birth_year
@@ -284,4 +334,3 @@ async def setup(bot: commands.Bot):
     if "생일등록" in existing_commands: bot.tree.remove_command("생일등록")
         
     await bot.add_cog(BirthdayCog(bot))
-    print("✅ BirthdayCog (생일 및 역할 연동 모듈) 통합 가동 준비 완료!")
