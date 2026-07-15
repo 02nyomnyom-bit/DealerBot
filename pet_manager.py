@@ -1339,7 +1339,7 @@ class PetInfoSubView(View):
                 embed=embed, 
                 view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet, action_name=None)
             )
-            
+
         elif custom_id == "pet_스킬":
             # 1. 즉시 응답
             await interaction.response.edit_message(content="✨ 스킬 관리창을 불러오는 중...", embed=None, view=None)
@@ -1781,6 +1781,11 @@ class PetActionExecutionView(View):
         self.guild_id = guild_id
         self.pet = pet
         self.action_name = action_name
+        
+        if self.action_name is None:
+            actions = self.pet.get_available_actions()
+        else:
+            actions = [self.action_name]
         
         # 버튼 스타일을 명확히 지정
         for act in actions:
