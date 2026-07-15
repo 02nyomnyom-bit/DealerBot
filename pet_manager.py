@@ -1334,9 +1334,12 @@ class PetInfoSubView(View):
             actions = pet.get_available_actions()
             embed = discord.Embed(title=f"🎭 {pet.name} 행동 목록", description="행동할 상호작용 버튼을 선택하세요.")
             
-            # 3. 후속 전송
-            await interaction.followup.send(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, actions))
-
+            # 3. 인자 수정: action_name을 None으로 전달 (목록만 보여줄 때)
+            await interaction.followup.send(
+                embed=embed, 
+                view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet, action_name=None)
+            )
+            
         elif custom_id == "pet_스킬":
             # 1. 즉시 응답
             await interaction.response.edit_message(content="✨ 스킬 관리창을 불러오는 중...", embed=None, view=None)
@@ -1771,7 +1774,7 @@ class PvPInteractiveView(discord.ui.View):
                 print(f"타임아웃 UI 갱신 실패: {e}")
 
 class PetActionExecutionView(View):
-    def __init__(self, cog: PetManager, user_id: str, guild_id: str, pet: Pet, action_name: str): # pet, action_name 추가
+    def __init__(self, cog: PetManager, user_id: str, guild_id: str, pet: Pet, action_name: Optional[str] = None):
         super().__init__(timeout=60)
         self.cog = cog
         self.user_id = user_id
