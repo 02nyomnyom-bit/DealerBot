@@ -508,6 +508,7 @@ class PetManager(commands.Cog):
         self.bot = bot
         self.matching_queues = defaultdict(list)
         self.match_tasks = {}
+        self.db_managers = {}
         
         try:
             dummy_db = DatabaseManager(guild_id="pet_init_setup")
@@ -658,7 +659,7 @@ class PetManager(commands.Cog):
         return None
 
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
     async def start_game(self, interaction: discord.Interaction, 펫이름: str, 타입: str = "노말"):
         user_id = str(interaction.user.id)
@@ -686,7 +687,7 @@ class PetManager(commands.Cog):
             await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
 
     @app_commands.command(name="펫보관함", description="보관 중인 펫을 확인하고 메인 펫과 교체(스왑)합니다. (최대 3마리 보존)")
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
     async def open_storage(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
