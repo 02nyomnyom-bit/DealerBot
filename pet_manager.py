@@ -1561,30 +1561,27 @@ class PetActionExecutionView(View):
         self.user_id = user_id
         self.guild_id = guild_id
         
-        # 버튼 스타일을 명확히 지정
         for act in actions:
             btn = discord.ui.Button(
                 label=act, 
-                style=discord.ButtonStyle.success, # 3번 스타일
+                style=discord.ButtonStyle.success,
                 custom_id=f"act_{act}"
             )
-            btn.callback = self.handle_action
+            btn.callback = self.handle_action  # 이제 클래스 내부 메서드를 정확히 참조합니다.
             self.add_item(btn)
 
 async def handle_action(self, interaction: discord.Interaction):
-    from pet_skill import DiscordUIFormatter
-        
-    # 1. 초기화 및 데이터 추출
-    custom_id = interaction.data.get("custom_id", "")
-    act_name = custom_id.split("_")[1] if "_" in custom_id else "알 수 없음"
+    # 1. 펫 가져오기 (self를 통해 정상 참조)
     pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        
     if not pet:
         return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
-
-    # 2. 이름 변경 처리 (즉시 종료)
-    if act_name == "이름 변경":
-        return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
+            
+    # 2. 액션 파싱
+    custom_id = interaction.data.get("custom_id", "")
+    act_name = custom_id.split("_")[1] if "_" in custom_id else "알 수 없음"
+        
+    # 3. 행동에 따른 메시지 정의 (msg만 수정하세요)
+    msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
         
     # 3. 각종 제한 검사 및 행동 로직 수행
     DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
@@ -1651,6 +1648,22 @@ async def handle_action(self, interaction: discord.Interaction):
         
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
+        # 5. UI 갱신 (단 한 번만 호출)
+        from pet_skill import DiscordUIFormatter
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        if pet_data.get("image_url"):
+            embed.set_thumbnail(url=pet_data["image_url"])
+            
+        await interaction.response.edit_message(
+            embed=embed, 
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()),
+            attachments=[]
+        )
+        
         # 4. PvP/랭크전 로직 (배틀 시작 시 여기서 return)
         if act_name in ["PvP", "랭크전"]:
             if act_name == "PvP":
