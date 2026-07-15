@@ -405,6 +405,18 @@ class DatabaseManager:
                 conn.rollback()
                 logger.error(f"❌ 데이터베이스 마이그레이션 초기화 중 치명적 오류 발생: {e}")
 
+    def get_ranked_opponents(self, guild_id, current_user_id, min_score, max_score):
+        """현재 점수 범위 내의 다른 유저들을 랜덤으로 가져옴"""
+        # 랭크 점수가 저장된 users 테이블에서 조건에 맞는 유저 조회
+        query = """
+            SELECT user_id, pet_data 
+            FROM user_pets 
+            WHERE guild_id = ? AND user_id != ? 
+            AND user_id IN (SELECT user_id FROM users WHERE pet_rank_score BETWEEN ? AND ?)
+            ORDER BY RANDOM() LIMIT 1
+        """
+        return self.execute_query(query, (guild_id, current_user_id, min_score, max_score), 'one')
+    
     def add_fishing_reputation(self, user_id: str, amount: int):
         """개인 낚시 명성 추가"""
         if not self.guild_id: return None
