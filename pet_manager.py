@@ -1031,24 +1031,7 @@ class MainPetHubView(View):
                 return
         
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        # 웹 URL 썸네일 설정
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
-
-        try:
-            # 수정이 필요할 경우 edit_message 사용
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-            # 추가 메시지가 필요하면 followup 사용
-            await interaction.followup.send(msg, ephemeral=True)
-        except discord.NotFound:
-            # interaction이 이미 만료된 경우
-            print("Interaction이 만료되었습니다.")
+        # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
 
         if custom_id == "hub_펫":
             if not pet:
@@ -1143,19 +1126,7 @@ class PetInfoSubView(View):
                 await interaction.response.send_message("🚨 펫이 야생으로 도망갔습니다.", ephemeral=True)
                 return
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-            pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-            embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-            for f in pet_data["fields"]:
-                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-            
-            try:
-                # 수정이 필요할 경우 edit_message 사용
-                await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-                # 추가 메시지가 필요하면 followup 사용
-                await interaction.followup.send(msg, ephemeral=True)
-            except discord.NotFound:
-                # interaction이 이미 만료된 경우
-                print("Interaction이 만료되었습니다.")
+            # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
 
         if custom_id == "pet_처음으로":
             db = self.cog._get_db(int(self.guild_id))
@@ -1280,13 +1251,9 @@ class ShopView(discord.ui.View):
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
         try:
-            # 수정이 필요할 경우 edit_message 사용
             await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-            # 추가 메시지가 필요하면 followup 사용
-            await interaction.followup.send(msg, ephemeral=True)
-        except discord.NotFound:
-            # interaction이 이미 만료된 경우
-            print("Interaction이 만료되었습니다.")
+        except Exception as e:
+            print(f"UI 갱신 오류: {e}")
         
         user_data = db.get_user(self.user_id)
         
@@ -1391,13 +1358,9 @@ class InventoryView(discord.ui.View):
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
         try:
-            # 수정이 필요할 경우 edit_message 사용
             await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-            # 추가 메시지가 필요하면 followup 사용
-            await interaction.followup.send(msg, ephemeral=True)
-        except discord.NotFound:
-            # interaction이 이미 만료된 경우
-            print("Interaction이 만료되었습니다.")
+        except Exception as e:
+            print(f"UI 갱신 오류: {e}")
         
         fruits = pet.inventory.get("열매", {})
         equips = pet.inventory.get("장비", [])
@@ -1445,13 +1408,9 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
         try:
-            # 수정이 필요할 경우 edit_message 사용
             await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-            # 추가 메시지가 필요하면 followup 사용
-            await interaction.followup.send(msg, ephemeral=True)
-        except discord.NotFound:
-            # interaction이 이미 만료된 경우
-            print("Interaction이 만료되었습니다.")
+        except Exception as e:
+            print(f"UI 갱신 오류: {e}")
         
         await interaction.response.send_message(f"✨ 성공적으로 이름이 변경되었습니다! `{old_name}` -> `{pet.name}`\n대시보드에서 `펫` 버튼을 다시 누르면 반영된 이름이 보입니다.", ephemeral=True)
 
@@ -1832,13 +1791,9 @@ class PetActionExecutionView(View):
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
         try:
-            # 수정이 필요할 경우 edit_message 사용
             await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-            # 추가 메시지가 필요하면 followup 사용
-            await interaction.followup.send(msg, ephemeral=True)
-        except discord.NotFound:
-            # interaction이 이미 만료된 경우
-            print("Interaction이 만료되었습니다.")
+        except Exception as e:
+            print(f"UI 갱신 오류: {e}")
 
         if act_name not in ["PvP", "랭크전"]:
             try:
@@ -1936,13 +1891,9 @@ class PetActionExecutionView(View):
             embed.set_thumbnail(url=pet_image_url)
 
         try:
-            # 수정이 필요할 경우 edit_message 사용
             await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-            # 추가 메시지가 필요하면 followup 사용
-            await interaction.followup.send(msg, ephemeral=True)
-        except discord.NotFound:
-            # interaction이 이미 만료된 경우
-            print("Interaction이 만료되었습니다.")
+        except Exception as e:
+            print(f"UI 갱신 오류: {e}")
         
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
