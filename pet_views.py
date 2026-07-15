@@ -1,27 +1,27 @@
-# pet_views.py
 import discord
+from discord import ui, Interaction, ButtonStyle
 from discord.ui import View, Button
-from pet_skill import DiscordUIFormatter
+import time
+# MainPetHubView는 pet_manager에서 불러와야 하므로 내부에서 로드합니다.
 
-# 처음으로 돌아가는 임시 헬퍼 함수
+# 수정된 헬퍼 함수
 async def go_to_home(interaction, cog, user_id, guild_id):
+    from pet_manager import MainPetHubView
     db = cog._get_db(int(guild_id))
     user_data = db.get_user(user_id)
     pet = cog.get_user_pet(guild_id, user_id)
+    
+    from pet_skill import DiscordUIFormatter
     data = DiscordUIFormatter.make_user_embed_data(user_data, pet)
     embed = discord.Embed(title=data["title"], description=data["description"], color=0x3498db)
     for f in data["fields"]:
         embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
     
-    # 순환 참조 방지를 위해 MainPetHubView를 동적 임포트하여 메시지를 수정합니다.
-    from pet_manager import MainPetHubView
-    await interaction.response.edit_message(embed=embed, view=MainPetHubView(cog, user_id, guild_id))
-    try:
-        # response가 이미 나갔다면 edit_original_response 사용
+    # 💡 응답이 나갔는지 확인 후 edit_original_response 또는 edit_message 사용
+    if interaction.response.is_done():
         await interaction.edit_original_response(embed=embed, view=MainPetHubView(cog, user_id, guild_id))
-    except discord.InteractionResponded:
-    # 이미 response가 나간 경우를 대비한 안전 조치
-        await interaction.followup.edit_message(message_id='@original', embed=embed, view=MainPetHubView(cog, user_id, guild_id))
+    else:
+        await interaction.response.edit_message(embed=embed, view=MainPetHubView(cog, user_id, guild_id))
 
 # 1. ⚔️ 스킬 관리 뷰
 class SkillManageView(View):
@@ -128,21 +128,31 @@ class QuestView(View):
         self.guild_id = guild_id
 
     @discord.ui.button(label="일일 퀘스트 보상 수령", style=discord.ButtonStyle.success, row=0)
-    async def claim_reward(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def claim_reward(self, interaction: Interaction, button: ui.Button):
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         if not pet:
-            return await interaction.response.send_message("❌ 펫이 없습니다.", ephemeral=True)
-            
-        if not getattr(pet, "action_done_today", False):
-            return await interaction.response.send_message("❌ 아직 오늘의 1회 행동을 완료하지 않아 보상을 받을 수 없습니다!", ephemeral=True)
-            
-        # 보상 지급 (골드 지급)
-        db = self.cog._get_db(int(self.guild_id))
-        db.add_user_cash(self.user_id, 5000)
+            return await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
+
+        # 1. 한국 시간 기준 오늘 날짜 생성
+        today = time.strftime('%Y-%m-%d', time.localtime(time.time() + 32400))
         
-        # 퀘스트 완료 처리 후 일일 행동 카운터를 강제 조절하여 오늘 퀘스트를 이미 받았음을 표기할 수도 있습니다.
-        # 여기서는 중복 지급을 막기 위해 퀘스트 보상을 수령했음을 알리고 메인화면으로 보냅니다.
-        await interaction.response.send_message("🪙 일일 교감 연구 완료 보상으로 **5,000 골드**를 수령했습니다!", ephemeral=True)
+        # 2. 마지막 수령일 체크[cite: 5]
+        last_reward = getattr(pet, 'last_reward_date', None)
+        
+        if last_reward == today:
+            return await interaction.response.send_message("❌ 오늘은 이미 보상을 수령했습니다. 내일 다시 시도하세요!", ephemeral=True)
+
+        # 3. 보상 지급 로직[cite: 5]
+        # 예: 골드 추가, 경험치 획득 등
+        db = self.cog._get_db(int(self.guild_id))
+        db.add_user_cash(self.user_id, 5000) # 5,000골드 지급 예시
+        
+        # 4. 수령 기록 업데이트[cite: 5]
+        pet.last_reward_date = today
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+        
+        # 5. UI 갱신 (이미 응답 여부 확인 후 조치)
+        from pet_views import go_to_home # go_to_home 함수 호출
         await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
 
     @discord.ui.button(label="돌아가기", style=discord.ButtonStyle.danger, row=1)

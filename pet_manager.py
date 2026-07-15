@@ -1544,7 +1544,8 @@ class PetActionExecutionView(View):
         self.user_id = user_id
         self.guild_id = guild_id
         for act in actions:
-            btn = Button(label=act, style=discord.ButtonStyle.success, custom_id=f"act_{act}")
+            # 스타일이 1~4 사이의 올바른 정수 값인지 확인 (ButtonStyle.success는 3번임)
+            btn = discord.ui.Button(label=act, style=discord.ButtonStyle.success, custom_id=f"act_{act}")
             btn.callback = self.handle_action
             self.add_item(btn)
 
@@ -1558,10 +1559,10 @@ class PetActionExecutionView(View):
             await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
             return
             
-        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        if not pet:
-            await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
-            return
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
             
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
@@ -1791,10 +1792,11 @@ class PetActionExecutionView(View):
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
-        try:
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-        except Exception as e:
-            print(f"UI 갱신 오류: {e}")
+        await interaction.response.edit_message(
+            embed=embed, 
+            attachments=[], 
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+            )
 
         if act_name not in ["PvP", "랭크전"]:
             try:
