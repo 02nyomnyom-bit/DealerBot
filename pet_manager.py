@@ -1442,8 +1442,14 @@ class ShopView(discord.ui.View):
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
 
         # 2. 결과 임베드 생성 (msg를 여기에 담습니다)
-        embed_result = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-        await interaction.response.edit_message(embed=embed_result, view=None, attachments=[])
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71) # msg가 여기 들어갑니다
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+
+        # 마지막에 한 번만 전송
+        await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
         
         # 3. 펫 상태창 필드 추가
         for f in pet_data["fields"]:
@@ -1773,26 +1779,18 @@ class PetActionExecutionView(View):
 
     async def handle_action(self, interaction: discord.Interaction):
         # 1. 중복 응답 방지 및 임포트 재확인
-        from pet_skill import DiscordUIFormatter # 👈 이 줄을 메서드 시작점에 추가하세요
-        if interaction.response.is_done():
-            return
+        from pet_skill import DiscordUIFormatter
         
-        # 1. 변수 기본값 사전 선언 (에러 방지)
-        act_name = "알 수 없음"
-        msg = "행동을 수행했습니다."
-        
-        # 2. 데이터 추출
-        custom_id = interaction.data.get("custom_id", "")
-        if "_" in custom_id:
-            act_name = custom_id.split("_")[1]
-            
+        # 2. 로직 처리
+        act_name = interaction.data.get("custom_id", "").split("_")[1]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        if not pet:
-            return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
+        if not pet: return await interaction.response.send_message("❌ 펫 없음", ephemeral=True)
 
-        # 3. 이름 변경 처리 (모달)
         if act_name == "이름 변경":
             return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
+        
+        # 3. 행동 결과 즉시 응답 (최초 1회)
+        await interaction.response.edit_message(content=f"✅ {act_name} 완료!", embed=None, view=None)
         
         # 3. 각종 제한 검사 및 행동 로직 수행
         
@@ -1807,9 +1805,6 @@ class PetActionExecutionView(View):
 
         if act_name == "벌레잡기" and pet.affinity >= 297:
             return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
-
-        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
         
         # 2. 결과창 즉시 갱신 (Interaction 응답)
         embed_result = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
@@ -1817,6 +1812,12 @@ class PetActionExecutionView(View):
         
         # 3. 상태창 후속 전송 (Followup)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71) # msg가 여기 들어갑니다
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+
+        # 마지막에 한 번만 전송
+        await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
 
         embed_status = discord.Embed(title=pet_data["title"], color=0x2ecc71)
         for f in pet_data["fields"]:
@@ -1828,8 +1829,11 @@ class PetActionExecutionView(View):
         except Exception:
             pass
 
-        await interaction.followup.send(embed=embed_status, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
-
+        await interaction.followup.send(
+            embed=embed, 
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+        )
+        
         climate = ClimateManager().get_current_climate()
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
         if penalty == "RUNAWAY":
@@ -2118,8 +2122,6 @@ class PetActionExecutionView(View):
             return
         
         else:
-            msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
-            
             ult = pet.check_ultimate_skill()
             if ult:
                 msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
@@ -2132,9 +2134,12 @@ class PetActionExecutionView(View):
 
             # 3. 데이터 로직 처리
             pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-            embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+            embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71) # msg가 여기 들어갑니다
             for f in pet_data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+
+            # 마지막에 한 번만 전송
+            await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
             
             if pet_data.get("image_url"):
                 embed.set_thumbnail(url=pet_data["image_url"])
