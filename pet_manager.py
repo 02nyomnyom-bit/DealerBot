@@ -16,6 +16,493 @@ from database_manager import DatabaseManager
 from pet_skill import DiscordUIFormatter
 from pet_climate import ClimateManager
 
+# 알 -> 새끼 -> 유년기 -> 성체 -> 최종 진화
+class Pet:
+    def __init__(self, name: str, main_type: str = "노말"):
+        self.name = name
+        self.stage = "알"
+        self.level = 1
+        self.main_type = main_type
+        self.sub_type = None
+        
+        # 알 단계 컨디션 및 성장 요소
+        self._max_mp = 50
+        self.warmth = 50
+        self.cleanliness_egg = 50
+        self.stability = 50
+        self.hatch_progress = 0.0
+        self.created_time = time.time()  # 이 시점 기준으로 3일 뒤 방생 가능
+        
+        # 숨겨진 스탯
+        self.rarity = "일반"
+        self.iv = random.randint(0, 31)
+        self.personality = None
+        self.hidden_trait = None  # 숨겨진 특성
+        self.name_changed = False
+        
+        # 기획서 기준 실시간 변동 상태 요소 (0~100)
+        # 기획서 기준 실시간 변동 상태 요소 (0~100)
+        self.fullness = 100
+        self.cleanliness = 100
+        self.closeness = 30
+        self.stress = 0
+        self.health = 100
+        self.mood_score = 100
+        self.energy = 100
+        self.affinity = 0
+        
+        # 전투 스탯 (기본값)
+        self.hp = 20
+        self.max_hp = 100
+        self.attack = 15
+        self.defense = 10
+        self.speed = 10
+        self.exp = 0
+        self.potential = 0
+        self.rank_score = 1000
+        self.is_dead = False
+
+        # 최종 진화 스탯 확장용
+        self.crit = 0
+        self.res = 0
+        
+        # 패널티 스탯
+        self.is_sick = False
+        self.fine_charged = False
+        self.zero_fullness_time = None  # 포만감 0이 된 시간 기록
+        self.zero_cleanliness_time = None  # 청결 0이 된 시간 기록
+        
+        # 카운터 및 일일 제한 (자정 초기화용)
+        self.train_count = 0
+        self.explore_count = 0
+        self.train_count_today = 0
+        self.explore_count_today = 0
+        self.snack_count_today = 0  
+        self.pvp_count = 0
+        self.last_update_time = time.time()
+        self.pet_count_today = 0      # 쓰다듬기 카운트
+        self.clean_count_today = 0    # 청소 카운트
+        self.bug_count_today = 0      # 벌레잡기 카운트
+        self.last_decay_time = time.time()
+
+        # 장비 슬롯
+        self.equipment = {"무기": None, "방어구": None, "장신구": None}
+
+        self.skills = []
+        self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
+        self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
+        self.learned_ultimate = None
+
+    @property
+    def max_mp(self):
+        return self._max_mp
+
+    @max_mp.setter
+    def max_mp(self, value):
+        self._max_mp = value
+
+    @property
+    def mood_state(self):
+        """기획서 기준 기분 5단계 정의"""
+        if self.mood_score >= 80: return "행복"
+        elif self.mood_score >= 60: return "평범"
+        elif self.mood_score >= 40: return "심심"
+        elif self.mood_score >= 20: return "우울"
+        else: return "화남"
+
+    @property
+    def affinity_rank(self):
+        """기획서 기준 친밀도 6구간 정의"""
+        if self.affinity <= 50: return "노말"
+        elif self.affinity <= 100: return "야성"
+        elif self.affinity <= 150: return "균형"
+        elif self.affinity <= 200: return "신뢰"
+        elif self.affinity <= 250: return "수호"
+        else: return "희귀"
+
+    @property
+    def max_mp(self):
+        """기획서 예시 기반 MP 연산 로직"""
+        return int(50 + self.energy * (0.5 + (self.mood_score / 125.0)))
+
+    def check_ultimate_skill(self):
+        """친밀도 [수호/희귀] 및 [성체] 이상 도달 시 궁극기 자동 해금"""
+        if self.stage not in ["성체", "최종 진화"]:
+            return None
+        if self.affinity_rank not in ["수호", "희귀"]:
+            return None
+            
+        import pet_skill
+        ult_list = pet_skill.SKILL_DATABASE.get(self.main_type, {}).get("궁극기", [])
+        if not ult_list:
+            return None
+            
+        ult_skill = ult_list[0]["name"]
+        if ult_skill not in self.skills:
+            self.skills.append(ult_skill)
+            return ult_skill
+        return None
+
+    def update_passive_decay(self):
+        """시간 경과에 따른 스탯 자연 감소 및 일일 제한 리셋 (원본 복원)"""
+        current_time = time.time()
+        elapsed = current_time - self.last_decay_time
+        if elapsed < 0:
+            elapsed = 0
+    
+        # 1. 날짜 비교 변수 정의 (이 부분이 정의되지 않아서 에러가 발생합니다)
+        last_date = time.strftime('%Y-%m-%d', time.localtime(self.last_update_time + 32400))
+        current_date = time.strftime('%Y-%m-%d', time.localtime(current_time + 32400))
+
+        # 2. 자정 리셋 로직
+        if last_date != current_date:
+            self.train_count_today = 0
+            self.explore_count_today = 0
+            self.snack_count_today = 0
+            self.pet_count_today = 0
+            self.clean_count_today = 0
+            self.bug_count_today = 0
+            
+        self.last_decay_time = current_time
+
+        hours_passed = (current_time - self.last_update_time) / 3600.0
+        if hours_passed <= 0: return
+        
+        # 스트레스 60% 이상부터 기분 감소 가속화
+        decay_modifier = 2.0 if self.stress >= 60 else 1.0
+        
+        # 3. 상태 감소 연산 (기존 로직 유지)
+        decay_modifier = 2.0 if self.stress >= 60 else 1.0
+        self.fullness = max(0, self.fullness - (hours_passed * 1.5))
+        self.mood_score = max(0, self.mood_score - (hours_passed * 1.0 * decay_modifier))
+        self.cleanliness = max(0, self.cleanliness - (hours_passed * 0.8))
+
+        # 4. 상태 0 처리 (기존 로직 유지)
+        if self.fullness <= 0 and self.zero_fullness_time is None:
+            self.zero_fullness_time = current_time
+        elif self.fullness > 0:
+            self.zero_fullness_time = None
+
+        if self.cleanliness <= 0 and self.zero_cleanliness_time is None:
+            self.zero_cleanliness_time = current_time
+            self.is_sick = True
+        elif self.cleanliness > 0:
+            self.zero_cleanliness_time = None
+            self.is_sick = False
+            self.fine_charged = False
+
+        self.last_update_time = current_time
+
+    def add_exp(self, amount: int) -> bool:
+        """경험치를 획득하고 레벨업 여부를 반환"""
+        self.exp += amount
+        needed = self.level * 100
+        leveled_up = False
+        while self.exp >= needed:
+            self.exp -= needed
+            self.level += 1
+            self.max_hp += 15
+            self.hp = self.max_hp
+            self.attack += 3
+            self.defense += 2
+            self.speed += 2
+            leveled_up = True
+            needed = self.level * 100
+        return leveled_up
+
+    def check_ultimate_skill(self) -> Optional[str]:
+        """성체 이상의 단계에서 친밀도가 100에 도달할 경우 전용 궁극기 각성"""
+        if self.stage in ["성체", "최종 진화"] and self.closeness >= 100 and not self.learned_ultimate:
+            ult_skills = {
+                "불": "지옥불", "물": "대해일", "풀": "대자연의 분노", "전기": "천벌", "비행": "폭풍우",
+                "땅": "대지진", "어둠": "빅뱅", "독": "맹독지대", "에스퍼": "차원절단", "노말": "최후의 일격"
+            }
+            skill = ult_skills.get(self.main_type, "최후의 일격")
+            self.learned_ultimate = skill
+            if len(self.skills) < 4:
+                self.skills.append(skill)
+            else:
+                self.skills[3] = skill  # 마지막 슬롯 대체
+            return skill
+        return None
+
+    def get_available_actions(self):
+        """기획서 행동 해금 시스템 테이블 매핑"""
+        actions = {
+            "알": ["햇빛받기", "보듬어주기", "씻겨주기", "품어주기"],
+            "새끼": ["먹이 주기", "간식 주기", "쓰다듬기", "청소하기", "놀아주기", "벌레잡기", "산책"],
+            "유년기": ["먹이", "간식 주기", "훈련", "탐험", "채집", "장난감", "휴식", "산책"],
+            "성체": ["먹이", "간식 주기", "훈련", "탐험", "채집", "PvP", "휴식", "산책"],
+            "최종 진화": ["먹이", "간식 주기", "훈련", "랭크전", "탐험", "교배", "휴식", "산책"]
+        }
+        available = actions.get(self.stage, []).copy()
+        if self.stage != "알" and not getattr(self, "name_changed", False):
+            available.insert(0, "이름 변경")
+        return available
+
+    def interact_egg(self, action_name):
+        """알 단계 전용 행동 핸들러"""
+        climate = ClimateManager().get_current_climate()
+        
+        if action_name == "햇빛받기":
+            self.warmth = min(100, self.warmth + 15)
+        elif action_name == "보듬어주기":
+            self.stability = min(100, self.stability + 15)
+        elif action_name == "씻겨주기":
+            self.cleanliness_egg = min(100, self.cleanliness_egg + 15)
+        elif action_name == "품어주기":
+            self.warmth = min(100, self.warmth + 10)
+            self.stability = min(100, self.stability + 10)
+            
+        base_progress = random.uniform(8.0, 15.0)
+        # 맑음: 부화 진행도 +10%, 봄: 부화 진행도 +10%
+        if climate.weather == "맑음":
+            base_progress *= 1.10
+        if climate.season == "봄":
+            base_progress *= 1.10
+            
+        self.hatch_progress = min(100.0, self.hatch_progress + base_progress)
+        
+        # 최소 3일 제약 검증 및 진행도 100% 충족 시 자동 부화
+        if self.hatch_progress >= 100.0:
+            elapsed_time = time.time() - self.created_time
+            if elapsed_time >= 3 * 86400:
+                return self.hatch_trigger()
+            else:
+                remaining_seconds = (3 * 86400) - elapsed_time
+                hours = int(remaining_seconds // 3600)
+                minutes = int((remaining_seconds % 3600) // 60)
+                return f"🥚 진행도가 100%에 도달했으나, 아직 알이 단단합니다. 부화까지 약 **{hours}시간 {minutes}분** 더 품어주어야 합니다!"
+                
+        return f"🥚 [{action_name}] 완료! 부화 진행도: {self.hatch_progress:.1f}%"
+
+    @property
+    def rarity_multiplier(self):
+        """등급별 스탯(ATK, DEF, SPD, HP, MP) 뻥튀기 배율"""
+        mapping = {"일반": 1.0, "희귀": 1.1, "영웅": 1.25, "전설": 1.5}
+        return mapping.get(self.rarity, 1.0)
+
+    def hatch_trigger(self):
+        """알 부화 및 관리 점수 기반 희귀도 가챠 트리거"""
+        self.stage = "새끼"
+        
+        # 알 관리 점수 평균 계산
+        avg_score = (self.warmth + self.cleanliness_egg + self.stability) / 3.0
+        
+        roll = random.random()
+        if avg_score >= 80:
+            # 훌륭한 관리: 전설 5%, 영웅 15%, 희귀 40%, 일반 40%
+            if roll < 0.05:
+                self.rarity = "전설"
+            elif roll < 0.20:
+                self.rarity = "영웅"
+            elif roll < 0.60:
+                self.rarity = "희귀"
+            else:
+                self.rarity = "일반"
+            
+            # 덤으로 개체값 상승 보너스
+            self.iv = min(31, self.iv + 5)
+        else:
+            # 관리 미흡: 일반 90%, 희귀 10%
+            if roll < 0.10:
+                self.rarity = "희귀"
+            else:
+                self.rarity = "일반"
+                
+        return f"🎉 알이 새끼 단계로 부화했습니다! (부여된 희귀도: **[{self.rarity}]**)"
+
+    def gain_exp(self, amount: int) -> str:
+        """기분 상태 가중치를 계산하여 경험치를 획득하고 레벨업/진화 조건을 판정합니다"""
+        if self.energy <= 0:
+            return "❌ 에너지가 전부 소진되어 더 이상 경험치를 지급받지 못합니다! [재우기]나 [휴식]을 통해 회복시키세요."
+            
+        # 기분 버프/너프 반영
+        if self.mood_state == "행복":
+            amount = int(amount * 1.1)
+        elif self.mood_state == "우울":
+            amount = int(amount * 0.9)
+        elif self.mood_state == "화남":
+            amount = int(amount * 0.8)
+
+        # 친밀도 균형(101~150) 경험치 5% 버프 반영
+        if 101 <= self.affinity <= 150:
+            amount = int(amount * 1.05)
+
+        self.exp += amount
+        energy_cost = int(amount * 0.5)
+        if getattr(self, 'personality', None) == "나태":
+            energy_cost = int(energy_cost * 0.5)  # 에너지 소모 50% 감소
+        self.energy = max(0, self.energy - energy_cost)  # 소모한 만큼 에너지 감소
+        
+        # 기획서 기준 레벨 경험치 공식 (EXP = 5N³ / 4) 적용
+        def get_req_exp(lvl):
+            return int((5 * ((lvl + 1) ** 3)) / 4) - int((5 * (lvl ** 3)) / 4)
+            
+        next_exp = get_req_exp(self.level)
+        level_up_msg = ""
+        
+        while self.exp >= next_exp and self.level < 100:
+            self.exp -= next_exp
+            self.level += 1
+            # 스탯 상승 가중치 부여
+            self.hp += random.randint(3, 7)
+            self.attack += random.randint(1, 3)
+            self.defense += random.randint(1, 3)
+            self.speed += random.randint(1, 3)
+            self.luck += random.randint(1, 2)
+            
+            level_up_msg += f"\n🆙 **레벨 업!** Lv.{self.level}이(가) 되었습니다! 스탯이 본격 상승합니다."
+            next_exp = get_req_exp(self.level)
+
+        # 레벨업 후 성장 단계 진화 요건 자동 검증
+        evo_msg = self.check_evolution_conditions()
+        return f"✨ 경험치 **+{amount}** 획득! (남은 에너지: {int(self.energy)}){level_up_msg}{evo_msg}"
+
+    def check_evolution_conditions(self) -> str:
+        """기획서 조건에 만족할 시 단계를 즉시 진화시키고 성격 및 고유 패시브를 각성시킵니다"""
+        climate = ClimateManager().get_current_climate()
+        
+        # "변하지 않는 반지" 장착 여부 검사 (진화 락)
+        if "변하지 않는 반지" in getattr(self, "inventory", {}).get("장비", [{"부위": "", "등급": ""}]) or \
+           any(e.get("부위") == "변하지 않는 반지" for e in getattr(self, "inventory", {}).get("장비", [])):
+            return ""
+        # 1. 새끼 -> 유년기 (Lv.15 달성 및 친밀도 30 이상)
+        if self.stage == "새끼" and self.level >= 15 and self.affinity >= 30:
+            self.stage = "유년기"
+            self.personality = random.choice(["다혈질", "장난꾸러기", "나태", "신중함", "용맹함"])
+            
+            # 기획서 규칙: 특정 성격 스킬 강제 셋팅 (삭제 및 교체 불가능)
+            if self.personality == "장난꾸러기":
+                self.skills = ["놀리기"]
+            elif self.personality == "나태":
+                self.skills = ["잠자기"]
+            else:
+                self.skills = ["몸통박치기"]
+            return f"\n\n🌅 **[진화 완료]** {self.name}이(가) **유년기** 단계로 진화했습니다! 성격 **[{self.personality}]**이(가) 형성되었으며 고유 패시브가 장착되었습니다."
+
+        # 2. 유년기 -> 성체 (Lv.40 달성, 훈련 50회, 탐험 50회)
+        elif self.stage == "유년기" and self.level >= 40 and self.train_count >= 50 and self.explore_count >= 50:
+            self.stage = "성체"
+            # 기본 원소 외 부가 원소 획득 (매우 낮은 확률로 상극 원소가 들어올 수 있음)
+            available_types = ["노말", "불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼"]
+            available_types.remove(self.main_type)
+            self.sub_type = random.choice(available_types)
+            
+            # 스킬 셋 확장
+            self.skills.extend(["웅크리기", "피하기"])
+            return f"\n\n⚡ **[원소 각성 진화]** {self.name}이(가) **성체** 단계로 진화했습니다! 부속성 **[{self.sub_type}]**을(를) 깨우쳤으며 이제 일반 PvP전에 참여할 수 있습니다!"
+
+        # 3. 성체 -> 최종 진화 (Lv.75 달성, PvP 30회, 친밀도 70, 잠재력 50%)
+        elif self.stage == "성체" and self.level >= 75 and self.pvp_count >= 30 and self.affinity >= 70 and self.potential >= 50:
+            
+            # 히든 진화 조건 체크 (일반 최종 진화보다 우선 적용)
+            hidden_evo = None
+            if climate.weather == "비" and climate.is_night and self.affinity >= 250 and self.main_type == "물":
+                hidden_evo = "심해의 수호자"
+            elif climate.weather == "폭염" and self.main_type == "불":
+                hidden_evo = "화염 군주"
+            elif climate.weather == "안개" and self.main_type == "어둠" and self.affinity_rank == "신뢰":
+                hidden_evo = "안개의 망령"
+            elif climate.special_weather == "유성우" and self.main_type == "에스퍼" and self.potential >= 90:
+                hidden_evo = "별의 현자"
+                
+            if hidden_evo:
+                self.stage = "최종 진화"
+                self.crit = 30 # 히든 보너스
+                self.res = 20
+                self.name = f"{hidden_evo} {self.name}"
+                return f"\n\n✨ **[히든 진화 발동!!]** 특수한 기후와 조건이 맞아떨어져 {self.name}이(가) 숨겨진 진화형인 **『{hidden_evo}』**(으)로 각성했습니다!"
+            
+            self.stage = "최종 진화"
+            self.crit = 15  # 최종 진화 스탯 보너스 부여
+            self.res = 10
+            
+            return f"\n\n🔥 **[최종 진화 완료]** {self.name}이(가) 마침내 궁극의 **최종 진화**를 이루었습니다! 전용 패시브가 개방되었으며 랭크전에 참전할 자격을 얻었습니다!"
+
+        return ""
+
+    def feed(self):
+        """포만감 및 스트레스 감소 행동"""
+        self.fullness = min(100, self.fullness + 30)
+        self.stress = max(0, self.stress - 10)
+        return f"🍖 먹이를 주었습니다. 포만감: {int(self.fullness)}/100, 스트레스: {self.stress}/100"
+
+    def to_dict(self) -> dict:
+        return self.__dict__
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Pet:
+        pet = cls(data.get('name', '이름없음'), data.get('main_type', '노말'))
+        pet.__dict__.update(data)
+        if not hasattr(pet, 'equipment'):
+            pet.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
+        if not hasattr(pet, 'inventory'):
+            pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
+        return pet
+
+class MainPetHubView(discord.ui.View):
+    def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.user_id = user_id
+        self.guild_id = guild_id
+        self.pet = pet
+
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ 이 펫의 주인만 조작할 수 있습니다.", ephemeral=True)
+            return False
+        return True
+    
+    @discord.ui.button(label="행동하기", style=discord.ButtonStyle.primary, row=0)
+    async def btn_action(self, interaction: Interaction, button: discord.ui.Button):
+        if interaction.response.is_done(): return
+        
+        self.pet.update_passive_decay()
+        
+        # 1. 즉시 응답으로 처리중임을 알림
+        await interaction.response.edit_message(content="🔄 행동을 준비 중입니다...", embed=None, view=None)
+        
+        # 2. 후속 전송으로 행동 선택창 띄우기
+        view = PetActionSelectionView(self.cog, self.user_id, self.guild_id, self.pet)
+        embed = discord.Embed(title=f"🎭 {self.pet.name}의 행동 선택", description="선택하세요.", color=0x3498db)
+        
+        await interaction.followup.send(embed=embed, view=view)
+
+
+class PetActionSelectionView(discord.ui.View):
+    def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+        self.guild_id = guild_id
+        self.pet = pet
+        
+        # 상호작용 및 모험 옵션 세팅
+        actions = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기", "산책", "훈련", "탐험", "채집", "전투", "랭크전"]
+        for act in actions:
+            self.add_item(ActionButton(act))
+
+class ActionButton(discord.ui.Button):
+    def __init__(self, action_name: str):
+        style = discord.ButtonStyle.secondary
+        if action_name in ["탐험", "채집", "전투", "랭크전"]:
+            style = discord.ButtonStyle.danger
+        elif action_name in ["산책", "훈련"]:
+            style = discord.ButtonStyle.success
+            
+        super().__init__(label=action_name, style=style)
+        self.action_name = action_name
+
+    async def callback(self, interaction: Interaction):
+        view: PetActionSelectionView = self.view
+        view.pet.update_passive_decay()
+        
+        # 실행 화면 전환
+        exec_view = PetActionExecutionView(view.cog, view.user_id, view.guild_id, view.pet, self.action_name)
+        await exec_view.handle_action(interaction)
+
 class PetManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -604,495 +1091,6 @@ class PetManager(commands.Cog):
             embed.add_field(name="💍 반전의 보물 반지 획득율 (상자 개봉 시)", value=f"{default_config['ring_drop_rate'] * 100.0:.2f}%", inline=True)
 
         await interaction.response.send_message(embed=embed)
-
-
-# 알 -> 새끼 -> 유년기 -> 성체 -> 최종 진화
-class Pet:
-    def __init__(self, name: str, main_type: str = "노말"):
-        self.name = name
-        self.stage = "알"
-        self.level = 1
-        self.main_type = main_type
-        self.sub_type = None
-        
-        # 알 단계 컨디션 및 성장 요소
-        self._max_mp = 50
-        self.warmth = 50
-        self.cleanliness_egg = 50
-        self.stability = 50
-        self.hatch_progress = 0.0
-        self.created_time = time.time()  # 이 시점 기준으로 3일 뒤 방생 가능
-        
-        # 숨겨진 스탯
-        self.rarity = "일반"
-        self.iv = random.randint(0, 31)
-        self.personality = None
-        self.hidden_trait = None  # 숨겨진 특성
-        self.name_changed = False
-        
-        # 기획서 기준 실시간 변동 상태 요소 (0~100)
-        # 기획서 기준 실시간 변동 상태 요소 (0~100)
-        self.fullness = 100
-        self.cleanliness = 100
-        self.closeness = 30
-        self.stress = 0
-        self.health = 100
-        self.mood_score = 100
-        self.energy = 100
-        self.affinity = 0
-        
-        # 전투 스탯 (기본값)
-        self.hp = 20
-        self.max_hp = 100
-        self.attack = 15
-        self.defense = 10
-        self.speed = 10
-        self.exp = 0
-        self.potential = 0
-        self.rank_score = 1000
-        self.is_dead = False
-
-        # 최종 진화 스탯 확장용
-        self.crit = 0
-        self.res = 0
-        
-        # 패널티 스탯
-        self.is_sick = False
-        self.fine_charged = False
-        self.zero_fullness_time = None  # 포만감 0이 된 시간 기록
-        self.zero_cleanliness_time = None  # 청결 0이 된 시간 기록
-        
-        # 카운터 및 일일 제한 (자정 초기화용)
-        self.train_count = 0
-        self.explore_count = 0
-        self.train_count_today = 0
-        self.explore_count_today = 0
-        self.snack_count_today = 0  
-        self.pvp_count = 0
-        self.last_update_time = time.time()
-        self.pet_count_today = 0      # 쓰다듬기 카운트
-        self.clean_count_today = 0    # 청소 카운트
-        self.bug_count_today = 0      # 벌레잡기 카운트
-        self.last_decay_time = time.time()
-
-        # 장비 슬롯
-        self.equipment = {"무기": None, "방어구": None, "장신구": None}
-
-        self.skills = []
-        self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
-        self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
-        self.learned_ultimate = None
-
-    @property
-    def max_mp(self):
-        return self._max_mp
-
-    @max_mp.setter
-    def max_mp(self, value):
-        self._max_mp = value
-
-    @property
-    def mood_state(self):
-        """기획서 기준 기분 5단계 정의"""
-        if self.mood_score >= 80: return "행복"
-        elif self.mood_score >= 60: return "평범"
-        elif self.mood_score >= 40: return "심심"
-        elif self.mood_score >= 20: return "우울"
-        else: return "화남"
-
-    @property
-    def affinity_rank(self):
-        """기획서 기준 친밀도 6구간 정의"""
-        if self.affinity <= 50: return "노말"
-        elif self.affinity <= 100: return "야성"
-        elif self.affinity <= 150: return "균형"
-        elif self.affinity <= 200: return "신뢰"
-        elif self.affinity <= 250: return "수호"
-        else: return "희귀"
-
-    @property
-    def max_mp(self):
-        """기획서 예시 기반 MP 연산 로직"""
-        return int(50 + self.energy * (0.5 + (self.mood_score / 125.0)))
-
-    def check_ultimate_skill(self):
-        """친밀도 [수호/희귀] 및 [성체] 이상 도달 시 궁극기 자동 해금"""
-        if self.stage not in ["성체", "최종 진화"]:
-            return None
-        if self.affinity_rank not in ["수호", "희귀"]:
-            return None
-            
-        import pet_skill
-        ult_list = pet_skill.SKILL_DATABASE.get(self.main_type, {}).get("궁극기", [])
-        if not ult_list:
-            return None
-            
-        ult_skill = ult_list[0]["name"]
-        if ult_skill not in self.skills:
-            self.skills.append(ult_skill)
-            return ult_skill
-        return None
-
-    def update_passive_decay(self):
-        """시간 경과에 따른 스탯 자연 감소 및 일일 제한 리셋 (원본 복원)"""
-        current_time = time.time()
-        elapsed = current_time - self.last_decay_time
-        if elapsed < 0:
-            elapsed = 0
-    
-        # 1. 날짜 비교 변수 정의 (이 부분이 정의되지 않아서 에러가 발생합니다)
-        last_date = time.strftime('%Y-%m-%d', time.localtime(self.last_update_time + 32400))
-        current_date = time.strftime('%Y-%m-%d', time.localtime(current_time + 32400))
-
-        # 2. 자정 리셋 로직
-        if last_date != current_date:
-            self.train_count_today = 0
-            self.explore_count_today = 0
-            self.snack_count_today = 0
-            self.pet_count_today = 0
-            self.clean_count_today = 0
-            self.bug_count_today = 0
-            
-        self.last_decay_time = current_time
-
-        hours_passed = (current_time - self.last_update_time) / 3600.0
-        if hours_passed <= 0: return
-        
-        # 스트레스 60% 이상부터 기분 감소 가속화
-        decay_modifier = 2.0 if self.stress >= 60 else 1.0
-        
-        # 3. 상태 감소 연산 (기존 로직 유지)
-        decay_modifier = 2.0 if self.stress >= 60 else 1.0
-        self.fullness = max(0, self.fullness - (hours_passed * 1.5))
-        self.mood_score = max(0, self.mood_score - (hours_passed * 1.0 * decay_modifier))
-        self.cleanliness = max(0, self.cleanliness - (hours_passed * 0.8))
-
-        # 4. 상태 0 처리 (기존 로직 유지)
-        if self.fullness <= 0 and self.zero_fullness_time is None:
-            self.zero_fullness_time = current_time
-        elif self.fullness > 0:
-            self.zero_fullness_time = None
-
-        if self.cleanliness <= 0 and self.zero_cleanliness_time is None:
-            self.zero_cleanliness_time = current_time
-            self.is_sick = True
-        elif self.cleanliness > 0:
-            self.zero_cleanliness_time = None
-            self.is_sick = False
-            self.fine_charged = False
-
-        self.last_update_time = current_time
-
-    def add_exp(self, amount: int) -> bool:
-        """경험치를 획득하고 레벨업 여부를 반환"""
-        self.exp += amount
-        needed = self.level * 100
-        leveled_up = False
-        while self.exp >= needed:
-            self.exp -= needed
-            self.level += 1
-            self.max_hp += 15
-            self.hp = self.max_hp
-            self.attack += 3
-            self.defense += 2
-            self.speed += 2
-            leveled_up = True
-            needed = self.level * 100
-        return leveled_up
-
-    def check_ultimate_skill(self) -> Optional[str]:
-        """성체 이상의 단계에서 친밀도가 100에 도달할 경우 전용 궁극기 각성"""
-        if self.stage in ["성체", "최종 진화"] and self.closeness >= 100 and not self.learned_ultimate:
-            ult_skills = {
-                "불": "지옥불", "물": "대해일", "풀": "대자연의 분노", "전기": "천벌", "비행": "폭풍우",
-                "땅": "대지진", "어둠": "빅뱅", "독": "맹독지대", "에스퍼": "차원절단", "노말": "최후의 일격"
-            }
-            skill = ult_skills.get(self.main_type, "최후의 일격")
-            self.learned_ultimate = skill
-            if len(self.skills) < 4:
-                self.skills.append(skill)
-            else:
-                self.skills[3] = skill  # 마지막 슬롯 대체
-            return skill
-        return None
-
-    def get_available_actions(self):
-        """기획서 행동 해금 시스템 테이블 매핑"""
-        actions = {
-            "알": ["햇빛받기", "보듬어주기", "씻겨주기", "품어주기"],
-            "새끼": ["먹이 주기", "간식 주기", "쓰다듬기", "청소하기", "놀아주기", "벌레잡기", "산책"],
-            "유년기": ["먹이", "간식 주기", "훈련", "탐험", "채집", "장난감", "휴식", "산책"],
-            "성체": ["먹이", "간식 주기", "훈련", "탐험", "채집", "PvP", "휴식", "산책"],
-            "최종 진화": ["먹이", "간식 주기", "훈련", "랭크전", "탐험", "교배", "휴식", "산책"]
-        }
-        available = actions.get(self.stage, []).copy()
-        if self.stage != "알" and not getattr(self, "name_changed", False):
-            available.insert(0, "이름 변경")
-        return available
-
-    def interact_egg(self, action_name):
-        """알 단계 전용 행동 핸들러"""
-        climate = ClimateManager().get_current_climate()
-        
-        if action_name == "햇빛받기":
-            self.warmth = min(100, self.warmth + 15)
-        elif action_name == "보듬어주기":
-            self.stability = min(100, self.stability + 15)
-        elif action_name == "씻겨주기":
-            self.cleanliness_egg = min(100, self.cleanliness_egg + 15)
-        elif action_name == "품어주기":
-            self.warmth = min(100, self.warmth + 10)
-            self.stability = min(100, self.stability + 10)
-            
-        base_progress = random.uniform(8.0, 15.0)
-        # 맑음: 부화 진행도 +10%, 봄: 부화 진행도 +10%
-        if climate.weather == "맑음":
-            base_progress *= 1.10
-        if climate.season == "봄":
-            base_progress *= 1.10
-            
-        self.hatch_progress = min(100.0, self.hatch_progress + base_progress)
-        
-        # 최소 3일 제약 검증 및 진행도 100% 충족 시 자동 부화
-        if self.hatch_progress >= 100.0:
-            elapsed_time = time.time() - self.created_time
-            if elapsed_time >= 3 * 86400:
-                return self.hatch_trigger()
-            else:
-                remaining_seconds = (3 * 86400) - elapsed_time
-                hours = int(remaining_seconds // 3600)
-                minutes = int((remaining_seconds % 3600) // 60)
-                return f"🥚 진행도가 100%에 도달했으나, 아직 알이 단단합니다. 부화까지 약 **{hours}시간 {minutes}분** 더 품어주어야 합니다!"
-                
-        return f"🥚 [{action_name}] 완료! 부화 진행도: {self.hatch_progress:.1f}%"
-
-    @property
-    def rarity_multiplier(self):
-        """등급별 스탯(ATK, DEF, SPD, HP, MP) 뻥튀기 배율"""
-        mapping = {"일반": 1.0, "희귀": 1.1, "영웅": 1.25, "전설": 1.5}
-        return mapping.get(self.rarity, 1.0)
-
-    def hatch_trigger(self):
-        """알 부화 및 관리 점수 기반 희귀도 가챠 트리거"""
-        self.stage = "새끼"
-        
-        # 알 관리 점수 평균 계산
-        avg_score = (self.warmth + self.cleanliness_egg + self.stability) / 3.0
-        
-        roll = random.random()
-        if avg_score >= 80:
-            # 훌륭한 관리: 전설 5%, 영웅 15%, 희귀 40%, 일반 40%
-            if roll < 0.05:
-                self.rarity = "전설"
-            elif roll < 0.20:
-                self.rarity = "영웅"
-            elif roll < 0.60:
-                self.rarity = "희귀"
-            else:
-                self.rarity = "일반"
-            
-            # 덤으로 개체값 상승 보너스
-            self.iv = min(31, self.iv + 5)
-        else:
-            # 관리 미흡: 일반 90%, 희귀 10%
-            if roll < 0.10:
-                self.rarity = "희귀"
-            else:
-                self.rarity = "일반"
-                
-        return f"🎉 알이 새끼 단계로 부화했습니다! (부여된 희귀도: **[{self.rarity}]**)"
-
-    def gain_exp(self, amount: int) -> str:
-        """기분 상태 가중치를 계산하여 경험치를 획득하고 레벨업/진화 조건을 판정합니다"""
-        if self.energy <= 0:
-            return "❌ 에너지가 전부 소진되어 더 이상 경험치를 지급받지 못합니다! [재우기]나 [휴식]을 통해 회복시키세요."
-            
-        # 기분 버프/너프 반영
-        if self.mood_state == "행복":
-            amount = int(amount * 1.1)
-        elif self.mood_state == "우울":
-            amount = int(amount * 0.9)
-        elif self.mood_state == "화남":
-            amount = int(amount * 0.8)
-
-        # 친밀도 균형(101~150) 경험치 5% 버프 반영
-        if 101 <= self.affinity <= 150:
-            amount = int(amount * 1.05)
-
-        self.exp += amount
-        energy_cost = int(amount * 0.5)
-        if getattr(self, 'personality', None) == "나태":
-            energy_cost = int(energy_cost * 0.5)  # 에너지 소모 50% 감소
-        self.energy = max(0, self.energy - energy_cost)  # 소모한 만큼 에너지 감소
-        
-        # 기획서 기준 레벨 경험치 공식 (EXP = 5N³ / 4) 적용
-        def get_req_exp(lvl):
-            return int((5 * ((lvl + 1) ** 3)) / 4) - int((5 * (lvl ** 3)) / 4)
-            
-        next_exp = get_req_exp(self.level)
-        level_up_msg = ""
-        
-        while self.exp >= next_exp and self.level < 100:
-            self.exp -= next_exp
-            self.level += 1
-            # 스탯 상승 가중치 부여
-            self.hp += random.randint(3, 7)
-            self.attack += random.randint(1, 3)
-            self.defense += random.randint(1, 3)
-            self.speed += random.randint(1, 3)
-            self.luck += random.randint(1, 2)
-            
-            level_up_msg += f"\n🆙 **레벨 업!** Lv.{self.level}이(가) 되었습니다! 스탯이 본격 상승합니다."
-            next_exp = get_req_exp(self.level)
-
-        # 레벨업 후 성장 단계 진화 요건 자동 검증
-        evo_msg = self.check_evolution_conditions()
-        return f"✨ 경험치 **+{amount}** 획득! (남은 에너지: {int(self.energy)}){level_up_msg}{evo_msg}"
-
-    def check_evolution_conditions(self) -> str:
-        """기획서 조건에 만족할 시 단계를 즉시 진화시키고 성격 및 고유 패시브를 각성시킵니다"""
-        climate = ClimateManager().get_current_climate()
-        
-        # "변하지 않는 반지" 장착 여부 검사 (진화 락)
-        if "변하지 않는 반지" in getattr(self, "inventory", {}).get("장비", [{"부위": "", "등급": ""}]) or \
-           any(e.get("부위") == "변하지 않는 반지" for e in getattr(self, "inventory", {}).get("장비", [])):
-            return ""
-        # 1. 새끼 -> 유년기 (Lv.15 달성 및 친밀도 30 이상)
-        if self.stage == "새끼" and self.level >= 15 and self.affinity >= 30:
-            self.stage = "유년기"
-            self.personality = random.choice(["다혈질", "장난꾸러기", "나태", "신중함", "용맹함"])
-            
-            # 기획서 규칙: 특정 성격 스킬 강제 셋팅 (삭제 및 교체 불가능)
-            if self.personality == "장난꾸러기":
-                self.skills = ["놀리기"]
-            elif self.personality == "나태":
-                self.skills = ["잠자기"]
-            else:
-                self.skills = ["몸통박치기"]
-            return f"\n\n🌅 **[진화 완료]** {self.name}이(가) **유년기** 단계로 진화했습니다! 성격 **[{self.personality}]**이(가) 형성되었으며 고유 패시브가 장착되었습니다."
-
-        # 2. 유년기 -> 성체 (Lv.40 달성, 훈련 50회, 탐험 50회)
-        elif self.stage == "유년기" and self.level >= 40 and self.train_count >= 50 and self.explore_count >= 50:
-            self.stage = "성체"
-            # 기본 원소 외 부가 원소 획득 (매우 낮은 확률로 상극 원소가 들어올 수 있음)
-            available_types = ["노말", "불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼"]
-            available_types.remove(self.main_type)
-            self.sub_type = random.choice(available_types)
-            
-            # 스킬 셋 확장
-            self.skills.extend(["웅크리기", "피하기"])
-            return f"\n\n⚡ **[원소 각성 진화]** {self.name}이(가) **성체** 단계로 진화했습니다! 부속성 **[{self.sub_type}]**을(를) 깨우쳤으며 이제 일반 PvP전에 참여할 수 있습니다!"
-
-        # 3. 성체 -> 최종 진화 (Lv.75 달성, PvP 30회, 친밀도 70, 잠재력 50%)
-        elif self.stage == "성체" and self.level >= 75 and self.pvp_count >= 30 and self.affinity >= 70 and self.potential >= 50:
-            
-            # 히든 진화 조건 체크 (일반 최종 진화보다 우선 적용)
-            hidden_evo = None
-            if climate.weather == "비" and climate.is_night and self.affinity >= 250 and self.main_type == "물":
-                hidden_evo = "심해의 수호자"
-            elif climate.weather == "폭염" and self.main_type == "불":
-                hidden_evo = "화염 군주"
-            elif climate.weather == "안개" and self.main_type == "어둠" and self.affinity_rank == "신뢰":
-                hidden_evo = "안개의 망령"
-            elif climate.special_weather == "유성우" and self.main_type == "에스퍼" and self.potential >= 90:
-                hidden_evo = "별의 현자"
-                
-            if hidden_evo:
-                self.stage = "최종 진화"
-                self.crit = 30 # 히든 보너스
-                self.res = 20
-                self.name = f"{hidden_evo} {self.name}"
-                return f"\n\n✨ **[히든 진화 발동!!]** 특수한 기후와 조건이 맞아떨어져 {self.name}이(가) 숨겨진 진화형인 **『{hidden_evo}』**(으)로 각성했습니다!"
-            
-            self.stage = "최종 진화"
-            self.crit = 15  # 최종 진화 스탯 보너스 부여
-            self.res = 10
-            
-            return f"\n\n🔥 **[최종 진화 완료]** {self.name}이(가) 마침내 궁극의 **최종 진화**를 이루었습니다! 전용 패시브가 개방되었으며 랭크전에 참전할 자격을 얻었습니다!"
-
-        return ""
-
-    def feed(self):
-        """포만감 및 스트레스 감소 행동"""
-        self.fullness = min(100, self.fullness + 30)
-        self.stress = max(0, self.stress - 10)
-        return f"🍖 먹이를 주었습니다. 포만감: {int(self.fullness)}/100, 스트레스: {self.stress}/100"
-
-    def to_dict(self) -> dict:
-        return self.__dict__
-
-    @classmethod
-    def from_dict(cls, data: dict) -> Pet:
-        pet = cls(data.get('name', '이름없음'), data.get('main_type', '노말'))
-        pet.__dict__.update(data)
-        if not hasattr(pet, 'equipment'):
-            pet.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
-        if not hasattr(pet, 'inventory'):
-            pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
-        return pet
-
-class MainPetHubView(discord.ui.View):
-    def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
-        super().__init__(timeout=180)
-        self.cog = cog
-        self.user_id = user_id
-        self.guild_id = guild_id
-        self.pet = pet
-
-    async def interaction_check(self, interaction: Interaction) -> bool:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ 이 펫의 주인만 조작할 수 있습니다.", ephemeral=True)
-            return False
-        return True
-    
-    @discord.ui.button(label="행동하기", style=discord.ButtonStyle.primary, row=0)
-    async def btn_action(self, interaction: Interaction, button: discord.ui.Button):
-        if interaction.response.is_done(): return
-        
-        self.pet.update_passive_decay()
-        
-        # 1. 즉시 응답으로 처리중임을 알림
-        await interaction.response.edit_message(content="🔄 행동을 준비 중입니다...", embed=None, view=None)
-        
-        # 2. 후속 전송으로 행동 선택창 띄우기
-        view = PetActionSelectionView(self.cog, self.user_id, self.guild_id, self.pet)
-        embed = discord.Embed(title=f"🎭 {self.pet.name}의 행동 선택", description="선택하세요.", color=0x3498db)
-        
-        await interaction.followup.send(embed=embed, view=view)
-
-
-class PetActionSelectionView(discord.ui.View):
-    def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
-        super().__init__(timeout=120)
-        self.cog = cog
-        self.user_id = user_id
-        self.guild_id = guild_id
-        self.pet = pet
-        
-        # 상호작용 및 모험 옵션 세팅
-        actions = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기", "산책", "훈련", "탐험", "채집", "전투", "랭크전"]
-        for act in actions:
-            self.add_item(ActionButton(act))
-
-class ActionButton(discord.ui.Button):
-    def __init__(self, action_name: str):
-        style = discord.ButtonStyle.secondary
-        if action_name in ["탐험", "채집", "전투", "랭크전"]:
-            style = discord.ButtonStyle.danger
-        elif action_name in ["산책", "훈련"]:
-            style = discord.ButtonStyle.success
-            
-        super().__init__(label=action_name, style=style)
-        self.action_name = action_name
-
-    async def callback(self, interaction: Interaction):
-        view: PetActionSelectionView = self.view
-        view.pet.update_passive_decay()
-        
-        # 실행 화면 전환
-        exec_view = PetActionExecutionView(view.cog, view.user_id, view.guild_id, view.pet, self.action_name)
-        await exec_view.handle_action(interaction)
-
 
 
 # --- 보관함 스왑 뷰 ---
@@ -1754,25 +1752,6 @@ class PvPInteractiveView(discord.ui.View):
                 await self.message.edit(embed=embed, attachments=[], view=MainPetHubView(self.cog, self.user_id, self.guild_id))
             except Exception as e:
                 print(f"타임아웃 UI 갱신 실패: {e}")
-
-class PetManager:
-    def __init__(self):
-        self.matching_queues = defaultdict(list)
-        self.match_tasks = {} # 서버별 태스크 관리
-
-    async def add_to_queue(self, guild_id, user_id):
-        self.matching_queues[guild_id].append(user_id)
-        
-    async def remove_from_queue(self, guild_id, user_id):
-        if user_id in self.matching_queues[guild_id]:
-            self.matching_queues[guild_id].remove(user_id)
-
-    async def get_match(self, guild_id):
-        # 해당 서버의 대기열에서만 매칭 상대를 찾음
-        queue = self.matching_queues[guild_id]
-        if len(queue) >= 2:
-            return queue.pop(0), queue.pop(0)
-        return None
 
 class PetActionExecutionView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str, actions: list):
