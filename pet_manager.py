@@ -1189,6 +1189,8 @@ class ShopView(discord.ui.View):
     async def handle_click(self, interaction: discord.Interaction):
         custom_id = interaction.data["custom_id"]
         _, item_type, item_name = custom_id.split("_")
+
+        act_name = "상점 거래"
         
         if item_type == "back":
             db = self.cog._get_db(int(self.guild_id))
@@ -1246,12 +1248,27 @@ class ShopView(discord.ui.View):
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
+        # 1. 펫 상태창 임베드 데이터 생성
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+
+        # 2. 결과 임베드 생성 (msg를 여기에 담습니다)
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        
+        # 3. 펫 상태창 필드 추가
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 4. 이미지 처리
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
+
+        # 5. [중요] 단 한 번만 응답을 수정합니다.
         try:
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            await interaction.response.edit_message(
+                embed=embed, 
+                view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+            )
         except Exception as e:
             print(f"UI 갱신 오류: {e}")
         
@@ -1551,276 +1568,84 @@ class PetActionExecutionView(View):
 
     async def handle_action(self, interaction: discord.Interaction):
         from pet_skill import DiscordUIFormatter
-        custom_id = interaction.data["custom_id"]
-        act_name = custom_id.split("_")[1]
-    
-        # 1. 펫 데이터를 먼저 가져옵니다.
+        
+        # 1. 변수 기본값 사전 선언 (에러 방지)
+        act_name = "알 수 없음"
+        msg = "행동을 수행했습니다."
+        
+        # 2. 데이터 추출
+        custom_id = interaction.data.get("custom_id", "")
+        if "_" in custom_id:
+            act_name = custom_id.split("_")[1]
+            
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-    
-        # 2. 펫이 없는 경우에 대한 예외 처리를 먼저 수행합니다.
         if not pet:
-            await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
-            return
+            return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
 
-        # 3. 그 다음 pet 변수를 사용하는 로직들을 배치합니다.
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        
-        # 2. 이름 변경 처리
+        # 3. 이름 변경 처리 (모달)
         if act_name == "이름 변경":
-            await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
-            return
-            
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-            
-        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+            return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
         
-        # [신규] 1. 일일 1회 제한 행동 정의
+        # 3. 각종 제한 검사 및 행동 로직 수행
         DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
+        
         if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
             return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
-        
         if act_name == "청소하기" and pet.cleanliness >= 99:
             return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
-        
-        if act_name == "쓰다듬기" and pet.affinity >= 297: # 친밀도 300 상한
-            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
-
-        if act_name == "벌레잡기" and pet.affinity >= 297:
+        if act_name in ["쓰다듬기", "벌레잡기"] and pet.affinity >= 297:
             return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
         
-        # [신규] 3. 일일 1회 제한 행동 검증
         if act_name in DAILY_LIMIT_ACTIONS:
             if getattr(pet, "action_done_today", False):
-                return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다. 내일 다시 시도하세요.", ephemeral=True)
-            # 행동 성공 시 마킹할 플래그
+                return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다.", ephemeral=True)
             pet.action_done_today = True
 
-        if not pet:
-            await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
-            return
-
-        climate = ClimateManager().get_current_climate()
-
-        # 행동 시도 직전 패널티 검증 우선 작동
-        penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
-        if penalty == "RUNAWAY":
-            await interaction.response.send_message("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=True)
-            return
-            
-        if pet.mood_state == "화남":
-            refusal_chance = 0.3
-            if pet.affinity_rank == "균형":
-                refusal_chance -= 0.10
-                
-            if random.random() < refusal_chance:
-                await interaction.response.send_message(f"💢 {pet.name}이(가) 기분이 최악이라 명령을 거부했습니다! 놀아주거나 산책을 일찍 시켜주세요.", ephemeral=True)
-                return
-            
-        # 기후 기반 에너지 소모 패널티
-        energy_penalty_msg = ""
-        if climate.weather == "한파" and pet.stage != "알" and act_name not in ["재우기", "휴식", "먹이 주기", "먹이", "간식 주기", "이름 변경"]:
-            pet.energy = max(0, pet.energy - 10)
-            energy_penalty_msg = "\n❄️ [한파] 너무 추운 날씨로 인해 행동 시 에너지가 추가로 소모되었습니다."
-            
-        # 행동 수행 로직
-        if pet.stage == "알":
-            msg = pet.interact_egg(act_name)
-        elif act_name in ["먹이 주기", "먹이"]:
-            pet.fullness = min(100, pet.fullness + 30)
-            pet.stress = max(0, pet.stress - 10)
-            if climate.weather == "폭염":
-                pet.fullness = max(0, pet.fullness - 15)
-                msg = f"🍖 먹이를 주었습니다. (포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100)\n🔥 [폭염] 더위로 인해 포만감이 빠르게 줄어듭니다."
-            else:
-                msg = f"🍖 먹이를 주었습니다. 포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100"
-        elif act_name == "쓰다듬기":
-            pet.affinity = min(300, pet.affinity + 15)
-            pet.stress = max(0, pet.stress - 10)
-            msg = f"👋 {pet.name}을(를) 정성스레 쓰다듬었습니다. (친밀도: {pet.affinity}/300, 스트레스: {pet.stress}/100)"
-        elif act_name == "청소하기":
-            pet.cleanliness = min(100, pet.cleanliness + 50)
-            msg = f"🧼 펫의 주변을 깔끔히 청소했습니다! (청결도: {int(pet.cleanliness)}/100)"
-        elif act_name in ["놀아주기", "장난감"]:
-            if pet.energy < 15:
-                msg = f"❌ {pet.name}의 에너지가 부족하여 놀아줄 수 없습니다!"
-            else:
-                pet.mood_score = min(100, pet.mood_score + 25)
-                exp_result = pet.gain_exp(40)
-                msg = f"🧸 장난감을 활용해 신나게 놀아주었습니다! 기분이 대폭 상승합니다.\n{exp_result}"
-        elif act_name == "재우기" or act_name == "휴식":
-            heal_amount = 100 if getattr(pet, 'personality', None) == "나태" else 50
-            pet.energy = min(100, pet.energy + heal_amount)
-            pet.stress = max(0, pet.stress - 20)
-            msg = f"💤 푹 쉬면서 편안하게 재웠습니다. (에너지: {int(pet.energy)}/100, stress: {pet.stress}/100)"
-            if getattr(pet, 'personality', None) == "나태":
-                msg += "\n🦥 [나태] 성격 덕분에 휴식 효율이 2배가 되었습니다!"
-        elif act_name == "벌레잡기":
-            pet.affinity = min(300, pet.affinity + 5)
-            exp_result = pet.gain_exp(15)
-            msg = f"🐛 펫과 힘을 합쳐 풀밭의 벌레를 잡았습니다!\n{exp_result}"
-        elif act_name == "산책":
-            pet.mood_score = min(100, pet.mood_score + 15)
-            pet.affinity = min(300, pet.affinity + 10)
-            exp_result = pet.gain_exp(20)
-            msg = f"🌳 맑은 공기를 쐬며 산책을 다녀왔습니다.\n{exp_result}"
-        elif act_name == "훈련":
-            if pet.train_count_today >= 3:
-                msg = "❌ 오늘 훈련할 수 있는 최대 횟수(3회)를 초과했습니다! 내일 다시 시도하세요."
-            else:
-                pet.train_count += 1
-                pet.train_count_today += 1
-                pet.stress = min(100, pet.stress + 15)
-                exp_result = pet.gain_exp(60)
-                msg = f"🏋️ 집중 훈련을 단행했습니다! (오늘 훈련: {pet.train_count_today}/3)\n{exp_result}"
-                
-                if pet.stage in ["성체", "최종 진화"] and random.random() < 0.20:
-                    pot_gain = random.randint(1, 3)
-                    pet.potential = min(100, getattr(pet, 'potential', 0) + pot_gain)
-                    msg += f"\n✨ **[대성공!]** 훈련 중 한계를 돌파하여 잠재력이 {pot_gain} 상승했습니다! (현재: {pet.potential}%)"
-        elif act_name == "탐험":
-            if pet.explore_count_today >= 3:
-                msg = "❌ 오늘 모험을 떠날 수 있는 최대 횟수(3회)를 초과했습니다! 내일 다시 시도하세요."
-            else:
-                pet.explore_count += 1
-                pet.explore_count_today += 1
-                pet.stress = min(100, pet.stress + 15)
-                
-                base_exp = 100
-                if pet.affinity_rank == "신뢰":
-                    base_exp = int(base_exp * 1.1)
-                    
-                if climate.weather == "맑음":
-                    base_exp = int(base_exp * 1.05)
-                if climate.season == "가을":
-                    base_exp = int(base_exp * 1.1)
-                
-                exp_result = pet.gain_exp(base_exp)
-                msg = f"🗺️ 외부 지역으로 탐험을 떠났습니다! (오늘 탐험: {pet.explore_count_today}/3)\n{exp_result}"
-                if pet.affinity_rank == "신뢰":
-                    msg += "\n🤝 [신뢰] 등급 혜택으로 탐험 보상이 10% 증가했습니다!"
-                if climate.weather == "맑음":
-                    msg += "\n☀️ [맑음] 맑은 날씨 효과로 경험치를 5% 추가로 얻었습니다!"
-                if climate.season == "가을":
-                    msg += "\n🍁 [가을] 가을 시즌 효과로 탐험 보상이 10% 증가했습니다!"
-                
-                if climate.weather == "강풍":
-                    msg += "\n💨 [강풍] 강풍을 타고 이동거리가 늘어나 탐험 보상을 더 많이 발견했습니다!"
-                    
-                if pet.stage in ["성체", "최종 진화"]:
-                    if random.random() < 0.10:
-                        pot_gain = random.randint(2, 5)
-                        pet.potential = min(100, getattr(pet, 'potential', 0) + pot_gain)
-                        msg += f"\n🌟 **[신비한 조우]** 탐험 중 신비한 기운을 흡수하여 잠재력이 {pot_gain} 상승했습니다! (현재: {pet.potential}%)"
-                        
-                    roll = random.random()
-                    drop_grade = None
-                    if roll < 0.01:
-                        drop_grade = "전설"
-                    elif roll < 0.06:
-                        drop_grade = "영웅"
-                    elif roll < 0.21:
-                        drop_grade = "희귀"
-                        
-                    if drop_grade:
-                        part = random.choice(["머리", "견갑", "허리", "다리"])
-                        pet.inventory["장비"].append({"부위": part, "등급": drop_grade})
-                        msg += f"\n🎁 **[전리품 발견]** 탐험 중에 눈부신 빛을 내는 **[{drop_grade}]** 등급 {part} 장비를 발견했습니다! (가방 확인)"
-                        
-                # 돌발 이벤트
-                event_chance = 0.40
-                if climate.weather == "흐림":
-                    event_chance += 0.05
-                if climate.weather == "안개":
-                    event_chance += 0.10
-                
-                if random.random() < event_chance:
-                    event_roll = random.random()
-                    db = self.cog._get_db(interaction.guild.id)
-                    
-                    if event_roll < 0.25: # 방랑 상인
-                        fruit_grade = random.choice(["상", "중", "하"])
-                        pet.inventory.setdefault("열매", {})
-                        pet.inventory["열매"][fruit_grade] = pet.inventory["열매"].get(fruit_grade, 0) + 1
-                        pet.affinity = min(300, pet.affinity + 10)
-                        msg += f"\n\n🎒 **[방랑 상인 조우]** 숲속에서 길을 잃은 상인을 도와주고 **최고급 열매({fruit_grade})** 1개를 얻었습니다!"
-                    elif event_roll < 0.45: # 옹달샘
-                        pet.energy = min(100, pet.energy + 50)
-                        pet.mood_score = min(100, pet.mood_score + 30)
-                        pet.cleanliness = 100
-                        msg += f"\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"
-                    elif event_roll < 0.65: # 폭우
-                        pet.cleanliness = max(0, pet.cleanliness - 40)
-                        pet.stress = min(100, pet.stress + 20)
-                        msg += f"\n\n⛈️ **[변덕스러운 폭우]** 갑작스러운 폭우에 진흙탕을 구르며 펫의 청결도가 깎이고 스트레스를 받았습니다..."
-                        if random.random() < 0.15:
-                            pet.inventory["장비"].append({"부위": "비옷", "등급": "희귀"})
-                            msg += " (하지만 덤블 속에서 누군가 흘린 [비옷]을 주웠습니다!)"
-                    elif event_roll < 0.85: # 야생 맹수
-                        pet.fullness = max(0, pet.fullness - 30)
-                        extra_exp = pet.gain_exp(base_exp)
-                        msg += f"\n\n🐺 **[야생 맹수의 습격]** 맹수에게서 도망치느라 포만감이 크게 줄었지만, 생존 본능이 자극되어 경험치를 두 배로 얻었습니다!\n{extra_exp}"
-                    else: # 보물 상자
-                        chest_roll = random.random()
-                        drop_cut = 0.05  # 기본 5%
-                        if os.path.exists("data/pet_config.json"):
-                            try:
-                                with open("data/pet_config.json", "r", encoding="utf-8") as f:
-                                    cfg = json.load(f)
-                                    drop_cut = cfg.get("ring_drop_rate", 0.05)
-                            except Exception: 
-                                pass
-
-                        if chest_roll < drop_cut:
-                            pet.inventory["장비"].append({"부위": "변하지 않는 반지", "등급": "전설"})
-                            msg += f"\n\n✨ **[전설의 보물 발견!]** 수풀 속에서 고대의 신비한 상자를 열어 **[변하지 않는 반지]**를 얻었습니다! (진화 방지 아이템)"
-                        
-        elif act_name == "채집":
-            pet.stress = min(100, pet.stress + 15)
-            exp_result = pet.gain_exp(30)
-            db = self.cog._get_db(interaction.guild.id)
-            find_gold = random.randint(100, 300)
-            db.add_user_cash(str(interaction.user.id), find_gold)
-            msg = f"🌿 숲속을 채집하여 맛있는 먹이 원료와 **{find_gold:,}원**을 찾아냈습니다!\n{exp_result}"
-        elif act_name == "간식 주기":
-            if getattr(pet, 'snack_count_today', 0) >= 1:
-                msg = "❌ 간식은 하루에 한 번만 줄 수 있습니다! 너무 많이 먹으면 건강에 안 좋아요."
-            else:
-                pet.snack_count_today = getattr(pet, 'snack_count_today', 0) + 1
-                pet.affinity = min(300, pet.affinity + 20)
-                pet.fullness = min(100, pet.fullness + 10)
-                msg = f"🍬 달콤한 간식을 주었습니다! {pet.name}이(가) 무척 행복해하며 당신을 따릅니다. (친밀도 대폭 상승)"
-                
-        if energy_penalty_msg:
-            msg += energy_penalty_msg
-            
+        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
-        await interaction.response.edit_message(
-            embed=embed, 
-            attachments=[], 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-            )
+        climate = ClimateManager().get_current_climate()
+        penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
+        if penalty == "RUNAWAY":
+            return await interaction.response.send_message("🚨 펫이 도망갔습니다.", ephemeral=True)
 
-        if act_name not in ["PvP", "랭크전"]:
-            try:
-                embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-                await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
-            except Exception:
-                pass
-            return
-            
-        if act_name == "PvP":
-            if pet.mood_state == "화남":
-                msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                await interaction.response.send_message(msg, ephemeral=True)
+        # 행동 수행 로직
+        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
+        if pet.stage == "알": msg = pet.interact_egg(act_name)
+        elif act_name in ["먹이 주기", "먹이"]:
+            pet.fullness = min(100, pet.fullness + 30)
+            msg = "🍖 먹이를 주었습니다."
+        elif act_name == "쓰다듬기":
+            pet.affinity = min(300, pet.affinity + 15)
+            msg = "👋 정성스레 쓰다듬었습니다."
+        elif act_name == "청소하기":
+            pet.cleanliness = min(100, pet.cleanliness + 50)
+            msg = "🧼 깨끗이 청소했습니다!"
+        elif act_name in ["놀아주기", "장난감"]:
+            msg = pet.gain_exp(40) if pet.energy >= 15 else "❌ 에너지가 부족합니다."
+        elif act_name in ["재우기", "휴식"]:
+            pet.energy = min(100, pet.energy + 50)
+            msg = "💤 푹 쉬었습니다."
+        elif act_name == "훈련":
+            if pet.train_count_today >= 3: msg = "❌ 훈련 횟수 초과."
+            else: 
+                pet.train_count_today += 1
+                msg = pet.gain_exp(60)
+        elif act_name == "탐험":
+            if pet.explore_count_today >= 3: msg = "❌ 탐험 횟수 초과."
+            else:
+                pet.explore_count_today += 1
+                msg = pet.gain_exp(100)
+        
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        # 4. PvP/랭크전 로직 (배틀 시작 시 여기서 return)
+        if act_name in ["PvP", "랭크전"]:
+            if act_name == "PvP":
+                if pet.mood_state == "화남":
+                    msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
+                    await interaction.response.send_message(msg, ephemeral=True)
                 return
             else:
                 types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
@@ -1885,55 +1710,20 @@ class PetActionExecutionView(View):
                 except Exception:
                     pass
                 return
-        else:
-            msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
             
-        ult = pet.check_ultimate_skill()
-        if ult:
-            msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
-            
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-
+        # 5. 일반 행동 결과 임베드 출력 (최종 1회)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
         
-        # 웹 URL 썸네일 설정
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
+        if pet_data.get("image_url"):
+            embed.set_thumbnail(url=pet_data["image_url"])
 
-        try:
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-        except Exception as e:
-            print(f"UI 갱신 오류: {e}")
-        
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-            
-        image_name = pet_data.get("image_file", "알.png")
-        image_path = f"data/images/{image_name}"
-        
-        # 수정할 코드 부분
-        try:
-            # 1. 파일 객체 생성
-            file = discord.File(image_path, filename=image_name) if os.path.exists(image_path) else None
-            
-            # 2. 썸네일 설정 (이미지가 있을 때만)
-            if file:
-                embed.set_thumbnail(url=f"attachment://{image_name}")
-            
-            # 3. 메시지 수정 시 files 인자에 리스트 형태로 전달
-            await interaction.followup.send(msg, ephemeral=True)
-            await interaction.message.edit(embed=embed, attachments=[file] if file else [])
-            
-        except Exception as e:
-            print(f"이미지 전송 에러: {e}")
-            await interaction.followup.send(msg, ephemeral=True)
-            await interaction.message.edit(embed=embed)
+        await interaction.response.edit_message(
+            embed=embed, 
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+        )
 
 async def setup(bot):
     await bot.add_cog(PetManager(bot))
