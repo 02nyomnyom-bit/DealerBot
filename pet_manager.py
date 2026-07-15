@@ -407,7 +407,35 @@ class PetManager(commands.Cog):
     def _get_db(self, guild_id: int) -> DatabaseManager:
         gid_str = str(guild_id)
         if gid_str not in self.db_managers:
-            self.db_managers[gid_str] = DatabaseManager(guild_id=gid_str)
+            db = DatabaseManager(guild_id=gid_str)
+            
+            # 🛡️ 새로운 길드 DB가 로드될 때, 테이블이 없다면 즉시 생성해 줍니다.
+            try:
+                db.create_table(
+                    "user_pets",
+                    """
+                    user_id TEXT NOT NULL,
+                    guild_id TEXT NOT NULL,
+                    pet_data TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, guild_id)
+                    """
+                )
+                db.create_table(
+                    "user_pet_storage",
+                    """
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    guild_id TEXT NOT NULL,
+                    pet_data TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    """
+                )
+            except Exception as e:
+                print(f"⚠️ [{gid_str}] 테이블 동적 초기화 에러: {e}")
+                
+            self.db_managers[gid_str] = db
+            
         return self.db_managers[gid_str]
 
     def get_user_pet(self, guild_id: str, user_id: str) -> Optional[Pet]:
@@ -500,7 +528,7 @@ class PetManager(commands.Cog):
         return None
 
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
     async def start_game(self, interaction: discord.Interaction, 펫이름: str, 타입: str = "노말"):
         user_id = str(interaction.user.id)
@@ -508,25 +536,27 @@ class PetManager(commands.Cog):
         db = self._get_db(interaction.guild.id)
         db.get_or_create_user(user_id, interaction.user.name)
         
-        # 총 보유 마릿수 제약 (Max 3)
+        # 총 보유 마릿수 제약 검사 (Max 3)
         total_pets = self.get_total_pet_count(guild_id, user_id)
         if total_pets >= 3:
             await interaction.response.send_message("❌ 이 세계에서 최대로 보호할 수 있는 생명은 **최대 3마리**까지입니다. 더 입양하려면 펫을 방생해 주세요.", ephemeral=True)
             return
             
-        if self.get_user_pet(guild_id, user_id):
-            # 메인 파트너 자리가 채워져 있는 경우엔 보관함으로 유도
+        active_pet = self.get_user_pet(guild_id, user_id)
+        
+        # 🌟 [개선] 메인 동행 자리가 비어있다면, 보관함을 거치지 않고 즉시 활성화 슬롯에 안착시킵니다.
+        if active_pet is None:
+            new_pet = Pet(펫이름, 타입)
+            self.save_user_pet(guild_id, user_id, new_pet)
+            await interaction.response.send_message(f"🎉 첫 번째 동행 파트너 지정 완료! 속성 **[{타입}]**의 알 **[{펫이름}]**이 메인 파트너로 즉시 활성화되었습니다! (현재 보유: {total_pets + 1}/3)")
+        else:
+            # 메인 자리가 이미 차 있을 때만 보관함(Storage)으로 자동 안전 수령
             new_pet = Pet(펫이름, 타입)
             self.add_stored_pet(guild_id, user_id, new_pet)
             await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
-            return
-            
-        new_pet = Pet(펫이름, 타입)
-        self.save_user_pet(guild_id, user_id, new_pet)
-        await interaction.response.send_message(f"🎉 동행 파트너 지정 완료! 첫 번째 **[{타입}]** 속성의 알 **[{펫이름}]**이 지급되었습니다! (현재 보유: {total_pets + 1}/3)")
 
     @app_commands.command(name="펫보관함", description="보관 중인 펫을 확인하고 메인 펫과 교체(스왑)합니다. (최대 3마리 보존)")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.default_permissions(administrator=True)
     async def open_storage(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
@@ -552,7 +582,7 @@ class PetManager(commands.Cog):
             
         view = StorageSwapView(self, user_id, guild_id, stored, active_pet)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
+        
     @app_commands.command(name="교배", description="NPC와 교배하여 강력한 알을 얻습니다. (10만 골드 소모, 최종 진화체 필요)")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
@@ -679,7 +709,7 @@ class PetManager(commands.Cog):
         
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="날씨", description="제주도의 현재 실시간 기후 및 날씨를 확인합니다.")
+    @app_commands.command(name="날씨", description="신비섬의 현재 실시간 기후 및 날씨를 확인합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
     async def view_weather(self, interaction: discord.Interaction):
@@ -691,7 +721,7 @@ class PetManager(commands.Cog):
         }
         icon = weather_icons.get(climate.weather, "🌈")
         
-        embed = discord.Embed(title=f"제주도 기후 현황 ({climate.season})", description="실제 제주도의 실시간 날씨에 기반한 게임 내 기상 정보입니다.", color=0x3498db)
+        embed = discord.Embed(title=f"신비섬 기후 현황 ({climate.season})", description="실시간 날씨에 기반한 게임 내 기상 정보입니다.", color=0x3498db)
         
         time_str = "🌌 밤 (특수 야간 진화 및 이벤트 활성화)" if climate.is_night else "☀️ 낮"
         embed.add_field(name="기본 날씨", value=f"{icon} **{climate.weather}** ({climate.temperature}℃, 풍속 {climate.wind_speed}km/h)", inline=False)

@@ -54,7 +54,11 @@ class ClimateManager:
         # 1시간(3600초) 단위 캐싱
         if self.cached_state is None or (now - self.last_fetch_time) > 3600:
             self.last_fetch_time = now
-            dt = datetime.now()
+            
+            from datetime import timezone, timedelta
+            tz_kst = timezone(timedelta(hours=9))
+            dt = datetime.now(tz_kst)
+            
             month = dt.month
             hour = dt.hour
             
@@ -85,9 +89,7 @@ class ClimateManager:
             else:
                 weather = "흐림" # fallback
                 
-            # 계절 가중치에 따른 보정 (예: 여름에는 폭염 확률 높음 등은 실제 온도에 반영되므로 별도 보정 불필요)
-            
-            # 2. 특수 기상 이벤트 산출 (매 시간 캐싱될 때 한 번씩 평가)
+            # 2. 특수 기상 이벤트 산출
             special = None
             prob = random.random()
             
