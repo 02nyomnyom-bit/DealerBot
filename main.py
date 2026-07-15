@@ -154,45 +154,46 @@ def get_available_extensions() -> Dict[str, List[str]]:
     # 1. 카테고리별 코그(Cog) 파일 명단 정의
     categories = {
         "핵심 시스템": [
-            'database_manager',          #  [시스템]  데이터베이스 관리 매니저
-            'point_manager',             # [서버관리] 포인트 관리
-            'exchange_system',           #  [편의성]  경험치, 머니 교환
-            'xp_leaderboard',            # [서버관리] 경험치 관리
-            'leaderboard_system',        # [서버관리] 통합 리더보드
-            'attendance_master',         #  [편의성]  서버 출석
-            'voice_tracker',             #  [시스템]  음성 추적
-            'improved_post_delete',      # [서버관리] 글 삭제
-            'help_command',              #  [시스템]  도움말
-            'update_system',             # [서버관리] 공지 업로드
-            'improved_user_management',  # [서버관리] 사용자 관리
-            'warning',                   # [서버관리] 경고제도
+            'database_manager',         #  [시스템]  데이터베이스 관리 매니저
+            'point_manager',            # [서버관리] 포인트 관리
+            'exchange_system',          #  [편의성]  경험치, 머니 교환
+            'xp_leaderboard',           # [서버관리] 경험치 관리
+            'leaderboard_system',       # [서버관리] 통합 리더보드
+            'attendance_master',        #  [편의성]  서버 출석
+            'voice_tracker',            #  [시스템]  음성 추적
+            'improved_post_delete',     # [서버관리] 글 삭제
+            'help_command',             #  [시스템]  도움말
+            'update_system',            # [서버관리] 공지 업로드
+            'improved_user_management', # [서버관리] 사용자 관리
+            'warning',                  # [서버관리] 경고제도
         ],
         "게임 시스템": [
-            'lottery_system',            #   [게임]   로또
-            'horse_racing',              #   [게임]   경마
-            'enhancement_system',        #   [게임]   강화
-            'slot_machine',              #   [게임]   슬롯머신
-            'blackjack',                 #   [게임]   블랙잭
-            'dice_game',                 #   [게임]   주사위
-            #'yabawi_game',              #   [게임]   야바위 게임 (임시중단)
-            #'rock_paper_scissors',      #   [게임]   가위바위보 (임시중단)   
-            'odd_even_game',             #   [게임]   홀짝
-            'fishing',                   #   [게임]   낚시
+            'lottery_system',           #   [게임]   로또
+            'horse_racing',             #   [게임]   경마
+            'enhancement_system',       #   [게임]   강화
+            'slot_machine',             #   [게임]   슬롯머신
+            'blackjack',                #   [게임]   블랙잭
+            'dice_game',                #   [게임]   주사위
+            #'yabawi_game',             #   [게임]   야바위 게임 (임시중단)
+            #'rock_paper_scissors',     #   [게임]   가위바위보 (임시중단)   
+            'odd_even_game',            #   [게임]   홀짝
+            'fishing',                  #   [게임]   낚시
+            'pet_manager',              #   [게임]   낚시
         ],
         "관리 도구": [
-            'tax_system',                # [서버관리] 세금
-            'role_reward_system',        # [서버관리] 레벨별 역할 지급
-            'welcome_system',            # [서버관리] 환영인사
-            'anonymous',                 #  [편의성]  익명 채팅
-            'sticky_memo',               # [서버관리] 접착 메모
-            'room_manager',              #  [편의성]  대화방 설정
+            'tax_system',               # [서버관리] 세금
+            'role_reward_system',       # [서버관리] 레벨별 역할 지급
+            'welcome_system',           # [서버관리] 환영인사
+            'anonymous',                #  [편의성]  익명 채팅
+            'sticky_memo',              # [서버관리] 접착 메모
+            'room_manager',             #  [편의성]  대화방 설정
         ],
         "유틸리티": [
-            'channel_config',            # [서버관리] 명령어 채널 지정
-            'common_utils',              #  [시스템]  공통 유틸리티
-            'statistics_system',         #   [게임]   통계
-            'error_handler',             #  [시스템]  에러 처리
-            'birthday',                  #  [편의성]  생일
+            'channel_config',           # [서버관리] 명령어 채널 지정
+            'common_utils',             #  [시스템]  공통 유틸리티
+            'statistics_system',        #   [게임]   통계
+            'error_handler',            #  [시스템]  에러 처리
+            'birthday',                 #  [편의성]  생일
         ],
         "새로운 시스템": []
     }
@@ -258,7 +259,7 @@ class EnhancedBot(commands.Bot):
         elif 20 <= hour < 23: greeting = "“암거래 시작”"
         else: greeting = "“새벽 밀수 중”"
 
-        await self.change_presence(activity=discord.CustomActivity(name=f"📅{date_str} | {greeting} | (v1.12.1)"), status=discord.Status.online)
+        await self.change_presence(activity=discord.CustomActivity(name=f"📅{date_str} | {greeting} | (v1.12.2)"), status=discord.Status.online)
 
     @update_daily_status.before_loop
     async def before_daily_status(self):
@@ -295,7 +296,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="보석상 v1.12.1 - 서버 제한 시스템")
+                    embed.set_footer(text="보석상 v1.12.2 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -380,7 +381,7 @@ class EnhancedBot(commands.Bot):
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
         
         print("=" * 50)
-        print(f"🎉 보석상(v1.12.1) 시스템 가동 성공 (60초 후 백그라운드 명령어 동기화 예정)")
+        print(f"🎉 보석상(v1.12.2) 시스템 가동 성공 (60초 후 백그라운드 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
         
@@ -441,7 +442,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 보석상 v1.12.1 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 보석상 v1.12.2 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

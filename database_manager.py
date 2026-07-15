@@ -385,6 +385,8 @@ class DatabaseManager:
                     cursor.execute("ALTER TABLE users ADD COLUMN fishing_reputation INTEGER DEFAULT 0")
                 if 'max_fish_length' not in columns:
                     cursor.execute("ALTER TABLE users ADD COLUMN max_fish_length REAL DEFAULT 0.0")
+                if 'pet_rank_score' not in columns:
+                    cursor.execute("ALTER TABLE users ADD COLUMN pet_rank_score INTEGER DEFAULT 1000")
 
                 # [user_xp 테이블 검증]
                 cursor.execute("PRAGMA table_info(user_xp)")
