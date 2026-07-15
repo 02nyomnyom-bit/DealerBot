@@ -505,6 +505,7 @@ class ActionButton(discord.ui.Button):
 
 class PetManager(commands.Cog):
     def __init__(self, bot):
+        super().__init__()
         self.bot = bot
         self.db_managers: Dict[str, DatabaseManager] = {}
         
