@@ -73,6 +73,9 @@ class Pet:
         self.snack_count_today = 0  
         self.pvp_count = 0
         self.last_update_time = time.time()
+        self.pet_count_today = 0      # 쓰다듬기 카운트
+        self.clean_count_today = 0    # 청소 카운트
+        self.bug_count_today = 0      # 벌레잡기 카운트
         
         self.skills = []
         self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
@@ -141,6 +144,9 @@ class Pet:
             self.train_count_today = 0
             self.explore_count_today = 0
             self.snack_count_today = 0
+            self.pet_count_today = 0
+            self.clean_count_today = 0
+            self.bug_count_today = 0
 
         hours_passed = (current_time - self.last_update_time) / 3600.0
         if hours_passed <= 0: return
@@ -1184,6 +1190,8 @@ class ShopView(discord.ui.View):
     async def handle_click(self, interaction: discord.Interaction):
         custom_id = interaction.data["custom_id"]
         _, item_type, item_name = custom_id.split("_")
+
+        act_name = "상점 거래"
         
         if item_type == "back":
             db = self.cog._get_db(int(self.guild_id))
@@ -1241,14 +1249,20 @@ class ShopView(discord.ui.View):
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
+        # 1. 펫 상태창 임베드 데이터 생성
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+
+        # 2. 결과 임베드 생성 (msg를 여기에 담습니다)
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        
+        # 3. 펫 상태창 필드 추가
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        try:
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-        except Exception as e:
-            print(f"UI 갱신 오류: {e}")
+        
+        # 4. 이미지 처리
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
         
         user_data = db.get_user(self.user_id)
         
@@ -1538,47 +1552,39 @@ class PetActionExecutionView(View):
         self.cog = cog
         self.user_id = user_id
         self.guild_id = guild_id
+        
+        # 버튼 스타일을 명확히 지정
         for act in actions:
-            # 스타일이 1~4 사이의 올바른 정수 값인지 확인 (ButtonStyle.success는 3번임)
-            btn = discord.ui.Button(label=act, style=discord.ButtonStyle.success, custom_id=f"act_{act}")
+            btn = discord.ui.Button(
+                label=act, 
+                style=discord.ButtonStyle.success, # 3번 스타일
+                custom_id=f"act_{act}"
+            )
             btn.callback = self.handle_action
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
         from pet_skill import DiscordUIFormatter
-        custom_id = interaction.data["custom_id"]
-        act_name = custom_id.split("_")[1]
-
+        
+        # 1. 변수 기본값 사전 선언 (에러 방지)
+        act_name = "알 수 없음"
+        msg = "행동을 수행했습니다."
+        
+        # 2. 데이터 추출
+        custom_id = interaction.data.get("custom_id", "")
+        if "_" in custom_id:
+            act_name = custom_id.split("_")[1]
+            
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+        if not pet:
+            return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
 
-        # 1. 펫 상태 데이터와 메시지 생성
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=f"결과: {act_name}", description=msg, color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        # 2. 결과 임베드 갱신 (이미지 attachments는 여기서 비움)
-        await interaction.response.edit_message(
-            embed=embed, 
-            attachments=[], 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-        )
-        
-        # 2. 이름 변경 처리
+        # 3. 이름 변경 처리 (모달)
         if act_name == "이름 변경":
-            await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
-            return
-            
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-            
-        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+            return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
         
-        # [신규] 1. 일일 1회 제한 행동 정의
-        DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
+        # 3. 각종 제한 검사 및 행동 로직 수행
+        
         if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
             return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
         
@@ -1590,21 +1596,12 @@ class PetActionExecutionView(View):
 
         if act_name == "벌레잡기" and pet.affinity >= 297:
             return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
-        
-        # [신규] 3. 일일 1회 제한 행동 검증
-        if act_name in DAILY_LIMIT_ACTIONS:
-            if getattr(pet, "action_done_today", False):
-                return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다. 내일 다시 시도하세요.", ephemeral=True)
-            # 행동 성공 시 마킹할 플래그
-            pet.action_done_today = True
 
-        if not pet:
-            await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
-            return
+        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
 
         climate = ClimateManager().get_current_climate()
-
-        # 행동 시도 직전 패널티 검증 우선 작동
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
         if penalty == "RUNAWAY":
             await interaction.response.send_message("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=True)
@@ -1637,12 +1634,15 @@ class PetActionExecutionView(View):
             else:
                 msg = f"🍖 먹이를 주었습니다. 포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100"
         elif act_name == "쓰다듬기":
-            pet.affinity = min(300, pet.affinity + 15)
-            pet.stress = max(0, pet.stress - 10)
-            msg = f"👋 {pet.name}을(를) 정성스레 쓰다듬었습니다. (친밀도: {pet.affinity}/300, 스트레스: {pet.stress}/100)"
+            if getattr(pet, "pet_count_today", 0) >= 5:
+                msg = "❌ 쓰다듬기는 하루에 다섯 번만 가능합니다!"
+            else:
+                pet.pet_count_today += 1
+                pet.affinity = min(300, pet.affinity + 15)
+                msg = "👋 정성스레 쓰다듬었습니다."
         elif act_name == "청소하기":
             pet.cleanliness = min(100, pet.cleanliness + 50)
-            msg = f"🧼 펫의 주변을 깔끔히 청소했습니다! (청결도: {int(pet.cleanliness)}/100)"
+            msg = "🧼 깨끗이 청소했습니다!"
         elif act_name in ["놀아주기", "장난감"]:
             if pet.energy < 15:
                 msg = f"❌ {pet.name}의 에너지가 부족하여 놀아줄 수 없습니다!"
@@ -1658,9 +1658,13 @@ class PetActionExecutionView(View):
             if getattr(pet, 'personality', None) == "나태":
                 msg += "\n🦥 [나태] 성격 덕분에 휴식 효율이 2배가 되었습니다!"
         elif act_name == "벌레잡기":
-            pet.affinity = min(300, pet.affinity + 5)
-            exp_result = pet.gain_exp(15)
-            msg = f"🐛 펫과 힘을 합쳐 풀밭의 벌레를 잡았습니다!\n{exp_result}"
+            if getattr(pet, "bug_count_today", 0) >= 3:
+                msg = "❌ 벌레잡기는 하루에 세 번만 가능합니다!"
+            else:
+                pet.bug_count_today += 1
+                pet.affinity = min(300, pet.affinity + 5)
+                exp_result = pet.gain_exp(15)
+                msg = f"🐛 펫과 힘을 합쳐 풀밭의 벌레를 잡았습니다!\n{exp_result}"
         elif act_name == "산책":
             pet.mood_score = min(100, pet.mood_score + 15)
             pet.affinity = min(300, pet.affinity + 10)
@@ -1798,29 +1802,12 @@ class PetActionExecutionView(View):
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-
-        await interaction.response.edit_message(
-            embed=embed, 
-            attachments=[], 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-            )
-
-        if act_name not in ["PvP", "랭크전"]:
-            try:
-                embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-                await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
-            except Exception:
-                pass
-            return
-            
-        if act_name == "PvP":
-            if pet.mood_state == "화남":
-                msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                await interaction.response.send_message(msg, ephemeral=True)
+        # 4. PvP/랭크전 로직 (배틀 시작 시 여기서 return)
+        if act_name in ["PvP", "랭크전"]:
+            if act_name == "PvP":
+                if pet.mood_state == "화남":
+                    msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
+                    await interaction.response.send_message(msg, ephemeral=True)
                 return
             else:
                 types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
@@ -1895,24 +1882,17 @@ class PetActionExecutionView(View):
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
         
-        # 웹 URL 썸네일 설정
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
+        if pet_data.get("image_url"):
+            embed.set_thumbnail(url=pet_data["image_url"])
 
-        try:
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-        except Exception as e:
-            print(f"UI 갱신 오류: {e}")
-        
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        await interaction.response.edit_message(
+            embed=embed, 
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+        )
 
 async def setup(bot):
     await bot.add_cog(PetManager(bot))
