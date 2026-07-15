@@ -1562,40 +1562,42 @@ class PetActionExecutionView(View):
         self.guild_id = guild_id
         
         for act in actions:
+            # 스타일을 인스턴스가 아닌 정수형(ButtonStyle.success)으로 명시
             btn = discord.ui.Button(
                 label=act, 
                 style=discord.ButtonStyle.success,
                 custom_id=f"act_{act}"
             )
+            # 클래스 내부의 메서드를 정확히 연결
             btn.callback = self.handle_action
             self.add_item(btn)
 
-async def handle_action(self, interaction: discord.Interaction):
-    # 1. 펫 정보 로드
-    pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-    if not pet:
-        return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
+    async def handle_action(self, interaction: discord.Interaction):
+        # 1. 펫 정보 로드
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        if not pet:
+            return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
         
-    # 2. 액션 이름 추출
-    custom_id = interaction.data.get("custom_id", "")
-    act_name = custom_id.split("_")[1] if "_" in custom_id else "알 수 없음"
+        # 2. 액션 이름 추출
+        custom_id = interaction.data.get("custom_id", "")
+        act_name = custom_id.split("_")[1] if "_" in custom_id else "알 수 없음"
         
-    # 3. 행동 결과 메시지 생성 로직 (예시)
-    msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
+        # 3. 행동 결과 메시지 생성 로직 (예시)
+        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
         
-    # 3. 각종 제한 검사 및 행동 로직 수행
-    DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
+        # 3. 각종 제한 검사 및 행동 로직 수행
+        DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
         
-    if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
-        return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
-    if act_name == "청소하기" and pet.cleanliness >= 99:
-        return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
-    if act_name in ["쓰다듬기", "벌레잡기"] and pet.affinity >= 297:
-        return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)  
-    if act_name in DAILY_LIMIT_ACTIONS:
-        if getattr(pet, "action_done_today", False):
-            return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다.", ephemeral=True)
-        pet.action_done_today = True
+        if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
+            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
+        if act_name == "청소하기" and pet.cleanliness >= 99:
+            return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
+        if act_name in ["쓰다듬기", "벌레잡기"] and pet.affinity >= 297:
+            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)  
+        if act_name in DAILY_LIMIT_ACTIONS:
+            if getattr(pet, "action_done_today", False):
+                return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다.", ephemeral=True)
+            pet.action_done_today = True
 
         msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
         
@@ -1648,14 +1650,17 @@ async def handle_action(self, interaction: discord.Interaction):
         # 4. 상태 저장
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
-        # 5. 임베드 및 UI 업데이트 (interaction.response.edit_message는 여기서 한 번만 호출!)
+        # 4. 임베드 및 UI 갱신 (반드시 edit_message 사용)
         from pet_skill import DiscordUIFormatter
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         
         embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
+        if pet_data.get("image_url"):
+            embed.set_thumbnail(url=pet_data["image_url"])
+            
+        # 응답이 완료되지 않았다면 edit_message 호출
         await interaction.response.edit_message(
             embed=embed, 
             view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()),
