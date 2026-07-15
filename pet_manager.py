@@ -1772,7 +1772,8 @@ class PetActionExecutionView(View):
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
-        # 1. 중복 응답 방지
+        # 1. 중복 응답 방지 및 임포트 재확인
+        from pet_skill import DiscordUIFormatter # 👈 이 줄을 메서드 시작점에 추가하세요
         if interaction.response.is_done():
             return
         
