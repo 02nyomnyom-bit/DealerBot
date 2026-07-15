@@ -16,7 +16,12 @@ async def go_to_home(interaction, cog, user_id, guild_id):
     # 순환 참조 방지를 위해 MainPetHubView를 동적 임포트하여 메시지를 수정합니다.
     from pet_manager import MainPetHubView
     await interaction.response.edit_message(embed=embed, view=MainPetHubView(cog, user_id, guild_id))
-
+    try:
+        # response가 이미 나갔다면 edit_original_response 사용
+        await interaction.edit_original_response(embed=embed, view=MainPetHubView(cog, user_id, guild_id))
+    except discord.InteractionResponded:
+    # 이미 response가 나간 경우를 대비한 안전 조치
+        await interaction.followup.edit_message(message_id='@original', embed=embed, view=MainPetHubView(cog, user_id, guild_id))
 
 # 1. ⚔️ 스킬 관리 뷰
 class SkillManageView(View):

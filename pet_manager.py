@@ -560,7 +560,7 @@ class PetManager(commands.Cog):
         if active_pet is None:
             new_pet = Pet(펫이름, 타입)
             self.save_user_pet(guild_id, user_id, new_pet)
-            await interaction.response.send_message(f"🎉 첫 번째 동행 파트너 지정 완료! 속성 **[{타입}]**의 알 **[{펫이름}]**이 메인 파트너로 즉시 활성화되었습니다! (현재 보유: {total_pets + 1}/3)")
+            await interaction.response.send_message(f"🎉 첫 번째 동행 파트너 지정 완료! ??? 알 **[{펫이름}]**이 메인 파트너로 즉시 활성화되었습니다! (현재 보유: {total_pets + 1}/3)")
         else:
             # 메인 자리가 이미 차 있을 때만 보관함(Storage)으로 자동 안전 수령
             new_pet = Pet(펫이름, 타입)
@@ -1549,6 +1549,7 @@ class PetActionExecutionView(View):
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
+        from pet_skill import DiscordUIFormatter
         custom_id = interaction.data["custom_id"]
         act_name = custom_id.split("_")[1]
         
