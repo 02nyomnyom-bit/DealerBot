@@ -167,7 +167,7 @@ SKILL_DATABASE = {
             {"name": "암흑 불꽃", "mp": 50, "power": 80}
         ],
         "궁극기": [
-            {"name": "블랙홀", "mp": 80, "power": 120}
+            {"name": "빅뱅", "mp": 80, "power": 120}
         ]
     },
     "독": {

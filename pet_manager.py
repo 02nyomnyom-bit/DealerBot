@@ -5,20 +5,22 @@ import time
 import json
 import sqlite3
 import discord
-import os  # 로컬 파일 조회를 위한 모듈
+import os
+import asyncio
+from collections import defaultdict
 from discord import app_commands, Interaction
 from discord.ext import commands
 from discord.ui import Button, View
 from typing import Optional, Dict, List
-
 from database_manager import DatabaseManager
 from pet_skill import DiscordUIFormatter
 from pet_climate import ClimateManager
 
+# 알 -> 새끼 -> 유년기 -> 성체 -> 최종 진화
 class Pet:
     def __init__(self, name: str, main_type: str = "노말"):
         self.name = name
-        self.stage = "알"  # 알 -> 새끼 -> 유년기 -> 성체 -> 최종 진화
+        self.stage = "알"
         self.level = 1
         self.main_type = main_type
         self.sub_type = None
@@ -39,22 +41,27 @@ class Pet:
         self.name_changed = False
         
         # 기획서 기준 실시간 변동 상태 요소 (0~100)
+        # 기획서 기준 실시간 변동 상태 요소 (0~100)
         self.fullness = 100
-        self.mood_score = 100
         self.cleanliness = 100
-        self.energy = 100
+        self.closeness = 30
         self.stress = 0
-        self.affinity = 0  # 친밀도 (0~300)
+        self.health = 100
+        self.mood_score = 100
+        self.energy = 100
+        self.affinity = 0
+        
+        # 전투 스탯 (기본값)
+        self.hp = 20
+        self.max_hp = 100
+        self.attack = 15
+        self.defense = 10
+        self.speed = 10
         self.exp = 0
-        self.potential = 0  # 잠재력 (0~100)
-        
-        # 세부 능력치 스탯 (유년기부터 본격 증가)
-        self.hp = 10
-        self.attack = 5
-        self.defense = 5
-        self.speed = 5
-        self.luck = 5
-        
+        self.potential = 0
+        self.rank_score = 1000
+        self.is_dead = False
+
         # 최종 진화 스탯 확장용
         self.crit = 0
         self.res = 0
@@ -76,10 +83,15 @@ class Pet:
         self.pet_count_today = 0      # 쓰다듬기 카운트
         self.clean_count_today = 0    # 청소 카운트
         self.bug_count_today = 0      # 벌레잡기 카운트
-        
+        self.last_decay_time = time.time()
+
+        # 장비 슬롯
+        self.equipment = {"무기": None, "방어구": None, "장신구": None}
+
         self.skills = []
         self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
         self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
+        self.learned_ultimate = None
 
     @property
     def max_mp(self):
@@ -132,9 +144,12 @@ class Pet:
         return None
 
     def update_passive_decay(self):
-        """시간 경과에 따른 3일 기준 차감 엔진 및 자정 단위 횟수 초기화"""
+        """시간 경과에 따른 스탯 자연 감소 및 일일 제한 리셋 (원본 복원)"""
         current_time = time.time()
-        
+        elapsed = current_time - self.last_decay_time
+        if elapsed < 0:
+            elapsed = 0
+    
         # 1. 날짜 비교 변수 정의 (이 부분이 정의되지 않아서 에러가 발생합니다)
         last_date = time.strftime('%Y-%m-%d', time.localtime(self.last_update_time + 32400))
         current_date = time.strftime('%Y-%m-%d', time.localtime(current_time + 32400))
@@ -147,6 +162,8 @@ class Pet:
             self.pet_count_today = 0
             self.clean_count_today = 0
             self.bug_count_today = 0
+            
+        self.last_decay_time = current_time
 
         hours_passed = (current_time - self.last_update_time) / 3600.0
         if hours_passed <= 0: return
@@ -175,6 +192,39 @@ class Pet:
             self.fine_charged = False
 
         self.last_update_time = current_time
+
+    def add_exp(self, amount: int) -> bool:
+        """경험치를 획득하고 레벨업 여부를 반환"""
+        self.exp += amount
+        needed = self.level * 100
+        leveled_up = False
+        while self.exp >= needed:
+            self.exp -= needed
+            self.level += 1
+            self.max_hp += 15
+            self.hp = self.max_hp
+            self.attack += 3
+            self.defense += 2
+            self.speed += 2
+            leveled_up = True
+            needed = self.level * 100
+        return leveled_up
+
+    def check_ultimate_skill(self) -> Optional[str]:
+        """성체 이상의 단계에서 친밀도가 100에 도달할 경우 전용 궁극기 각성"""
+        if self.stage in ["성체", "최종 진화"] and self.closeness >= 100 and not self.learned_ultimate:
+            ult_skills = {
+                "불": "지옥불", "물": "대해일", "풀": "대자연의 분노", "전기": "천벌", "비행": "폭풍우",
+                "땅": "대지진", "어둠": "빅뱅", "독": "맹독지대", "에스퍼": "차원절단", "노말": "최후의 일격"
+            }
+            skill = ult_skills.get(self.main_type, "최후의 일격")
+            self.learned_ultimate = skill
+            if len(self.skills) < 4:
+                self.skills.append(skill)
+            else:
+                self.skills[3] = skill  # 마지막 슬롯 대체
+            return skill
+        return None
 
     def get_available_actions(self):
         """기획서 행동 해금 시스템 테이블 매핑"""
@@ -391,6 +441,67 @@ class Pet:
             pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         return pet
 
+class MainPetHubView(discord.ui.View):
+    def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
+        super().__init__(timeout=180)
+        self.cog = cog
+        self.user_id = user_id
+        self.guild_id = guild_id
+        self.pet = pet
+
+    async def interaction_check(self, interaction: Interaction) -> bool:
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ 이 펫의 주인만 조작할 수 있습니다.", ephemeral=True)
+            return False
+        return True
+    
+    @discord.ui.button(label="행동하기", style=discord.ButtonStyle.primary, row=0)
+    async def btn_action(self, interaction: Interaction, button: discord.ui.Button):
+        if interaction.response.is_done(): return
+        
+        self.pet.update_passive_decay()
+        
+        # 1. 즉시 응답으로 처리중임을 알림
+        await interaction.response.edit_message(content="🔄 행동을 준비 중입니다...", embed=None, view=None)
+        
+        # 2. 후속 전송으로 행동 선택창 띄우기
+        view = PetActionSelectionView(self.cog, self.user_id, self.guild_id, self.pet)
+        embed = discord.Embed(title=f"🎭 {self.pet.name}의 행동 선택", description="선택하세요.", color=0x3498db)
+        
+        await interaction.followup.send(embed=embed, view=view)
+
+
+class PetActionSelectionView(discord.ui.View):
+    def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.user_id = user_id
+        self.guild_id = guild_id
+        self.pet = pet
+        
+        # 상호작용 및 모험 옵션 세팅
+        actions = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기", "산책", "훈련", "탐험", "채집", "전투", "랭크전"]
+        for act in actions:
+            self.add_item(ActionButton(act))
+
+class ActionButton(discord.ui.Button):
+    def __init__(self, action_name: str):
+        style = discord.ButtonStyle.secondary
+        if action_name in ["탐험", "채집", "전투", "랭크전"]:
+            style = discord.ButtonStyle.danger
+        elif action_name in ["산책", "훈련"]:
+            style = discord.ButtonStyle.success
+            
+        super().__init__(label=action_name, style=style)
+        self.action_name = action_name
+
+    async def callback(self, interaction: Interaction):
+        view: PetActionSelectionView = self.view
+        view.pet.update_passive_decay()
+        
+        # 실행 화면 전환
+        exec_view = PetActionExecutionView(view.cog, view.user_id, view.guild_id, view.pet, self.action_name)
+        await exec_view.handle_action(interaction)
 
 class PetManager(commands.Cog):
     def __init__(self, bot):
@@ -1013,6 +1124,15 @@ class StorageSwapView(discord.ui.View):
         
         await interaction.response.send_message(f"🔄 성공적으로 **{target_pet.name}**(으)로 스왑(교체) 되었습니다! `/보호자` 명령어를 확인하세요.", ephemeral=True)
 
+class MatchingCancelView(discord.ui.View):
+    def __init__(self, cancel_callback):
+        super().__init__(timeout=60)
+        self.cancel_callback = cancel_callback
+
+    @discord.ui.button(label="매칭 취소", style=discord.ButtonStyle.danger)
+    async def btn_cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cancel_callback(interaction)
+        self.stop() # 뷰 비활성화
 
 class MainPetHubView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str):
@@ -1038,12 +1158,16 @@ class MainPetHubView(View):
         
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
         # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
-
+        
         if custom_id == "hub_펫":
             if not pet:
                 await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
                 return
             
+            # 1. 즉시 응답으로 로딩 시작
+            await interaction.response.edit_message(content="🔍 펫 정보를 불러오는 중...", embed=None, view=None)
+            
+            # 2. 로직 처리 후 상태창 Followup
             pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
             embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
             for f in pet_data["fields"]:
@@ -1051,19 +1175,23 @@ class MainPetHubView(View):
             
             pet_image_url = pet_data.get("image_url")
             if pet_image_url:
-                embed.set_thumbnail(url=pet_image_url) # 오직 여기서만 이미지 적용
+                try:
+                    if pet_image_url:
+                        embed.set_thumbnail(url=pet_image_url)
+                except Exception as e:
+                    print(f"이미지 로딩 실패, 무시함: {e}")
     
-            await interaction.response.edit_message(
-                embed=embed, 
-                attachments=[], 
-                view=PetInfoSubView(self.cog, self.user_id, self.guild_id)
-            )
+
+            await interaction.followup.send(embed=embed, view=PetInfoSubView(self.cog, self.user_id, self.guild_id))
 
         elif custom_id == "hub_상점":
+            # 1. 즉시 응답: 디스코드와의 상호작용을 먼저 완료하여 '봇이 살아있음'을 알림
+            await interaction.response.edit_message(content="🛒 상점을 불러오는 중...", embed=None, view=None)
+
+            # 2. 로직 처리: 데이터베이스 조회 및 상점 정보 구성
             db = self.cog._get_db(int(self.guild_id))
             user_data = db.get_user(self.user_id)
             
-            # 상점 메뉴 구성 시 JSON 파일 기반으로 판매가 출력
             fruit_top_price = 50000
             if os.path.exists("data/pet_config.json"):
                 try:
@@ -1072,37 +1200,60 @@ class MainPetHubView(View):
                         fruit_top_price = cfg.get("fruit_high_price", 50000)
                 except Exception: 
                     pass
-                
-            embed = discord.Embed(title="🛒 펫 상점", description=f"아이템을 구매하세요!\n보유 자산: **{user_data.get('cash', 0):,}원**", color=0xf1c40f)
+            
+            embed = discord.Embed(
+                title="🛒 펫 상점", 
+                description=f"아이템을 구매하세요!\n보유 자산: **{user_data.get('cash', 0):,}원**", 
+                color=0xf1c40f
+            )
             embed.add_field(name="🍎 열매 (포만감 회복)", value=f"- 최상급 열매 (포만감 +30): {fruit_top_price:,}원\n- 중급 열매 (포만감 +15): 30,000원\n- 하급 열매 (포만감 +5): 10,000원", inline=False)
             embed.add_field(name="🛡️ 일반 장비", value="- 머리/견갑/허리/다리 각 부위: 150,000원\n- 기본 스탯: HP +5, ATK +5, SPD +5", inline=False)
+
+            # 3. 후속 전송 (Followup): 완성된 상점 페이지 전송
             try:
-                await interaction.response.edit_message(embed=embed, view=ShopView(self.cog, self.user_id, self.guild_id))
-            except Exception:
-                pass
+                await interaction.followup.send(embed=embed, view=ShopView(self.cog, self.user_id, self.guild_id))
+            except Exception as e:
+                print(f"상점 페이지 전송 실패: {e}")
+
         elif custom_id == "hub_가방":
             if not pet:
                 await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
                 return
             
+            # 1. 즉시 응답: 로딩 메시지를 먼저 보내 디스코드와의 연결을 안전하게 마침
+            await interaction.response.edit_message(content="🎒 가방을 확인하는 중...", embed=None, view=None)
+            
+            # 2. 로직 처리: 아이템 데이터 구성
             fruits = pet.inventory.get("열매", {})
             equips = pet.inventory.get("장비", [])
+            
             embed = discord.Embed(title="🎒 내 가방", description="보유 중인 아이템 목록입니다.", color=0x9b59b6)
             embed.add_field(name="🍎 열매", value=f"- 최상급 열매: {fruits.get('상', 0)}개\n- 중급 열매: {fruits.get('중', 0)}개\n- 하급 열매: {fruits.get('하', 0)}개", inline=False)
             
             eq_list = ", ".join([f"{e['등급']} {e['부위']}" for e in equips]) if equips else "보유 장비 없음"
             embed.add_field(name="🛡️ 장비", value=eq_list, inline=False)
             
+            # 3. 후속 전송 (Followup): 완성된 가방 페이지 전송
             try:
-                await interaction.response.edit_message(embed=embed, view=InventoryView(self.cog, self.user_id, self.guild_id))
-            except Exception:
-                pass
+                await interaction.followup.send(embed=embed, view=InventoryView(self.cog, self.user_id, self.guild_id))
+            except Exception as e:
+                print(f"가방 페이지 전송 실패: {e}")
+
         elif custom_id == "hub_퀘스트":
             from pet_views import QuestView
-            await interaction.response.edit_message(view=QuestView(self.cog, self.user_id, self.guild_id))
+            # 1. 즉시 응답: 로딩 메시지
+            await interaction.response.edit_message(content="📜 퀘스트 목록을 불러오는 중...", embed=None, view=None)
+            
+            # 2. 후속 전송: 퀘스트 뷰
+            await interaction.followup.send(view=QuestView(self.cog, self.user_id, self.guild_id))
+
         elif custom_id == "hub_설정":
             from pet_views import SettingView
-            await interaction.response.edit_message(view=SettingView(self.cog, self.user_id, self.guild_id))
+            # 1. 즉시 응답: 로딩 메시지
+            await interaction.response.edit_message(content="⚙️ 설정을 불러오는 중...", embed=None, view=None)
+            
+            # 2. 후속 전송: 설정 뷰
+            await interaction.followup.send(view=SettingView(self.cog, self.user_id, self.guild_id))
 
 class PetInfoSubView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str):
@@ -1130,40 +1281,65 @@ class PetInfoSubView(View):
             # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
 
         if custom_id == "pet_처음으로":
+            # 1. 즉시 응답: 로딩 중임을 알리고 기존 뷰를 해제합니다.
+            await interaction.response.edit_message(content="🏠 메인 화면으로 돌아가는 중...", embed=None, view=None)
+            
+            # 2. 로직 처리: 데이터 조회 및 메인 화면 구성
             db = self.cog._get_db(int(self.guild_id))
             user_data = db.get_user(self.user_id)
             data = DiscordUIFormatter.make_user_embed_data(user_data, pet)
+            
             embed = discord.Embed(title=data["title"], description=data["description"], color=0x3498db)
             for f in data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+            
+            # 3. 후속 전송 (Followup): 메인 허브 뷰 전송
             try:
-                await interaction.response.edit_message(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
-            except Exception:
-                pass
+                await interaction.followup.send(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+            except Exception as e:
+                print(f"메인 화면 복귀 실패: {e}")
+
         elif custom_id == "pet_장비":
+            # 1. 즉시 응답: 로딩 메시지
+            await interaction.response.edit_message(content="🎒 장비 및 가방을 불러오는 중...", embed=None, view=None)
+            
+            # 2. 데이터 처리
             fruits = pet.inventory.get("열매", {})
             equips = pet.inventory.get("장비", [])
             embed = discord.Embed(title="🎒 장비 및 가방", description="장비를 장착하거나 아이템을 사용하세요.", color=0x9b59b6)
             embed.add_field(name="🍎 열매", value=f"- 최상급: {fruits.get('상', 0)}개 | 중급: {fruits.get('중', 0)}개 | 하급: {fruits.get('하', 0)}개", inline=False)
             eq_list = ", ".join([f"{e['등급']} {e['부위']}" for e in equips]) if equips else "보유 장비 없음"
             embed.add_field(name="🛡️ 보유 장비", value=eq_list, inline=False)
-            try:
-                await interaction.response.edit_message(embed=embed, view=InventoryView(self.cog, self.user_id, self.guild_id))
-            except Exception:
-                pass
+            
+            # 3. 후속 전송
+            await interaction.followup.send(embed=embed, view=InventoryView(self.cog, self.user_id, self.guild_id))
+
         elif custom_id == "pet_행동":
+            # 1. 즉시 응답
+            await interaction.response.edit_message(content="🎭 행동 목록을 불러오는 중...", embed=None, view=None)
+            
+            # 2. 로직 처리
             actions = pet.get_available_actions()
             embed = discord.Embed(title=f"🎭 {pet.name} 행동 목록", description="행동할 상호작용 버튼을 선택하세요.")
-            try:
-                await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, actions))
-            except Exception:
-                pass
+            
+            # 3. 후속 전송
+            await interaction.followup.send(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, actions))
+
         elif custom_id == "pet_스킬":
+            # 1. 즉시 응답
+            await interaction.response.edit_message(content="✨ 스킬 관리창을 불러오는 중...", embed=None, view=None)
+            
+            # 2. 후속 전송
             from pet_views import SkillManageView
-            await interaction.response.edit_message(view=SkillManageView(self.cog, self.user_id, self.guild_id))
+            await interaction.followup.send(view=SkillManageView(self.cog, self.user_id, self.guild_id))
+        
         elif custom_id == "pet_진화":
+            # 1. 즉시 응답
+            await interaction.response.edit_message(content="🆙 진화 불러오는 중...", embed=None, view=None)
+            
+            # 2. 후속 전송
             from pet_views import EvolutionView
-            await interaction.response.edit_message(view=EvolutionView(self.cog, self.user_id, self.guild_id))
+            await interaction.response.send(view=EvolutionView(self.cog, self.user_id, self.guild_id))
 
 class ShopView(discord.ui.View):
     def __init__(self, cog, user_id, guild_id):
@@ -1188,23 +1364,34 @@ class ShopView(discord.ui.View):
             item.callback = self.handle_click
 
     async def handle_click(self, interaction: discord.Interaction):
+        # 0. 중복 응답 방지
+        if interaction.response.is_done():
+            return
+        
         custom_id = interaction.data["custom_id"]
         _, item_type, item_name = custom_id.split("_")
 
         act_name = "상점 거래"
-        
+
         if item_type == "back":
+            # 1. 즉시 응답: 메인 화면으로 돌아가는 중임을 표시
+            await interaction.response.edit_message(content="🏠 메인 화면으로 돌아가는 중...", embed=None, view=None)
+        
+        # 2. 로직 처리: 데이터 조회
             db = self.cog._get_db(int(self.guild_id))
             user_data = db.get_user(self.user_id)
             pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+            
             data = DiscordUIFormatter.make_user_embed_data(user_data, pet)
             embed = discord.Embed(title=data["title"], description=data["description"], color=0x3498db)
             for f in data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 3. 후속 전송 (Followup): 메인 화면 전송
             try:
-                await interaction.response.edit_message(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
-            except Exception: 
-                pass
+                await interaction.followup.send(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+            except Exception as e:
+                print(f"메인 화면 복귀 실패: {e}")
             return
 
         db = self.cog._get_db(int(self.guild_id))
@@ -1253,7 +1440,8 @@ class ShopView(discord.ui.View):
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
 
         # 2. 결과 임베드 생성 (msg를 여기에 담습니다)
-        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        embed_result = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        await interaction.response.edit_message(embed=embed_result, view=None, attachments=[])
         
         # 3. 펫 상태창 필드 추가
         for f in pet_data["fields"]:
@@ -1276,15 +1464,19 @@ class ShopView(discord.ui.View):
             except Exception: 
                 pass
 
-        embed = discord.Embed(title="🛒 펫 상점", description=f"아이템을 구매하세요!\n보유 자산: **{user_data.get('cash', 0):,}원**\n\n{msg}", color=0xf1c40f)
+        embed = discord.Embed(
+                title="🛒 펫 상점", 
+                description=f"아이템을 구매하세요!\n보유 자산: **{user_data.get('cash', 0):,}원**", 
+                color=0xf1c40f
+            )
         embed.add_field(name="🍎 열매 (포만감 회복)", value=f"- 최상급 열매 (포만감 +30): {fruit_top_price:,}원\n- 중급 열매 (포만감 +15): 30,000원\n- 하급 열매 (포만감 +5): 10,000원", inline=False)
         embed.add_field(name="🛡️ 일반 장비", value="- 머리/견갑/허리/다리 각 부위: 150,000원\n- 기본 스탯: HP +5, ATK +5, SPD +5", inline=False)
-        
-        try:
-            await interaction.response.edit_message(embed=embed, view=self)
-        except Exception: 
-            pass
 
+        # 3. 후속 전송 (Followup): 완성된 상점 페이지 전송
+        try:
+            await interaction.followup.send(embed=embed, view=ShopView(self.cog, self.user_id, self.guild_id))
+        except Exception as e:
+            print(f"상점 페이지 전송 실패: {e}")
 
 class InventoryView(discord.ui.View):
     def __init__(self, cog, user_id, guild_id):
@@ -1309,21 +1501,27 @@ class InventoryView(discord.ui.View):
             item.callback = self.handle_click
 
     async def handle_click(self, interaction: discord.Interaction):
+        if interaction.response.is_done(): return
+        
         custom_id = interaction.data["custom_id"]
         _, action, item_name = custom_id.split("_")
         
         if action == "back":
+            # 1. 즉시 응답: 메인 화면 복귀 알림
+            await interaction.response.edit_message(content="🏠 메인 화면으로 돌아가는 중...", embed=None, view=None)
+            
+            # 2. 데이터 처리
             db = self.cog._get_db(int(self.guild_id))
             user_data = db.get_user(self.user_id)
             pet = self.cog.get_user_pet(self.guild_id, self.user_id)
             data = DiscordUIFormatter.make_user_embed_data(user_data, pet)
+            
+            # 3. 후속 전송
             embed = discord.Embed(title=data["title"], description=data["description"], color=0x3498db)
             for f in data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-            try:
-                await interaction.response.edit_message(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
-            except Exception: 
-                pass
+            
+            await interaction.followup.send(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
             return
             
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
@@ -1365,21 +1563,22 @@ class InventoryView(discord.ui.View):
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-
-        try:
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
-        except Exception as e:
-            print(f"UI 갱신 오류: {e}")
         
+        await interaction.response.edit_message(content=f"✅ {msg}", embed=None, view=None)
+        
+        # 2. 로직 처리 (펫 데이터 및 가방 상태 갱신)
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         fruits = pet.inventory.get("열매", {})
         equips = pet.inventory.get("장비", [])
-        embed = discord.Embed(title="🎒 내 가방", description=f"**{msg}**\n\n보유 중인 아이템 목록입니다.", color=0x9b59b6)
-        embed.add_field(name="🍎 열매", value=f"- 최상급 열매: {fruits.get('상', 0)}개\n- 중급 열매: {fruits.get('중', 0)}개\n- 하급 열매: {fruits.get('하', 0)}개", inline=False)
+        
+        # 3. 후속 전송 (Followup)
+        embed = discord.Embed(title="🎒 내 가방", description="보유 중인 아이템 목록입니다.", color=0x9b59b6)
+        embed.add_field(name="🍎 열매", value=f"- 최상급: {fruits.get('상', 0)}개...", inline=False)
         eq_list = ", ".join([f"{e['등급']} {e['부위']}" for e in equips]) if equips else "보유 장비 없음"
         embed.add_field(name="🛡️ 장비", value=eq_list, inline=False)
         
         try:
-            await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.followup.send(embed=embed, view=self)
         except Exception: 
             pass
 
@@ -1400,7 +1599,6 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
         self.guild_id = guild_id
 
     async def on_submit(self, interaction: discord.Interaction):
-        msg = "이름을 변경했습니다."
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         if not pet:
             await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
@@ -1411,18 +1609,19 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
         pet.name_changed = True
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
+        # 1. 즉시 응답: 모달 제출 완료 알림 (기존 UI 수정 대신)
+        await interaction.response.send_message(f"✨ 이름 변경 완료: `{old_name}` -> `{pet.name}`", ephemeral=True)
+
+        # 2. 상태창 Followup: 펫 정보 갱신 (기존 메시지를 수정해야 할 경우)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-
         try:
-            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            # 모달이 실행된 메시지 자체를 수정하고 싶다면 followup을 사용하세요.
+            await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=self)
         except Exception as e:
             print(f"UI 갱신 오류: {e}")
-        
-        await interaction.response.send_message(f"✨ 성공적으로 이름이 변경되었습니다! `{old_name}` -> `{pet.name}`\n대시보드에서 `펫` 버튼을 다시 누르면 반영된 이름이 보입니다.", ephemeral=True)
-
 
 class PvPInteractiveView(discord.ui.View):
     def __init__(self, cog, user_id, guild_id, battle_engine):
@@ -1451,7 +1650,17 @@ class PvPInteractiveView(discord.ui.View):
         embed.add_field(name=f"🟢 {self.battle.pet_a.name} (나)", value=f"HP: {max(0, self.battle.hp_a)}/{self.battle.max_hp_a}\nMP: {max(0, self.battle.mp_a)}/{self.battle.pet_a.max_mp}")
         embed.add_field(name=f"🔴 {self.battle.pet_b.name} (적)", value=f"HP: {max(0, self.battle.hp_b)}/{self.battle.max_hp_b}\nMP: {max(0, self.battle.mp_b)}/{self.battle.pet_b.max_mp}")
         
-        if result:
+        # 전투/행동 종료 후 로직
+        if is_ranked:
+            # 랭크 점수 DB 업데이트 (비동기 처리 후 한 번만 응답)
+            try:
+                with db.get_connection() as conn:
+                    conn.execute("UPDATE users SET pet_rank_score = ? WHERE user_id = ? AND guild_id = ?", 
+                                 (rank_score, self.user_id, self.guild_id))
+                    conn.commit()
+            except Exception as e:
+                print(f"랭크 점수 업데이트 실패: {e}")
+
             self.stop()
             pet = self.cog.get_user_pet(self.guild_id, self.user_id)
             if pet:
@@ -1499,16 +1708,14 @@ class PvPInteractiveView(discord.ui.View):
                             conn.commit()
                     except Exception as e:
                         print(f"랭크 점수 업데이트 실패: {e}")
-            
             try:
-                await interaction.response.edit_message(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
-            except Exception:
-                pass
-        else:
-            try:
-                await interaction.response.edit_message(embed=embed, view=self)
-            except Exception:
-                pass
+                if not interaction.response.is_done():
+                    await interaction.response.edit_message(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+                else:
+                    # 이미 응답된 상태라면 followup으로 메인 허브 띄우기
+                    await interaction.followup.send(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+            except Exception as e:
+                print(f"최종 UI 전환 오류: {e}")
 
     async def on_timeout(self):
         result = None
@@ -1545,6 +1752,24 @@ class PvPInteractiveView(discord.ui.View):
             except Exception as e:
                 print(f"타임아웃 UI 갱신 실패: {e}")
 
+class PetManager:
+    def __init__(self):
+        self.matching_queues = defaultdict(list)
+        self.match_tasks = {} # 서버별 태스크 관리
+
+    async def add_to_queue(self, guild_id, user_id):
+        self.matching_queues[guild_id].append(user_id)
+        
+    async def remove_from_queue(self, guild_id, user_id):
+        if user_id in self.matching_queues[guild_id]:
+            self.matching_queues[guild_id].remove(user_id)
+
+    async def get_match(self, guild_id):
+        # 해당 서버의 대기열에서만 매칭 상대를 찾음
+        queue = self.matching_queues[guild_id]
+        if len(queue) >= 2:
+            return queue.pop(0), queue.pop(0)
+        return None
 
 class PetActionExecutionView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str, actions: list):
@@ -1564,7 +1789,9 @@ class PetActionExecutionView(View):
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
-        from pet_skill import DiscordUIFormatter
+        # 1. 중복 응답 방지
+        if interaction.response.is_done():
+            return
         
         # 1. 변수 기본값 사전 선언 (에러 방지)
         act_name = "알 수 없음"
@@ -1599,7 +1826,25 @@ class PetActionExecutionView(View):
 
         msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+        
+        # 2. 결과창 즉시 갱신 (Interaction 응답)
+        embed_result = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        await interaction.response.edit_message(embed=embed_result, view=None, attachments=[])
+        
+        # 3. 상태창 후속 전송 (Followup)
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
 
+        embed_status = discord.Embed(title=pet_data["title"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed_status.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        try:
+            if pet_data.get("image_url"):
+                embed_status.set_thumbnail(url=pet_data["image_url"])
+        except Exception:
+            pass
+
+        await interaction.followup.send(embed=embed_status, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
 
         climate = ClimateManager().get_current_climate()
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
@@ -1802,14 +2047,18 @@ class PetActionExecutionView(View):
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
-        # 4. PvP/랭크전 로직 (배틀 시작 시 여기서 return)
+        # 4. PvP/랭크전 로직
         if act_name in ["PvP", "랭크전"]:
+            # 1. 즉시 응답: 처리 중임을 알리고 상호작용 종료
+            await interaction.response.edit_message(content="⚔️ 배틀을 준비하는 중...", embed=None, view=None)
+            
             if act_name == "PvP":
                 if pet.mood_state == "화남":
                     msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                    await interaction.response.send_message(msg, ephemeral=True)
-                return
-            else:
+                    # 이미 응답했으므로 followup 사용
+                    await interaction.followup.send(msg, ephemeral=True)
+                    return
+            else: # 랭크전 로직
                 types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
                 wild_pet = Pet("야생의 펫", random.choice(types))
                 wild_pet.level = max(1, pet.level + random.randint(-2, 2))
@@ -1823,76 +2072,138 @@ class PetActionExecutionView(View):
                 from pet_skill import PvPBattle
                 battle = PvPBattle(pet, wild_pet)
                 battle.is_ranked = False
+                battle.log.append(f"⚔️ **배틀 시작!** {pet.name} VS {wild_pet.name}")
                 
-                battle.log.append(f"⚔️ **배틀 시작!** {pet.name} VS {wild_pet.name} (Lv.{wild_pet.level})")
-                embed = discord.Embed(title="⚔️ 일반 친선전 시작!", description=f"{pet.name} 님이 야생의 {wild_pet.name}을(를) 만났습니다!\n3초 이내에 스킬을 선택하세요! (미선택 시 자동 전투 전환)", color=0xe74c3c)
+                embed = discord.Embed(
+                    title="⚔️ 일반 친선전 시작!", 
+                    description=f"{pet.name} 님이 {wild_pet.name}을(를) 만났습니다!\n3초 이내에 스킬을 선택하세요!", 
+                    color=0xe74c3c
+                )
                 
+                # 2. 상태창 Followup: 배틀 뷰 전송
                 battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
-                try:
-                    await interaction.response.edit_message(embed=embed, view=battle_view)
-                    battle_view.message = interaction.message
-                except Exception:
-                    pass
+                msg_obj = await interaction.followup.send(embed=embed, view=battle_view)
+                battle_view.message = msg_obj # 생성된 메시지 객체를 뷰에 전달
                 return
+            
         elif act_name == "랭크전":
+            # 1. 즉시 응답: 로딩 메시지를 먼저 보내 디스코드와의 연결을 확실히 종료
+            await interaction.response.edit_message(content="👑 랭크 상대를 매칭 중입니다...", embed=None, view=None)
+            
             if pet.mood_state == "화남":
                 msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                await interaction.response.send_message(msg, ephemeral=True)
+                await interaction.followup.send(msg, ephemeral=True)
                 return
-            else:
-                db = self.cog._get_db(interaction.guild.id)
-                user_data = db.get_user(self.user_id)
-                rank_score = user_data.get('pet_rank_score', 1000) if user_data else 1000
+            
+            # 2. 로직 처리: 랭크 데이터 조회 및 상대 생성
+            db = self.cog._get_db(interaction.guild.id)
+            user_data = db.get_user(self.user_id)
+            rank_score = user_data.get('pet_rank_score', 1000) if user_data else 1000
+            
+            base_enemy_level = max(1, 30 + int((rank_score - 1000) / 10))
                 
-                base_enemy_level = max(1, 30 + int((rank_score - 1000) / 10))
+            types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
+            wild_pet = Pet("랭크 수문장", random.choice(types))
+            wild_pet.level = max(1, base_enemy_level + random.randint(-5, 5))
+            wild_pet.stage = "최종 진화" if wild_pet.level >= 75 else ("성체" if wild_pet.level >= 40 else "유년기")
+            wild_pet.rarity = "영웅" if rank_score >= 1400 else "희귀"
                 
-                types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-                wild_pet = Pet("랭크 수문장", random.choice(types))
-                wild_pet.level = max(1, base_enemy_level + random.randint(-5, 5))
-                wild_pet.stage = "최종 진화" if wild_pet.level >= 75 else ("성체" if wild_pet.level >= 40 else "유년기")
-                wild_pet.rarity = "영웅" if rank_score >= 1400 else "희귀"
+            wild_pet.attack = 10 + int(wild_pet.level * 2.5)
+            wild_pet.defense = 10 + int(wild_pet.level * 2.5)
+            wild_pet.speed = 10 + int(wild_pet.level * 2.5)
+            wild_pet._max_mp = 50 + int(wild_pet.level * 5)
+            wild_pet.skills = ["몸통박치기", "깨물기", "최면", "피하기"]
                 
-                wild_pet.attack = 10 + int(wild_pet.level * 2.5)
-                wild_pet.defense = 10 + int(wild_pet.level * 2.5)
-                wild_pet.speed = 10 + int(wild_pet.level * 2.5)
-                wild_pet._max_mp = 50 + int(wild_pet.level * 5)
-                wild_pet.skills = ["몸통박치기", "깨물기", "최면", "피하기"]
-                
-                from pet_skill import PvPBattle, DiscordUIFormatter
-                battle = PvPBattle(pet, wild_pet)
-                battle.is_ranked = True
-                
-                battle.log.append(f"👑 **랭크전 매칭 완료!** {pet.name} VS {wild_pet.name} (Lv.{wild_pet.level}, {DiscordUIFormatter.get_tier_str(rank_score)})")
-                embed = discord.Embed(title="👑 랭크전 시작!", description=f"{pet.name} 님이 {DiscordUIFormatter.get_tier_str(rank_score)} 구간의 상대를 만났습니다!\n3초 이내에 스킬을 선택하세요! (미선택 시 자동 전투 전환)", color=0xf1c40f)
-                
-                battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
-                try:
-                    await interaction.response.edit_message(embed=embed, view=battle_view)
-                    battle_view.message = interaction.message
-                except Exception:
-                    pass
-                return
+            from pet_skill import PvPBattle, DiscordUIFormatter
+            battle = PvPBattle(pet, wild_pet)
+            battle.is_ranked = True
+            battle.log.append(f"👑 **랭크전 매칭 완료!** {pet.name} VS {wild_pet.name} (Lv.{wild_pet.level}, {DiscordUIFormatter.get_tier_str(rank_score)})")
+            
+            embed = discord.Embed(
+                title="👑 랭크전 시작!", 
+                description=f"{pet.name} 님이 {DiscordUIFormatter.get_tier_str(rank_score)} 구간의 상대를 만났습니다!\n3초 이내에 스킬을 선택하세요!", 
+                color=0xf1c40f
+            )
+            # 3. 후속 전송 (Followup): 배틀 뷰를 안전하게 전송
+            battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
+            try:
+                msg_obj = await interaction.followup.send(embed=embed, view=battle_view)
+                battle_view.message = msg_obj
+            except Exception as e:
+                print(f"랭크전 배틀 뷰 전송 실패: {e}")
+            return
+        
         else:
             msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
             
-        ult = pet.check_ultimate_skill()
-        if ult:
-            msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
+            ult = pet.check_ultimate_skill()
+            if ult:
+                msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
             
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+            # 1. DB 저장 (가장 먼저 안전하게 처리)
+            self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+            # 2. 즉시 응답: 디스코드와 상호작용 마무리
+            await interaction.response.edit_message(content=f"✅ {act_name} 완료!", embed=None, view=None)
+
+            # 3. 데이터 로직 처리
+            pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+            embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+            for f in pet_data["fields"]:
+                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+            
+            if pet_data.get("image_url"):
+                embed.set_thumbnail(url=pet_data["image_url"])
+
+            # 4. 후속 전송 (Followup): 상태창과 다음 행동 버튼 전송
+            try:
+                await interaction.followup.send(
+                    embed=embed, 
+                    view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+                )
+            except Exception as e:
+                print(f"상태창 후속 전송 실패: {e}")
+
+    async def match_opponent(self, interaction, battle_type):
+        # 매칭 취소 여부를 추적할 이벤트
+        cancel_event = asyncio.Event()
         
-        if pet_data.get("image_url"):
-            embed.set_thumbnail(url=pet_data["image_url"])
+        async def cancel_callback(interaction: discord.Interaction):
+            cancel_event.set() # 취소 이벤트 발생
+            await interaction.response.edit_message(content="❌ 매칭이 취소되었습니다.", embed=None, view=None)
 
-        await interaction.response.edit_message(
-            embed=embed, 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-        )
+            # 1. 로딩 메시지와 함께 '매칭 취소' 버튼이 담긴 뷰 전송
+            await interaction.response.edit_message(
+                content=f"🔍 {battle_type} 매칭 중... (최대 60초)", 
+                embed=None, 
+                view=MatchingCancelView(cancel_callback)
+            )
+
+            try:
+                # 2. 매칭 대기 (취소 이벤트가 발생하면 바로 종료)
+                # wait_for와 cancel_event를 결합하여 감시
+                match_task = asyncio.create_task(self.cog.find_matching_user())
+                done, pending = await asyncio.wait(
+                    [match_task, cancel_event.wait()],
+                    timeout=60.0,
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                if cancel_event.is_set():
+                    return # 취소됨
+
+                if match_task in done:
+                    opponent = match_task.result()
+                    # 매칭 성공 처리 로직...
+                    await interaction.followup.send("⚔️ 유저 매칭 성공! 배틀을 시작합니다.")
+                else:
+                    raise asyncio.TimeoutError # 60초 경과
+            
+            except asyncio.TimeoutError:
+                    match_task.cancel() # 대기 작업 취소
+                    if battle_type == "PvP":
+                        await self.start_npc_battle(interaction)
+                    else:
+                        await interaction.followup.send("⌛ 매칭 시간이 초과되어 랭크전이 자동 종료되었습니다.")
 
 async def setup(bot):
     await bot.add_cog(PetManager(bot))
