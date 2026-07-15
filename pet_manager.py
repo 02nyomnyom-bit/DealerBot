@@ -1553,6 +1553,17 @@ class PetActionExecutionView(View):
         from pet_skill import DiscordUIFormatter
         custom_id = interaction.data["custom_id"]
         act_name = custom_id.split("_")[1]
+    
+        # 1. 펫 데이터를 먼저 가져옵니다.
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+    
+        # 2. 펫이 없는 경우에 대한 예외 처리를 먼저 수행합니다.
+        if not pet:
+            await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
+            return
+
+        # 3. 그 다음 pet 변수를 사용하는 로직들을 배치합니다.
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         
         # 2. 이름 변경 처리
         if act_name == "이름 변경":
