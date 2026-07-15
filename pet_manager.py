@@ -1571,44 +1571,46 @@ class PetActionExecutionView(View):
             btn.callback = self.handle_action
             self.add_item(btn)
 
-    async def handle_action(self, interaction: discord.Interaction):
-        from pet_skill import DiscordUIFormatter
+async def handle_action(self, interaction: discord.Interaction):
+    from pet_skill import DiscordUIFormatter
         
-        # 1. 변수 기본값 사전 선언 (에러 방지)
-        act_name = "알 수 없음"
-        msg = "행동을 수행했습니다."
+    # 1. 초기화 및 데이터 추출
+    custom_id = interaction.data.get("custom_id", "")
+    act_name = custom_id.split("_")[1] if "_" in custom_id else "알 수 없음"
+    pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
-        # 2. 데이터 추출
-        custom_id = interaction.data.get("custom_id", "")
-        if "_" in custom_id:
-            act_name = custom_id.split("_")[1]
-            
-        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        if not pet:
-            return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
+    if not pet:
+        return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
 
-        # 3. 이름 변경 처리 (모달)
-        if act_name == "이름 변경":
-            return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
+    # 2. 이름 변경 처리 (즉시 종료)
+    if act_name == "이름 변경":
+        return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
         
-        # 3. 각종 제한 검사 및 행동 로직 수행
-        DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
+    # 3. 각종 제한 검사 및 행동 로직 수행
+    DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
         
-        if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
-            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
-        if act_name == "청소하기" and pet.cleanliness >= 99:
-            return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
-        if act_name in ["쓰다듬기", "벌레잡기"] and pet.affinity >= 297:
-            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
+    if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
+        return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
+    if act_name == "청소하기" and pet.cleanliness >= 99:
+        return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
+    if act_name in ["쓰다듬기", "벌레잡기"] and pet.affinity >= 297:
+        return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
         
-        if act_name in DAILY_LIMIT_ACTIONS:
-            if getattr(pet, "action_done_today", False):
-                return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다.", ephemeral=True)
-            pet.action_done_today = True
+    if act_name in DAILY_LIMIT_ACTIONS:
+        if getattr(pet, "action_done_today", False):
+            return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다.", ephemeral=True)
+        pet.action_done_today = True
 
         msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-
+        
+        if act_name == "탐험":
+            if pet.explore_count_today >= 3:
+                msg = "❌ 오늘 탐험 횟수를 모두 소진했습니다!"
+            else:
+                pet.explore_count_today += 1
+                # gain_exp 결과에서 상태창용 정보는 분리하세요
+                pet.gain_exp(100) 
+                msg = "🗺️ 외부 지역으로 탐험을 떠났습니다! (오늘 탐험: 3/3)\n💨 [강풍] 강풍을 타고 이동거리가 늘어났습니다!"
 
         climate = ClimateManager().get_current_climate()
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
@@ -1630,8 +1632,12 @@ class PetActionExecutionView(View):
         elif act_name in ["놀아주기", "장난감"]:
             msg = pet.gain_exp(40) if pet.energy >= 15 else "❌ 에너지가 부족합니다."
         elif act_name in ["재우기", "휴식"]:
-            pet.energy = min(100, pet.energy + 50)
-            msg = "💤 푹 쉬었습니다."
+            if pet.stress <= 0:
+                msg = f"✨ {pet.name}은(는) 이미 스트레스가 전혀 없습니다! 아주 편안한 상태예요."
+            else:
+                pet.energy = min(100, pet.energy + 50)
+                pet.stress = max(0, pet.stress - 10)
+                msg = f"💤 푹 쉬었습니다. (현재 스트레스: {pet.stress}/100)"
         elif act_name == "훈련":
             if pet.train_count_today >= 3: msg = "❌ 훈련 횟수 초과."
             else: 
@@ -1650,7 +1656,7 @@ class PetActionExecutionView(View):
             if act_name == "PvP":
                 if pet.mood_state == "화남":
                     msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                    await interaction.response.send_message(msg, ephemeral=True)
+                    await interaction.response.edit_message(embed=embed, view=battle_view)
                 return
             else:
                 types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
@@ -1718,9 +1724,9 @@ class PetActionExecutionView(View):
                     pass
                 return
             
-        # 5. 일반 행동 결과 임베드 출력 (최종 1회)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
         
@@ -1729,7 +1735,8 @@ class PetActionExecutionView(View):
 
         await interaction.response.edit_message(
             embed=embed, 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()),
+            attachments=[] # 폼 데이터 오류 방지
         )
 
 async def setup(bot):
