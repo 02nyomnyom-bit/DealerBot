@@ -123,9 +123,11 @@ class Pet:
         """시간 경과에 따른 3일 기준 차감 엔진 및 자정 단위 횟수 초기화"""
         current_time = time.time()
         
-        # KST 자정 기준 리셋 체크
+        # 1. 날짜 비교 변수 정의 (이 부분이 정의되지 않아서 에러가 발생합니다)
         last_date = time.strftime('%Y-%m-%d', time.localtime(self.last_update_time + 32400))
         current_date = time.strftime('%Y-%m-%d', time.localtime(current_time + 32400))
+
+        # 2. 자정 리셋 로직
         if last_date != current_date:
             self.train_count_today = 0
             self.explore_count_today = 0
@@ -137,12 +139,13 @@ class Pet:
         # 스트레스 60% 이상부터 기분 감소 가속화
         decay_modifier = 2.0 if self.stress >= 60 else 1.0
         
-        # 실시간 상태 감소 연산
-        self.fullness = max(0, self.fullness - (hours_passed * 1.5))  # 빠름
-        self.mood_score = max(0, self.mood_score - (hours_passed * 1.0 * decay_modifier))  # 보통
-        self.cleanliness = max(0, self.cleanliness - (hours_passed * 0.8))  # 느림
-        
-        # 포만감 및 청결도 0 시점 기록 업데이트
+        # 3. 상태 감소 연산 (기존 로직 유지)
+        decay_modifier = 2.0 if self.stress >= 60 else 1.0
+        self.fullness = max(0, self.fullness - (hours_passed * 1.5))
+        self.mood_score = max(0, self.mood_score - (hours_passed * 1.0 * decay_modifier))
+        self.cleanliness = max(0, self.cleanliness - (hours_passed * 0.8))
+
+        # 4. 상태 0 처리 (기존 로직 유지)
         if self.fullness <= 0 and self.zero_fullness_time is None:
             self.zero_fullness_time = current_time
         elif self.fullness > 0:
@@ -524,7 +527,7 @@ class PetManager(commands.Cog):
                 db = self._get_db(int(guild_id))
                 db.add_user_cash(user_id, -3000)
                 return "SICK_TRIGGERED"
-                
+
         return None
 
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
@@ -1490,6 +1493,28 @@ class PetActionExecutionView(View):
             
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
+        # [신규] 1. 일일 1회 제한 행동 정의
+        DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
+        
+        if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
+            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다! 더 이상 먹을 수 없어요.", ephemeral=True)
+        
+        if act_name == "청소하기" and pet.cleanliness >= 99:
+            return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
+        
+        if act_name == "쓰다듬기" and pet.affinity >= 297: # 친밀도 300 상한
+            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
+
+        if act_name == "벌레잡기" and pet.affinity >= 297:
+            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
+        
+        # [신규] 3. 일일 1회 제한 행동 검증
+        if act_name in DAILY_LIMIT_ACTIONS:
+            if getattr(pet, "action_done_today", False):
+                return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다. 내일 다시 시도하세요.", ephemeral=True)
+            # 행동 성공 시 마킹할 플래그
+            pet.action_done_today = True
+
         if not pet:
             await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
             return
@@ -1783,15 +1808,24 @@ class PetActionExecutionView(View):
         image_path = f"data/images/{image_name}"
         
         try:
-            await interaction.response.send_message(msg, ephemeral=True)
+            # 1. 먼저 상호작용(버튼 클릭)에 응답하여 메인 메시지 처리를 준비합니다.
+            await interaction.response.defer(ephemeral=True)
+            
             if os.path.exists(image_path):
+                # 2. 로컬 이미지 파일을 준비하고, 파일 이름을 명시해 줍니다.
                 file = discord.File(image_path, filename=image_name)
+                
+                # 3. 임베드 썸네일 주소로 디스코드 내부 첨부 포맷(attachment://)을 지정합니다.
                 embed.set_thumbnail(url=f"attachment://{image_name}")
+                
+                # 4. 메시지를 수정할 때 'attachments' 혹은 'file' 매개변수로 실제 파일 객체를 함께 실어 보냅니다.
+                await interaction.followup.send(msg, ephemeral=True)
                 await interaction.message.edit(embed=embed, attachments=[file])
             else:
+                await interaction.followup.send(msg, ephemeral=True)
                 await interaction.message.edit(embed=embed)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"이미지 전송 에러: {e}")
 
 async def setup(bot):
     await bot.add_cog(PetManager(bot))
