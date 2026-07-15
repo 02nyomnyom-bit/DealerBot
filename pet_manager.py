@@ -1587,146 +1587,15 @@ class PetActionExecutionView(View):
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
-        # 1. 펫 정보 로드
+        # 1. 공통 데이터 로드
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         if not pet:
             return await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
         
-        # 2. act_name과 msg 변수 상단 정의
         custom_id = interaction.data.get("custom_id", "")
         act_name = custom_id.split("_")[1] if "_" in custom_id else "알 수 없음"
-        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 수행했습니다." # 기본값 설정
-        
-        # 3. 행동 결과 메시지 생성 로직 (예시)
-        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
-        
-        # 3. 각종 제한 검사 및 행동 로직 수행
-        DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
-        
-        if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
-            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
-        if act_name == "청소하기" and pet.cleanliness >= 99:
-            return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
-        if act_name in ["쓰다듬기", "벌레잡기"] and pet.affinity >= 297:
-            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)  
-        if act_name in DAILY_LIMIT_ACTIONS:
-            if getattr(pet, "action_done_today", False):
-                return await interaction.response.send_message(f"❌ **[{act_name}]**은(는) 하루에 한 번만 가능합니다.", ephemeral=True)
-            pet.action_done_today = True
 
-        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
-        
-        if act_name == "탐험":
-            if pet.explore_count_today >= 3:
-                msg = "❌ 오늘 탐험 횟수를 모두 소진했습니다!"
-            else:
-                pet.explore_count_today += 1
-                # gain_exp 결과에서 상태창용 정보는 분리하세요
-                pet.gain_exp(100) 
-                msg = "🗺️ 외부 지역으로 탐험을 떠났습니다! (오늘 탐험: 3/3)\n💨 [강풍] 강풍을 타고 이동거리가 늘어났습니다!"
-
-        climate = ClimateManager().get_current_climate()
-        penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
-        if penalty == "RUNAWAY":
-            return await interaction.response.send_message("🚨 펫이 도망갔습니다.", ephemeral=True)
-
-        # 행동 수행 로직
-        msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
-        if pet.stage == "알": msg = pet.interact_egg(act_name)
-        elif act_name in ["먹이 주기", "먹이"]:
-            pet.fullness = min(100, pet.fullness + 30)
-            msg = "🍖 먹이를 주었습니다."
-        elif act_name == "쓰다듬기":
-            pet.affinity = min(300, pet.affinity + 15)
-            msg = "👋 정성스레 쓰다듬었습니다."
-        elif act_name == "청소하기":
-            pet.cleanliness = min(100, pet.cleanliness + 50)
-            msg = "🧼 깨끗이 청소했습니다!"
-        elif act_name in ["놀아주기", "장난감"]:
-            msg = pet.gain_exp(40) if pet.energy >= 15 else "❌ 에너지가 부족합니다."
-        elif act_name in ["재우기", "휴식"]:
-            if pet.stress <= 0:
-                msg = f"✨ {pet.name}은(는) 이미 스트레스가 전혀 없습니다! 아주 편안한 상태예요."
-            else:
-                pet.energy = min(100, pet.energy + 50)
-                pet.stress = max(0, pet.stress - 10)
-                msg = f"💤 푹 쉬었습니다. (현재 스트레스: {pet.stress}/100)"
-        elif act_name == "훈련":
-            if pet.train_count_today >= 3: msg = "❌ 훈련 횟수 초과."
-            else: 
-                pet.train_count_today += 1
-                msg = pet.gain_exp(60)
-        elif act_name == "탐험":
-            if pet.explore_count_today >= 3: msg = "❌ 탐험 횟수 초과."
-            else:
-                pet.explore_count_today += 1
-                msg = pet.gain_exp(100)
-
-        # 4. 상태 저장
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        
-        embed_result = discord.Embed(
-            title=f"명령: {act_name}", 
-            description=msg, 
-            color=0x2ecc71
-        )
-        await interaction.response.edit_message(embed=embed_result, view=None) 
-        
-        # 2. 두 번째 메시지: 상세 상태창 (이미지 + 상태 임베드 + 새로운 버튼)
-        from pet_skill import DiscordUIFormatter
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        
-        embed_status = discord.Embed(
-            title=pet_data["title"], 
-            color=0x2ecc71
-        )
-        for f in pet_data["fields"]:
-            embed_status.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        if pet_data.get("image_url"):
-            embed_status.set_thumbnail(url=pet_data["image_url"])
-            
-        # followup.send를 사용하여 상태창과 버튼을 다시 보냅니다.
-        await interaction.followup.send(
-            embed=embed_status, 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-        )
-
-        # 4. PvP/랭크전 로직 (배틀 시작 시 여기서 return)
-        if act_name in ["PvP", "랭크전"]:
-            if act_name == "PvP":
-                if pet.mood_state == "화남":
-                    msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                    await interaction.response.edit_message(embed=embed, view=battle_view)
-                return
-            else:
-                types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-                wild_pet = Pet("야생의 펫", random.choice(types))
-                wild_pet.level = max(1, pet.level + random.randint(-2, 2))
-                wild_pet.stage = "성체"
-                wild_pet.attack = 10 + int(wild_pet.level * 2.5)
-                wild_pet.defense = 10 + int(wild_pet.level * 2.5)
-                wild_pet.speed = 10 + int(wild_pet.level * 2.5)
-                wild_pet._max_mp = 50 + int(wild_pet.level * 5)
-                wild_pet.skills = ["몸통박치기", "깨물기"]
-                
-                from pet_skill import PvPBattle
-                battle = PvPBattle(pet, wild_pet)
-                battle.is_ranked = False
-                
-                battle.log.append(f"⚔️ **배틀 시작!** {pet.name} VS {wild_pet.name} (Lv.{wild_pet.level})")
-                embed = discord.Embed(title="⚔️ 일반 친선전 시작!", description=f"{pet.name} 님이 야생의 {wild_pet.name}을(를) 만났습니다!\n3초 이내에 스킬을 선택하세요! (미선택 시 자동 전투 전환)", color=0xe74c3c)
-                
-                battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
-            
-            # 기존 메시지를 edit
-            await interaction.response.edit_message(
-                embed=embed, 
-                view=battle_view
-            )
-            return
-        
+        # --- A. [특수 행동: 랭크전/PvP] 분기 ---
         if act_name == "랭크전":
             if pet.mood_state == "화남":
                 return await interaction.response.send_message("❌ 기분이 나빠 배틀 거부 중입니다!", ephemeral=True)
@@ -1734,16 +1603,58 @@ class PetActionExecutionView(View):
             embed = discord.Embed(title="⌛ 랭크전 매칭 대기 중", description="60초 동안 서버 내 다른 도전자와 매칭을 시도합니다...", color=0x3498db)
             await interaction.response.edit_message(embed=embed, view=None)
             asyncio.create_task(self.process_match_logic(interaction, pet))
+            return 
+
+        if act_name == "PvP":
+            if pet.mood_state == "화남":
+                return await interaction.response.send_message("❌ 기분이 나빠 배틀 거부 중입니다!", ephemeral=True)
+            # PvP 로직 실행
+            types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
+            wild_pet = Pet("야생의 펫", random.choice(types))
+            wild_pet.level = max(1, pet.level + random.randint(-2, 2))
+            wild_pet.stage = "성체"
+            battle = PvPBattle(pet, wild_pet)
+            battle.is_ranked = False
+            embed = discord.Embed(title="⚔️ 일반 친선전 시작!", description=f"{pet.name} 님이 야생의 {wild_pet.name}을(를) 만났습니다!", color=0xe74c3c)
+            await interaction.response.edit_message(embed=embed, view=PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle))
             return
-        
-        # [일반 행동 분기]
+
+        # --- B. [일반 행동] 수행 로직 ---
         msg = f"⚙️ {pet.name}이(가) {act_name} 행동을 마쳤습니다."
         
-        # 메시지 분리 출력
+        # 제한 검사
+        if (act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99) or \
+           (act_name == "청소하기" and pet.cleanliness >= 99) or \
+           (act_name in ["쓰다듬기", "벌레잡기"] and pet.affinity >= 297):
+            return await interaction.response.send_message("❌ 이미 상태가 충분합니다!", ephemeral=True)
+
+        # 상태 변화 로직
+        if pet.stage == "알": msg = pet.interact_egg(act_name)
+        elif act_name in ["먹이 주기", "먹이"]:
+            pet.fullness = min(100, pet.fullness + 30); msg = "🍖 먹이를 주었습니다."
+        elif act_name == "쓰다듬기":
+            pet.affinity = min(300, pet.affinity + 15); msg = "👋 정성스레 쓰다듬었습니다."
+        elif act_name == "청소하기":
+            pet.cleanliness = min(100, pet.cleanliness + 50); msg = "🧼 깨끗이 청소했습니다!"
+        elif act_name in ["놀아주기", "장난감"]:
+            msg = pet.gain_exp(40) if pet.energy >= 15 else "❌ 에너지가 부족합니다."
+        elif act_name in ["재우기", "휴식"]:
+            pet.energy = min(100, pet.energy + 50); pet.stress = max(0, pet.stress - 10); msg = "💤 푹 쉬었습니다."
+        elif act_name == "훈련":
+            if pet.train_count_today >= 3: msg = "❌ 훈련 횟수 초과."
+            else: pet.train_count_today += 1; msg = pet.gain_exp(60)
+        elif act_name == "탐험":
+            if pet.explore_count_today >= 3: msg = "❌ 탐험 횟수 초과."
+            else: pet.explore_count_today += 1; msg = pet.gain_exp(100)
+
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        # --- C. [출력] 메시지 분리 (결과창 먼저 -> 상태창 followup) ---
+        # 1. 결과 텍스트창 수정
         embed_result = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
         await interaction.response.edit_message(embed=embed_result, view=None) 
         
-        # 상태창 출력
+        # 2. 상태창 followup 전송
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         embed_status = discord.Embed(title=pet_data["title"], color=0x2ecc71)
         for f in pet_data["fields"]:
@@ -1755,52 +1666,6 @@ class PetActionExecutionView(View):
             embed=embed_status, 
             view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
         )
-
-    async def process_match_logic(self, interaction, pet):
-        start_time = time.time()
-        matched = False
-
-        while time.time() - start_time < 60:
-            # 1. 큐에서 자신을 제외한 다른 사람 찾기
-            user_b_data = next((u for u in self.cog.rank_queue.queue if u[0] != self.user_id), None)
-            
-            if user_b_data:
-                matched = True
-                user_b_id, interaction_b = user_b_data
-                
-                # 큐에서 두 사람 제거
-                self.cog.rank_queue.queue.remove((self.user_id, interaction))
-                self.cog.rank_queue.queue.remove(user_b_data)
-                
-                # 1. 두 유저의 펫 객체 로드
-                pet_a = self.cog.get_user_pet(self.guild_id, self.user_id)
-                pet_b = self.cog.get_user_pet(self.guild_id, user_b_id)
-                
-                # 2. 배틀 객체 생성
-                battle = PvPBattle(pet_a, pet_b)
-                battle.is_ranked = True
-                
-                embed = discord.Embed(title="⚔️ 매칭 완료!", description=f"{pet_a.name} VS {pet_b.name} 전투 시작!", color=0xf1c40f)
-                
-                # 3. 본인과 상대방 각각에게 전투 뷰 전달
-                battle_view_a = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
-                battle_view_b = PvPInteractiveView(self.cog, user_b_id, self.guild_id, battle)
-                
-                # 본인 화면 수정
-                await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=battle_view_a)
-                
-                # 상대방 화면 수정
-                await interaction_b.followup.edit_message(message_id=interaction_b.message.id, embed=embed, view=battle_view_b)
-                return
-            
-        # 2. 60초 경과 시 자동 취소 로직
-        if not matched:
-            # 큐에 대기 중이라면 제거
-            if not matched:
-                self.cog.rank_queue.queue.remove((self.user_id, interaction))
-            
-                embed = discord.Embed(title="❌ 매칭 시간 초과", description="...", color=0xe74c3c)
-                await interaction.followup.edit_message(message_id=interaction.message.id, embed=embed, view=None)
 
 async def setup(bot):
     await bot.add_cog(PetManager(bot))
