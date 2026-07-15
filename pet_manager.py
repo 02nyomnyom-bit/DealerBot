@@ -1020,7 +1020,7 @@ class MainPetHubView(View):
             self.add_item(btn)
 
     async def handle_click(self, interaction: discord.Interaction):
-        msg = "상호작용을 시작합니다."
+        msg = ""
         custom_id = interaction.data["custom_id"]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
@@ -1133,7 +1133,7 @@ class PetInfoSubView(View):
             self.add_item(btn)
 
     async def handle_click(self, interaction: discord.Interaction):
-        msg = "상호작용을 시작합니다."
+        msg = ""
         custom_id = interaction.data["custom_id"]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
@@ -1147,11 +1147,6 @@ class PetInfoSubView(View):
             embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
             for f in pet_data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-            # 웹 URL 썸네일 설정
-            pet_image_url = pet_data.get("image_url")
-            if pet_image_url:
-                embed.set_thumbnail(url=pet_image_url)
             
             try:
                 # 수정이 필요할 경우 edit_message 사용
@@ -1221,7 +1216,6 @@ class ShopView(discord.ui.View):
             item.callback = self.handle_click
 
     async def handle_click(self, interaction: discord.Interaction):
-        msg = "상호작용을 시작합니다."
         custom_id = interaction.data["custom_id"]
         _, item_type, item_name = custom_id.split("_")
         
@@ -1285,12 +1279,6 @@ class ShopView(discord.ui.View):
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        # 웹 URL 썸네일 설정
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
-
         try:
             # 수정이 필요할 경우 edit_message 사용
             await interaction.response.edit_message(embed=embed, attachments=[], view=self)
@@ -1345,7 +1333,6 @@ class InventoryView(discord.ui.View):
             item.callback = self.handle_click
 
     async def handle_click(self, interaction: discord.Interaction):
-        msg = "상호작용을 시작합니다."
         custom_id = interaction.data["custom_id"]
         _, action, item_name = custom_id.split("_")
         
@@ -1402,11 +1389,6 @@ class InventoryView(discord.ui.View):
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        # 웹 URL 썸네일 설정
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
 
         try:
             # 수정이 필요할 경우 edit_message 사용
@@ -1461,11 +1443,6 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        # 웹 URL 썸네일 설정
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
 
         try:
             # 수정이 필요할 경우 edit_message 사용
@@ -1542,11 +1519,6 @@ class PvPInteractiveView(discord.ui.View):
                 embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
                 for f in pet_data["fields"]:
                     embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-                # 웹 URL 썸네일 설정
-                pet_image_url = pet_data.get("image_url")
-                if pet_image_url:
-                    embed.set_thumbnail(url=pet_image_url)
 
                 try:
                     await interaction.message.edit(embed=embed, attachments=[])
@@ -1598,11 +1570,6 @@ class PvPInteractiveView(discord.ui.View):
             embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
             for f in pet_data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-            # 웹 URL 썸네일 설정
-            pet_image_url = pet_data.get("image_url")
-            if pet_image_url:
-                embed.set_thumbnail(url=pet_image_url)
 
         if self.message:
             try:
@@ -1623,7 +1590,6 @@ class PetActionExecutionView(View):
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
-        msg = "행동을 완료했습니다."
         custom_id = interaction.data["custom_id"]
         act_name = custom_id.split("_")[1]
         
@@ -1864,11 +1830,6 @@ class PetActionExecutionView(View):
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        # 웹 URL 썸네일 설정
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
 
         try:
             # 수정이 필요할 경우 edit_message 사용
