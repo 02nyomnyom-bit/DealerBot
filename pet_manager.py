@@ -1444,7 +1444,7 @@ class ShopView(discord.ui.View):
         # 2. 결과 임베드 생성 (msg를 여기에 담습니다)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
 
-        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71) # msg가 여기 들어갑니다
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
         for f in pet_data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
@@ -1778,9 +1778,11 @@ class PetActionExecutionView(View):
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
-        # 1. 중복 응답 방지 및 임포트 재확인
         from pet_skill import DiscordUIFormatter
-        msg = ""
+        
+        # 1. msg 변수를 미리 선언 (기본값 설정)
+        msg = f"{self.pet.name}이(가) {self.action_name} 활동을 마쳤습니다."
+
         # 2. 로직 처리
         act_name = interaction.data.get("custom_id", "").split("_")[1]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
@@ -1812,12 +1814,12 @@ class PetActionExecutionView(View):
         
         # 3. 상태창 후속 전송 (Followup)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71) # msg가 여기 들어갑니다
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-
-        # 마지막에 한 번만 전송
-        await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        
+        await interaction.response.edit_message(
+            embed=embed, 
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
+        )
 
         embed_status = discord.Embed(title=pet_data["title"], color=0x2ecc71)
         for f in pet_data["fields"]:
@@ -2134,7 +2136,7 @@ class PetActionExecutionView(View):
 
             # 3. 데이터 로직 처리
             pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-            embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71) # msg가 여기 들어갑니다
+            embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
             for f in pet_data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
