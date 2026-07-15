@@ -24,6 +24,7 @@ class Pet:
         self.sub_type = None
         
         # 알 단계 컨디션 및 성장 요소
+        self._max_mp = 50
         self.warmth = 50
         self.cleanliness_egg = 50
         self.stability = 50
@@ -76,6 +77,14 @@ class Pet:
         self.skills = []
         self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
         self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
+
+    @property
+    def max_mp(self):
+        return int(50 + self.energy * (0.5 + (self.mood_score / 125.0)))
+
+    @max_mp.setter
+    def max_mp(self, value):
+        self._max_mp = value
 
     @property
     def mood_state(self):
@@ -1011,6 +1020,7 @@ class MainPetHubView(View):
             self.add_item(btn)
 
     async def handle_click(self, interaction: discord.Interaction):
+        msg = "상호작용을 시작합니다."
         custom_id = interaction.data["custom_id"]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
@@ -1019,33 +1029,51 @@ class MainPetHubView(View):
             if penalty == "RUNAWAY":
                 await interaction.response.send_message("🚨 펫이 오랫동안 방치되어 야생으로 도망갔습니다.", ephemeral=True)
                 return
-            self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+        
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 웹 URL 썸네일 설정
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
+
+        try:
+            # 1. followup으로 메시지 전송
+            await interaction.followup.send(msg, ephemeral=True)
+            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
+            await interaction.message.edit(embed=embed, attachments=[])
+        except Exception as e:
+            print(f"이미지 전송 에러: {e}")
 
         if custom_id == "hub_펫":
             if not pet:
                 await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
                 return
+            
             pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
             embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
             for f in pet_data["fields"]:
                 embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
             
-            image_name = pet_data.get("image_file", "알.png")
-            image_path = f"data/images/{image_name}"
+            # 💡 웹 URL 방식 적용
+            pet_image_url = pet_data.get("image_url")
+            if pet_image_url:
+                embed.set_thumbnail(url=pet_image_url)
             
             try:
-                if os.path.exists(image_path):
-                    file = discord.File(image_path, filename=image_name)
-                    embed.set_thumbnail(url=f"attachment://{image_name}")
-                    await interaction.response.edit_message(
-                        embed=embed, 
-                        attachments=[file],
-                        view=PetInfoSubView(self.cog, self.user_id, self.guild_id)
-                    )
-                else:
-                    await interaction.response.edit_message(embed=embed, view=PetInfoSubView(self.cog, self.user_id, self.guild_id))
-            except Exception:
-                pass
+                # 기존 로컬 파일 로직 제거
+                await interaction.response.edit_message(
+                    embed=embed, 
+                    attachments=[], # 기존 파일 제거
+                    view=PetInfoSubView(self.cog, self.user_id, self.guild_id)
+                )
+            except Exception as e:
+                print(f"이미지 출력 에러: {e}")
+
         elif custom_id == "hub_상점":
             db = self.cog._get_db(int(self.guild_id))
             user_data = db.get_user(self.user_id)
@@ -1084,9 +1112,12 @@ class MainPetHubView(View):
                 await interaction.response.edit_message(embed=embed, view=InventoryView(self.cog, self.user_id, self.guild_id))
             except Exception:
                 pass
-        else:
-            await interaction.response.send_message(f"🚧 {custom_id.split('_')[1]} 기능은 다음 패치에 추가됩니다.", ephemeral=True)
-
+        elif custom_id == "hub_퀘스트":
+            from pet_views import QuestView
+            await interaction.response.edit_message(view=QuestView(self.cog, self.user_id, self.guild_id))
+        elif custom_id == "hub_설정":
+            from pet_views import SettingView
+            await interaction.response.edit_message(view=SettingView(self.cog, self.user_id, self.guild_id))
 
 class PetInfoSubView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str):
@@ -1101,6 +1132,7 @@ class PetInfoSubView(View):
             self.add_item(btn)
 
     async def handle_click(self, interaction: discord.Interaction):
+        msg = "상호작용을 시작합니다."
         custom_id = interaction.data["custom_id"]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
@@ -1110,6 +1142,23 @@ class PetInfoSubView(View):
                 await interaction.response.send_message("🚨 펫이 야생으로 도망갔습니다.", ephemeral=True)
                 return
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+            pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+            embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+            for f in pet_data["fields"]:
+                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+            # 웹 URL 썸네일 설정
+            pet_image_url = pet_data.get("image_url")
+            if pet_image_url:
+                embed.set_thumbnail(url=pet_image_url)
+
+            try:
+                # 1. followup으로 메시지 전송
+                await interaction.followup.send(msg, ephemeral=True)
+                # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
+                await interaction.message.edit(embed=embed, attachments=[])
+            except Exception as e:
+                print(f"이미지 전송 에러: {e}")
 
         if custom_id == "pet_처음으로":
             db = self.cog._get_db(int(self.guild_id))
@@ -1140,9 +1189,12 @@ class PetInfoSubView(View):
                 await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, actions))
             except Exception:
                 pass
-        else:
-            await interaction.response.send_message(f"🚧 {custom_id.split('_')[1]} 기능은 다음 패치에 추가됩니다.", ephemeral=True)
-
+        elif custom_id == "pet_스킬":
+            from pet_views import SkillManageView
+            await interaction.response.edit_message(view=SkillManageView(self.cog, self.user_id, self.guild_id))
+        elif custom_id == "pet_진화":
+            from pet_views import EvolutionView
+            await interaction.response.edit_message(view=EvolutionView(self.cog, self.user_id, self.guild_id))
 
 class ShopView(discord.ui.View):
     def __init__(self, cog, user_id, guild_id):
@@ -1167,6 +1219,7 @@ class ShopView(discord.ui.View):
             item.callback = self.handle_click
 
     async def handle_click(self, interaction: discord.Interaction):
+        msg = "상호작용을 시작합니다."
         custom_id = interaction.data["custom_id"]
         _, item_type, item_name = custom_id.split("_")
         
@@ -1225,6 +1278,24 @@ class ShopView(discord.ui.View):
             msg = f"🛒 일반 등급 {item_name} 장비를 구매하여 가방에 넣었습니다!"
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 웹 URL 썸네일 설정
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
+
+        try:
+            # 1. followup으로 메시지 전송
+            await interaction.followup.send(msg, ephemeral=True)
+            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
+            await interaction.message.edit(embed=embed, attachments=[])
+        except Exception as e:
+            print(f"이미지 전송 에러: {e}")
         
         user_data = db.get_user(self.user_id)
         
@@ -1271,6 +1342,7 @@ class InventoryView(discord.ui.View):
             item.callback = self.handle_click
 
     async def handle_click(self, interaction: discord.Interaction):
+        msg = "상호작용을 시작합니다."
         custom_id = interaction.data["custom_id"]
         _, action, item_name = custom_id.split("_")
         
@@ -1322,6 +1394,24 @@ class InventoryView(discord.ui.View):
             msg = f"🛡️ {best_equip['등급']} 등급 {item_name} 장비를 장착했습니다!"
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 웹 URL 썸네일 설정
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
+
+        try:
+            # 1. followup으로 메시지 전송
+            await interaction.followup.send(msg, ephemeral=True)
+            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
+            await interaction.message.edit(embed=embed, attachments=[])
+        except Exception as e:
+            print(f"이미지 전송 에러: {e}")
         
         fruits = pet.inventory.get("열매", {})
         equips = pet.inventory.get("장비", [])
@@ -1352,6 +1442,7 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
         self.guild_id = guild_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        msg = "이름을 변경했습니다."
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         if not pet:
             await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
@@ -1361,6 +1452,24 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
         pet.name = self.new_name.value
         pet.name_changed = True
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 웹 URL 썸네일 설정
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
+
+        try:
+            # 1. followup으로 메시지 전송
+            await interaction.followup.send(msg, ephemeral=True)
+            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
+            await interaction.message.edit(embed=embed, attachments=[])
+        except Exception as e:
+            print(f"이미지 전송 에러: {e}")
         
         await interaction.response.send_message(f"✨ 성공적으로 이름이 변경되었습니다! `{old_name}` -> `{pet.name}`\n대시보드에서 `펫` 버튼을 다시 누르면 반영된 이름이 보입니다.", ephemeral=True)
 
@@ -1423,6 +1532,21 @@ class PvPInteractiveView(discord.ui.View):
                         embed.add_field(name="결과", value="💀 패배했습니다. 다음 기회를 노리세요!", inline=False)
                 
                 self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+                pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+                embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+                for f in pet_data["fields"]:
+                    embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+                # 웹 URL 썸네일 설정
+                pet_image_url = pet_data.get("image_url")
+                if pet_image_url:
+                    embed.set_thumbnail(url=pet_image_url)
+
+                try:
+                    await interaction.message.edit(embed=embed, attachments=[])
+                except Exception as e:
+                    print(f"메시지 수정 에러: {e}")
                 if is_ranked:
                     try:
                         with db.get_connection() as conn:
@@ -1464,12 +1588,22 @@ class PvPInteractiveView(discord.ui.View):
             else:
                 embed.add_field(name="결과", value="💀 패배했습니다. 다음 기회를 노리세요!", inline=False)
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-            
+
+            pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+            embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+            for f in pet_data["fields"]:
+                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+            # 웹 URL 썸네일 설정
+            pet_image_url = pet_data.get("image_url")
+            if pet_image_url:
+                embed.set_thumbnail(url=pet_image_url)
+
         if self.message:
             try:
-                await self.message.edit(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
-            except Exception:
-                pass
+                await self.message.edit(embed=embed, attachments=[], view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+            except Exception as e:
+                print(f"타임아웃 UI 갱신 실패: {e}")
 
 
 class PetActionExecutionView(View):
@@ -1484,20 +1618,26 @@ class PetActionExecutionView(View):
             self.add_item(btn)
 
     async def handle_action(self, interaction: discord.Interaction):
+        msg = "행동을 완료했습니다."
         custom_id = interaction.data["custom_id"]
         act_name = custom_id.split("_")[1]
         
+        # 2. 이름 변경 처리
         if act_name == "이름 변경":
             await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
+            return
+            
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        if not pet:
+            await interaction.response.send_message("❌ 펫 정보를 불러올 수 없습니다.", ephemeral=True)
             return
             
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
         # [신규] 1. 일일 1회 제한 행동 정의
         DAILY_LIMIT_ACTIONS = ["쓰다듬기", "청소하기", "벌레잡기", "간식 주기"]
-        
         if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
-            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다! 더 이상 먹을 수 없어요.", ephemeral=True)
+            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
         
         if act_name == "청소하기" and pet.cleanliness >= 99:
             return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
@@ -1714,6 +1854,24 @@ class PetActionExecutionView(View):
             msg += energy_penalty_msg
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 웹 URL 썸네일 설정
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
+
+        try:
+            # 여기 한 곳에서만 응답을 처리하십시오
+            await interaction.response.edit_message(embed=embed, attachments=[])
+            await interaction.followup.send(msg, ephemeral=True)
+        except Exception as e:
+            print(f"이미지 전송 에러: {e}")
+
         if act_name not in ["PvP", "랭크전"]:
             try:
                 embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
@@ -1798,6 +1956,24 @@ class PetActionExecutionView(View):
             msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+        embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        # 웹 URL 썸네일 설정
+        pet_image_url = pet_data.get("image_url")
+        if pet_image_url:
+            embed.set_thumbnail(url=pet_image_url)
+
+        try:
+            # 1. followup으로 메시지 전송
+            await interaction.followup.send(msg, ephemeral=True)
+            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
+            await interaction.message.edit(embed=embed, attachments=[])
+        except Exception as e:
+            print(f"이미지 전송 에러: {e}")
         
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
@@ -1807,25 +1983,23 @@ class PetActionExecutionView(View):
         image_name = pet_data.get("image_file", "알.png")
         image_path = f"data/images/{image_name}"
         
+        # 수정할 코드 부분
         try:
-            # 1. 먼저 상호작용(버튼 클릭)에 응답하여 메인 메시지 처리를 준비합니다.
-            await interaction.response.defer(ephemeral=True)
+            # 1. 파일 객체 생성
+            file = discord.File(image_path, filename=image_name) if os.path.exists(image_path) else None
             
-            if os.path.exists(image_path):
-                # 2. 로컬 이미지 파일을 준비하고, 파일 이름을 명시해 줍니다.
-                file = discord.File(image_path, filename=image_name)
-                
-                # 3. 임베드 썸네일 주소로 디스코드 내부 첨부 포맷(attachment://)을 지정합니다.
+            # 2. 썸네일 설정 (이미지가 있을 때만)
+            if file:
                 embed.set_thumbnail(url=f"attachment://{image_name}")
-                
-                # 4. 메시지를 수정할 때 'attachments' 혹은 'file' 매개변수로 실제 파일 객체를 함께 실어 보냅니다.
-                await interaction.followup.send(msg, ephemeral=True)
-                await interaction.message.edit(embed=embed, attachments=[file])
-            else:
-                await interaction.followup.send(msg, ephemeral=True)
-                await interaction.message.edit(embed=embed)
+            
+            # 3. 메시지 수정 시 files 인자에 리스트 형태로 전달
+            await interaction.followup.send(msg, ephemeral=True)
+            await interaction.message.edit(embed=embed, attachments=[file] if file else [])
+            
         except Exception as e:
             print(f"이미지 전송 에러: {e}")
+            await interaction.followup.send(msg, ephemeral=True)
+            await interaction.message.edit(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(PetManager(bot))
