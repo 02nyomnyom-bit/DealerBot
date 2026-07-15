@@ -499,6 +499,16 @@ class ActionButton(discord.ui.Button):
         view: PetActionSelectionView = self.view
         view.pet.update_passive_decay()
         
+        # 인자를 5개로 맞춰서 전달하세요
+        exec_view = PetActionExecutionView(
+            view.cog, 
+            view.user_id, 
+            view.guild_id, 
+            view.pet,        # Pet 객체 전달
+            self.action_name # action_name 전달
+        )
+        await exec_view.handle_action(interaction)
+        
         # 실행 화면 전환
         exec_view = PetActionExecutionView(view.cog, view.user_id, view.guild_id, view.pet, self.action_name)
         await exec_view.handle_action(interaction)
@@ -1761,11 +1771,13 @@ class PvPInteractiveView(discord.ui.View):
                 print(f"타임아웃 UI 갱신 실패: {e}")
 
 class PetActionExecutionView(View):
-    def __init__(self, cog: PetManager, user_id: str, guild_id: str, actions: list):
+    def __init__(self, cog: PetManager, user_id: str, guild_id: str, pet: Pet, action_name: str): # pet, action_name 추가
         super().__init__(timeout=60)
         self.cog = cog
         self.user_id = user_id
         self.guild_id = guild_id
+        self.pet = pet
+        self.action_name = action_name
         
         # 버튼 스타일을 명확히 지정
         for act in actions:
