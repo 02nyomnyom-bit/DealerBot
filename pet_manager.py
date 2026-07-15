@@ -1029,8 +1029,8 @@ class MainPetHubView(View):
             if penalty == "RUNAWAY":
                 await interaction.response.send_message("🚨 펫이 오랫동안 방치되어 야생으로 도망갔습니다.", ephemeral=True)
                 return
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
         
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
         for f in pet_data["fields"]:
@@ -1042,12 +1042,13 @@ class MainPetHubView(View):
             embed.set_thumbnail(url=pet_image_url)
 
         try:
-            # 1. followup으로 메시지 전송
+            # 수정이 필요할 경우 edit_message 사용
+            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            # 추가 메시지가 필요하면 followup 사용
             await interaction.followup.send(msg, ephemeral=True)
-            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
-            await interaction.message.edit(embed=embed, attachments=[])
-        except Exception as e:
-            print(f"이미지 전송 에러: {e}")
+        except discord.NotFound:
+            # interaction이 이미 만료된 경우
+            print("Interaction이 만료되었습니다.")
 
         if custom_id == "hub_펫":
             if not pet:
@@ -1151,14 +1152,15 @@ class PetInfoSubView(View):
             pet_image_url = pet_data.get("image_url")
             if pet_image_url:
                 embed.set_thumbnail(url=pet_image_url)
-
+            
             try:
-                # 1. followup으로 메시지 전송
+                # 수정이 필요할 경우 edit_message 사용
+                await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+                # 추가 메시지가 필요하면 followup 사용
                 await interaction.followup.send(msg, ephemeral=True)
-                # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
-                await interaction.message.edit(embed=embed, attachments=[])
-            except Exception as e:
-                print(f"이미지 전송 에러: {e}")
+            except discord.NotFound:
+                # interaction이 이미 만료된 경우
+                print("Interaction이 만료되었습니다.")
 
         if custom_id == "pet_처음으로":
             db = self.cog._get_db(int(self.guild_id))
@@ -1290,12 +1292,13 @@ class ShopView(discord.ui.View):
             embed.set_thumbnail(url=pet_image_url)
 
         try:
-            # 1. followup으로 메시지 전송
+            # 수정이 필요할 경우 edit_message 사용
+            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            # 추가 메시지가 필요하면 followup 사용
             await interaction.followup.send(msg, ephemeral=True)
-            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
-            await interaction.message.edit(embed=embed, attachments=[])
-        except Exception as e:
-            print(f"이미지 전송 에러: {e}")
+        except discord.NotFound:
+            # interaction이 이미 만료된 경우
+            print("Interaction이 만료되었습니다.")
         
         user_data = db.get_user(self.user_id)
         
@@ -1406,12 +1409,13 @@ class InventoryView(discord.ui.View):
             embed.set_thumbnail(url=pet_image_url)
 
         try:
-            # 1. followup으로 메시지 전송
+            # 수정이 필요할 경우 edit_message 사용
+            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            # 추가 메시지가 필요하면 followup 사용
             await interaction.followup.send(msg, ephemeral=True)
-            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
-            await interaction.message.edit(embed=embed, attachments=[])
-        except Exception as e:
-            print(f"이미지 전송 에러: {e}")
+        except discord.NotFound:
+            # interaction이 이미 만료된 경우
+            print("Interaction이 만료되었습니다.")
         
         fruits = pet.inventory.get("열매", {})
         equips = pet.inventory.get("장비", [])
@@ -1464,12 +1468,13 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
             embed.set_thumbnail(url=pet_image_url)
 
         try:
-            # 1. followup으로 메시지 전송
+            # 수정이 필요할 경우 edit_message 사용
+            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            # 추가 메시지가 필요하면 followup 사용
             await interaction.followup.send(msg, ephemeral=True)
-            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
-            await interaction.message.edit(embed=embed, attachments=[])
-        except Exception as e:
-            print(f"이미지 전송 에러: {e}")
+        except discord.NotFound:
+            # interaction이 이미 만료된 경우
+            print("Interaction이 만료되었습니다.")
         
         await interaction.response.send_message(f"✨ 성공적으로 이름이 변경되었습니다! `{old_name}` -> `{pet.name}`\n대시보드에서 `펫` 버튼을 다시 누르면 반영된 이름이 보입니다.", ephemeral=True)
 
@@ -1866,11 +1871,13 @@ class PetActionExecutionView(View):
             embed.set_thumbnail(url=pet_image_url)
 
         try:
-            # 여기 한 곳에서만 응답을 처리하십시오
-            await interaction.response.edit_message(embed=embed, attachments=[])
+            # 수정이 필요할 경우 edit_message 사용
+            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            # 추가 메시지가 필요하면 followup 사용
             await interaction.followup.send(msg, ephemeral=True)
-        except Exception as e:
-            print(f"이미지 전송 에러: {e}")
+        except discord.NotFound:
+            # interaction이 이미 만료된 경우
+            print("Interaction이 만료되었습니다.")
 
         if act_name not in ["PvP", "랭크전"]:
             try:
@@ -1968,12 +1975,13 @@ class PetActionExecutionView(View):
             embed.set_thumbnail(url=pet_image_url)
 
         try:
-            # 1. followup으로 메시지 전송
+            # 수정이 필요할 경우 edit_message 사용
+            await interaction.response.edit_message(embed=embed, attachments=[], view=self)
+            # 추가 메시지가 필요하면 followup 사용
             await interaction.followup.send(msg, ephemeral=True)
-            # 2. 기존 메시지를 임베드만 사용하여 수정 (attachments=[]로 파일 제거)
-            await interaction.message.edit(embed=embed, attachments=[])
-        except Exception as e:
-            print(f"이미지 전송 에러: {e}")
+        except discord.NotFound:
+            # interaction이 이미 만료된 경우
+            print("Interaction이 만료되었습니다.")
         
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
