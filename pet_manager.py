@@ -507,7 +507,8 @@ class PetManager(commands.Cog):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
-        self.db_managers: Dict[str, DatabaseManager] = {}
+        self.matching_queues = defaultdict(list)
+        self.match_tasks = {}
         
         try:
             dummy_db = DatabaseManager(guild_id="pet_init_setup")
