@@ -178,7 +178,7 @@ def get_available_extensions() -> Dict[str, List[str]]:
             #'rock_paper_scissors',     #   [게임]   가위바위보 (임시중단)   
             'odd_even_game',            #   [게임]   홀짝
             'fishing',                  #   [게임]   낚시
-            'pet_manager',              #   [게임]   낚시
+            'pet_manager',              #   [게임]   펫 키우기
         ],
         "관리 도구": [
             'tax_system',               # [서버관리] 세금

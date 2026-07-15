@@ -505,7 +505,6 @@ class ActionButton(discord.ui.Button):
 
 class PetManager(commands.Cog):
     def __init__(self, bot):
-        super().__init__()
         self.bot = bot
         self.matching_queues = defaultdict(list)
         self.match_tasks = {}
