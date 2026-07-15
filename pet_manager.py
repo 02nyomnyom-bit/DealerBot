@@ -80,7 +80,7 @@ class Pet:
 
     @property
     def max_mp(self):
-        return int(50 + self.energy * (0.5 + (self.mood_score / 125.0)))
+        return self._max_mp
 
     @max_mp.setter
     def max_mp(self, value):
@@ -1830,7 +1830,7 @@ class PetActionExecutionView(View):
                 wild_pet.attack = 10 + int(wild_pet.level * 2.5)
                 wild_pet.defense = 10 + int(wild_pet.level * 2.5)
                 wild_pet.speed = 10 + int(wild_pet.level * 2.5)
-                wild_pet.max_mp = 50 + int(wild_pet.level * 5)
+                wild_pet._max_mp = 50 + int(wild_pet.level * 5)
                 wild_pet.skills = ["몸통박치기", "깨물기"]
                 
                 from pet_skill import PvPBattle
@@ -1868,7 +1868,7 @@ class PetActionExecutionView(View):
                 wild_pet.attack = 10 + int(wild_pet.level * 2.5)
                 wild_pet.defense = 10 + int(wild_pet.level * 2.5)
                 wild_pet.speed = 10 + int(wild_pet.level * 2.5)
-                wild_pet.max_mp = 50 + int(wild_pet.level * 5)
+                wild_pet._max_mp = 50 + int(wild_pet.level * 5)
                 wild_pet.skills = ["몸통박치기", "깨물기", "최면", "피하기"]
                 
                 from pet_skill import PvPBattle, DiscordUIFormatter
