@@ -1560,9 +1560,14 @@ class PetActionExecutionView(View):
         self.cog = cog
         self.user_id = user_id
         self.guild_id = guild_id
+        
+        # 버튼 스타일을 명확히 지정
         for act in actions:
-            # 스타일이 1~4 사이의 올바른 정수 값인지 확인 (ButtonStyle.success는 3번임)
-            btn = discord.ui.Button(label=act, style=discord.ButtonStyle.success, custom_id=f"act_{act}")
+            btn = discord.ui.Button(
+                label=act, 
+                style=discord.ButtonStyle.success, # 3번 스타일
+                custom_id=f"act_{act}"
+            )
             btn.callback = self.handle_action
             self.add_item(btn)
 
@@ -1666,12 +1671,14 @@ class PetActionExecutionView(View):
                 embed = discord.Embed(title="⚔️ 일반 친선전 시작!", description=f"{pet.name} 님이 야생의 {wild_pet.name}을(를) 만났습니다!\n3초 이내에 스킬을 선택하세요! (미선택 시 자동 전투 전환)", color=0xe74c3c)
                 
                 battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
-                try:
-                    await interaction.response.edit_message(embed=embed, view=battle_view)
-                    battle_view.message = interaction.message
-                except Exception:
-                    pass
-                return
+            
+            # 기존 메시지를 edit
+            await interaction.response.edit_message(
+                embed=embed, 
+                view=battle_view
+            )
+            return
+        
         elif act_name == "랭크전":
             if pet.mood_state == "화남":
                 msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"

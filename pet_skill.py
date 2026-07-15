@@ -408,7 +408,7 @@ class DiscordUIFormatter:
         
         return {
             "title": f"{rarity_emoji} [{pet.rarity}] {pet.name}의 상세 상태창",
-            "description": f"주인과 동행 중인 파트너 펫의 상태입니다.",
+            "description": "",
             "fields": fields,
             "image_url": pet_image_url # 👈 웹 URL 전송 키로 최종 반환[cite: 20]
         }
