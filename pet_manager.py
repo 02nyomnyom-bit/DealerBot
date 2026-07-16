@@ -762,7 +762,7 @@ class PetManager(commands.Cog):
         )
         embed.add_field(
             name="🥚 새로운 생명", 
-            value=f"새로운 **[{new_type}]** 속성의 알이 태어났습니다!\n(개체값 보정: {base_iv} ➡️ {new_iv})\n알은 즉시 **🗃️ 펫 보관함**으로 이동되었습니다. (보유 공간: {total_pets + 1}/3)", 
+            value=f"새로운 알이 태어났습니다!\n(개체값 보정: {base_iv} ➡️ {new_iv})\n알은 즉시 **🗃️ 펫 보관함**으로 이동되었습니다. (보유 공간: {total_pets + 1}/3)", 
             inline=False
         )
         
