@@ -89,6 +89,9 @@ class Pet:
         self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
         self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         self.learned_ultimate = None
+        
+        self.last_update_time = time.time()
+        self.last_update_time = getattr(self, 'last_update_time', time.time())
 
     @property
     def mood_state(self):
@@ -117,15 +120,18 @@ class Pet:
     def update_passive_decay(self):
         """시간 경과에 따른 스탯 자연 감소 및 일일 제한 리셋 (원본 복원)"""
         current_time = time.time()
-        elapsed = current_time - self.last_decay_time
-        if elapsed < 0:
-            elapsed = 0
+
+        # 1. 초기화되지 않은 경우 대비
+        if not hasattr(self, 'last_update_time'):
+            self.last_update_time = current_time
+        if not hasattr(self, 'last_decay_time'):
+            self.last_decay_time = current_time
     
-        # 1. 날짜 비교 변수 정의 (이 부분이 정의되지 않아서 에러가 발생합니다)
+        # 2. 날짜 비교 변수 정의 (안전한 속성 접근)
         last_date = time.strftime('%Y-%m-%d', time.localtime(self.last_update_time + 32400))
         current_date = time.strftime('%Y-%m-%d', time.localtime(current_time + 32400))
 
-        # 2. 자정 리셋 로직
+        # 3. 자정 리셋 로직
         if last_date != current_date:
             self.train_count_today = 0
             self.explore_count_today = 0
@@ -134,7 +140,8 @@ class Pet:
             self.clean_count_today = 0
             self.bug_count_today = 0
             
-        self.last_decay_time = current_time
+            # 업데이트 시간 갱신
+            self.last_update_time = current_time
 
         hours_passed = (current_time - self.last_update_time) / 3600.0
         if hours_passed <= 0: return
@@ -162,7 +169,7 @@ class Pet:
             self.is_sick = False
             self.fine_charged = False
 
-        self.last_update_time = current_time
+        self.last_decay_time = current_time
 
     def add_exp(self, amount: int) -> bool:
         """경험치를 획득하고 레벨업 여부를 반환"""
@@ -284,7 +291,16 @@ class Pet:
         return f"🎉 알이 새끼 단계로 부화했습니다! (부여된 희귀도: **[{self.rarity}]**)"
 
     def gain_exp(self, amount: int) -> str:
-        """기분 상태 가중치를 계산하여 경험치를 획득하고 레벨업/진화 조건을 판정합니다"""
+        # 🧬 성격에 따른 보너스 가중치 (예: '용맹함'은 공격력 상승 가중치 증가)
+        stat_multiplier = 1.2 if self.personality == "용맹함" else 1.0
+        
+        # 레벨업 시 스탯 부여
+        self.attack += int(random.randint(1, 3) * stat_multiplier)
+
+        if self.level % 10 == 0:
+            if self.main_type == "불" and self.personality == "다혈질":
+                self.skills.append("화염 방사")
+
         if self.energy <= 0:
             return "❌ 에너지가 전부 소진되어 더 이상 경험치를 지급받지 못합니다! [재우기]나 [휴식]을 통해 회복시키세요."
             
@@ -411,6 +427,19 @@ class Pet:
         if not hasattr(pet, 'inventory'):
             pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         return pet
+
+class SkillConfirmView(discord.ui.View):
+    def __init__(self, cog, user_id, guild_id, skill_to_remove):
+        super().__init__()
+        self.cog, self.user_id, self.guild_id = cog, user_id, guild_id
+        self.skill_to_remove = skill_to_remove
+
+    @discord.ui.button(label="예 (교체하기)", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        pet.skills.remove(self.skill_to_remove)
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet) # 💾 DB 저장
+        await interaction.response.send_message("스킬이 교체되었습니다.", ephemeral=True)
 
 class PetActionSelectionView(discord.ui.View):
     def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
@@ -631,6 +660,11 @@ class PetManager(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
     async def start_game(self, interaction: discord.Interaction, 펫이름: str, 타입: str = "노말"):
+        # 랜덤 속성 부여 예시
+        types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
+        selected_type = random.choice(types)
+        new_pet = Pet(name=펫이름, main_type=selected_type)
+        
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
         db = self._get_db(interaction.guild.id)
@@ -1707,7 +1741,9 @@ class PvPInteractiveView(discord.ui.View):
             if result == "A":
                 pet.win_count = getattr(pet, 'win_count', 0) + 1
                 pet.gain_exp(200)
+                skill_msg = pet.try_learn_skill()
                 embed.add_field(name="결과", value="🎉 승리하여 경험치 200과 전적을 획득했습니다!", inline=False)
+                embed.add_field(name="스킬 습득", value=skill_msg, inline=False)
             elif result == "DRAW":
                 pet.gain_exp(50)
                 embed.add_field(name="결과", value="🤝 무승부! 약간의 경험치를 획득했습니다.", inline=False)
@@ -1896,6 +1932,8 @@ class PetActionExecutionView(View):
                 pet.train_count_today += 1
                 pet.stress = min(100, pet.stress + 15)
                 exp_result = pet.gain_exp(60)
+                skill_msg = pet.try_learn_skill()
+                msg += f"\n{skill_msg}"
                 msg = f"🏋️ 집중 훈련을 단행했습니다! (오늘 훈련: {pet.train_count_today}/3)\n{exp_result}"
 
                 if pet.stage in ["성체", "최종 진화"] and random.random() < 0.20:
@@ -2045,6 +2083,36 @@ class PetActionExecutionView(View):
             view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet, action_name=None)
         )
 
+    def try_learn_skill(self) -> str:
+        """PvP나 훈련 후 확률적으로 스킬을 습득합니다."""
+        # 1. 습득할 수 있는 스킬 리스트 (기획에 맞게 추가 가능)
+        available_skills = ["불꽃", "물대포", "바람일으키기", "전광석화", "방어", "강철날개"]
+        
+        # 이미 배운 스킬 제외
+        can_learn = [s for s in available_skills if s not in self.skills]
+        if not can_learn:
+            return "💡 이미 모든 스킬을 습득했습니다!"
+
+        # 2. 확률 계산
+        # 슬롯이 4개 미만이면 70%, 꽉 찼으면 25%
+        is_full = len(self.skills) >= 4
+        success_chance = 0.25 if is_full else 0.70
+        
+        if random.random() > success_chance:
+            return "...아쉽게도 새로운 스킬을 떠올리지 못했습니다."
+
+        new_skill = random.choice(can_learn)
+
+        # 3. 습득 처리
+        if not is_full:
+            self.skills.append(new_skill)
+            return f"✨ 새로운 스킬 **[{new_skill}]**을(를) 배웠습니다! (슬롯 추가)"
+        else:
+            # 슬롯이 찼을 경우 랜덤하게 교체
+            old_skill = random.choice(self.skills)
+            self.skills.remove(old_skill)
+            self.skills.append(new_skill)
+            return f"✨ 새로운 스킬 **[{new_skill}]**을(를) 배웠습니다! (기존 스킬 **[{old_skill}]** 교체)"
     async def match_opponent(self, interaction, battle_type):
         cancel_event = asyncio.Event()
         

@@ -50,7 +50,57 @@ class SkillManageView(View):
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
         await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
 
+class SkillSelectView(discord.ui.View):
+    def __init__(self, cog, user_id, guild_id, new_skill):
+        super().__init__()
+        self.cog, self.user_id, self.guild_id = cog, user_id, guild_id
+        self.new_skill = new_skill
+        
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        # 현재 배운 스킬들을 선택지로 생성
+        for skill in pet.skills:
+            self.add_item(SkillRemoveButton(skill, self))
 
+class SkillRemoveButton(discord.ui.Button):
+    def __init__(self, skill_name, parent_view):
+        super().__init__(label=skill_name, style=discord.ButtonStyle.secondary)
+        self.skill_name = skill_name
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        # 1. 실제 삭제 및 교체 로직
+        pet = self.parent_view.cog.get_user_pet(self.parent_view.guild_id, self.parent_view.user_id)
+        pet.skills.remove(self.skill_name)
+        pet.skills.append(self.parent_view.new_skill)
+        
+        # 2. DB 저장
+        self.parent_view.cog.save_user_pet(self.parent_view.guild_id, self.parent_view.user_id, pet)
+        
+        await interaction.response.send_message(f"✅ {self.skill_name}을(를) 잊고 {self.parent_view.new_skill}을(를) 배웠습니다!", ephemeral=True)
+        # 3. 홈 화면으로 복귀
+        await go_to_home(interaction, self.parent_view.cog, self.parent_view.user_id, self.parent_view.guild_id)
+
+# pet_views.py에 추가
+class SkillSelectionView(discord.ui.View):
+    def __init__(self, cog, user_id, guild_id, new_skill):
+        super().__init__()
+        pet = cog.get_user_pet(guild_id, user_id)
+        # 현재 보유 스킬을 버튼으로 생성하여 유저가 선택하게 함
+        for skill in pet.skills:
+            self.add_item(self.create_remove_button(skill, cog, user_id, guild_id, new_skill))
+
+    def create_remove_button(self, skill_name, cog, user_id, guild_id, new_skill):
+        btn = discord.ui.Button(label=f"잊기: {skill_name}", style=discord.ButtonStyle.danger)
+        async def callback(interaction: discord.Interaction):
+            pet = cog.get_user_pet(guild_id, user_id)
+            pet.skills.remove(skill_name)
+            pet.skills.append(new_skill)
+            cog.save_user_pet(guild_id, user_id, pet)
+            await interaction.response.send_message(f"✅ {skill_name}을(를) 잊고 {new_skill}을(를) 배웠습니다!", ephemeral=True)
+            await go_to_home(interaction, cog, user_id, guild_id)
+        btn.callback = callback
+        return btn
+    
 # 2. 🧬 진화 관리 뷰
 class EvolutionView(View):
     def __init__(self, cog, user_id, guild_id):
