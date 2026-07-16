@@ -60,7 +60,8 @@ class Pet:
         self.potential = 0
         self.rank_score = 1000
         self.is_dead = False
-
+        self.luck = 10
+        
         # 최종 진화 스탯 확장용
         self.crit = 0
         self.res = 0
