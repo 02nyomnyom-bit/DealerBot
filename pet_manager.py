@@ -592,15 +592,38 @@ class PetManager(commands.Cog):
         )
 
     def assign_daily_quests(self, pet):
-        """매일 새로운 퀘스트 3개를 무작위로 선정하여 펫에게 할당합니다."""
+        """매일 새로운 퀘스트를 선정하되, 현재 단계에서 가능한 미션만 부여합니다."""
         today = time.strftime('%Y-%m-%d', time.localtime(time.time() + 32400))
         
-        # 이미 오늘 퀘스트가 할당되어 있다면 재생성하지 않음
         if getattr(pet, 'quest_date', None) == today:
             return
 
-        # 퀘스트 풀에서 3개 무작위 추출
-        selected_quests = random.sample(self.quest_pool, 3)
+        # 펫의 현재 단계에서 할 수 있는 행동 목록 가져오기
+        available_actions = pet.get_available_actions()
+        valid_quests = []
+        
+        # 퀘스트별 필요 행동 매핑
+        req_actions = {
+            "train": "훈련",
+            "stroke": "쓰다듬기",
+            "clean": "청소하기",
+            "feed": ["먹이 주기", "먹이"] # 단계에 따라 이름이 약간 다름
+        }
+
+        # 할 수 있는 행동에 해당하는 퀘스트만 필터링
+        for q in self.quest_pool:
+            req = req_actions.get(q["id"])
+            if isinstance(req, list):
+                if any(a in available_actions for a in req):
+                    valid_quests.append(q)
+            else:
+                if req in available_actions:
+                    valid_quests.append(q)
+
+        # 가능한 퀘스트 중 최대 3개 무작위 추출
+        num_to_select = min(3, len(valid_quests))
+        selected_quests = random.sample(valid_quests, num_to_select) if num_to_select > 0 else []
+        
         pet.daily_quests = {q["id"]: {"count": 0, "target": q["target"]} for q in selected_quests}
         pet.quest_date = today
 
@@ -759,9 +782,16 @@ class PetManager(commands.Cog):
         if pet.zero_cleanliness_time and (current_time - pet.zero_cleanliness_time) >= 86400:
             if getattr(pet, 'fine_charged', False) is False:
                 pet.fine_charged = True
-                # 학대 벌금 3,000골드 강제 차감
+                
                 db = self._get_db(int(guild_id))
-                db.add_user_cash(user_id, -3000)
+                
+                # 유저 재산(cash) 조회 후 30% 계산
+                user_data = db.get_user(user_id)
+                current_cash = user_data.get('cash', 0) if user_data else 0
+                fine_amount = int(current_cash * 0.3)  # 재산의 30%
+                
+                # 계산된 벌금 차감
+                db.add_user_cash(user_id, -fine_amount)
                 return "SICK_TRIGGERED"
 
         return None
@@ -983,11 +1013,11 @@ class PetManager(commands.Cog):
         if pet:
             penalty = self.check_penalties_and_update(guild_id, user_id, pet)
             if penalty == "RUNAWAY":
-                # defer() 이후에는 반드시 followup.send() 사용
-                await interaction.followup.send("🚨 **경고:** 펫을 너무 오랫동안 굶주린 상태로 방치하여 펫이 야생으로 도망갔습니다... (데이터가 완전히 말소되었습니다)", ephemeral=True)
+                await interaction.followup.send("🚨 **경고:** 펫을 너무 오랫동안 굶주린 상태로 방치하여 펫이 야생으로 도망갔습니다...", ephemeral=False)
                 return
             elif penalty == "SICK_TRIGGERED":
-                await interaction.followup.send("🚨 **경고:** 청결도를 너무 오랜 시간 방치하여 펫이 병에 걸렸습니다! 동물 보호 위반 벌금으로 **3,000원**이 자산에서 강제 차감됩니다.", ephemeral=True)
+                # 텍스트 변경: 보유 자산의 30% 차감 안내
+                await interaction.followup.send("🚨 **경고:** 청결도를 너무 오랜 시간 방치하여 펫이 병에 걸렸습니다! 동물 보호 위반 벌금으로 **보유 자산의 30%**가 강제 차감됩니다.", ephemeral=True)
             self.save_user_pet(guild_id, user_id, pet)
 
         data = DiscordUIFormatter.make_user_embed_data(user_data, pet)
@@ -1241,7 +1271,7 @@ class StorageSwapView(discord.ui.View):
         self.cog.save_user_pet(self.guild_id, self.user_id, target_pet)
         self.cog.delete_stored_pet(self.guild_id, db_id)
         
-        await interaction.response.send_message(f"🔄 성공적으로 **{target_pet.name}**(으)로 스왑(교체) 되었습니다! `/보호자` 명령어를 확인하세요.", ephemeral=True)
+        await interaction.response.send_message(f"🔄 성공적으로 **{target_pet.name}**(으)로 스왑(교체) 되었습니다! `/보호자` 명령어를 확인하세요.", ephemeral=False)
 
 class MatchingCancelView(discord.ui.View):
     def __init__(self, cancel_callback):
@@ -1272,7 +1302,7 @@ class MainPetHubView(View):
         if pet:
             penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
             if penalty == "RUNAWAY":
-                await interaction.response.send_message("🚨 펫이 오랫동안 방치되어 야생으로 도망갔습니다.", ephemeral=True)
+                await interaction.response.send_message("🚨 펫이 오랫동안 방치되어 야생으로 도망갔습니다.", ephemeral=False)
                 return
         
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
@@ -1391,7 +1421,7 @@ class PetInfoSubView(View):
         if pet:
             penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
             if penalty == "RUNAWAY":
-                await interaction.response.send_message("🚨 펫이 야생으로 도망갔습니다.", ephemeral=True)
+                await interaction.response.send_message("🚨 펫이 야생으로 도망갔습니다.", ephemeral=False)
                 return
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
             # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
@@ -1684,7 +1714,7 @@ class InventoryView(discord.ui.View):
             
             current_equip = pet.equipment.get(item_name)
             if current_equip == best_equip["등급"]:
-                await interaction.response.send_message(f"❌ 이미 {best_equip['등급']} 등급 장비를 장착 중입니다.", ephemeral=True)
+                await interaction.response.send_message(f"❌ 이미 {best_equip['등급']} 등급 장비를 장착 중입니다.", ephemeral=False)
                 return
                 
             pet.equipment[item_name] = best_equip["등급"]
@@ -1743,7 +1773,7 @@ class NameChangeModal(discord.ui.Modal, title='펫 이름 변경'):
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
         # 1. 즉시 응답: 모달 제출 완료 알림 (기존 UI 수정 대신)
-        await interaction.response.send_message(f"✨ 이름 변경 완료: `{old_name}` -> `{pet.name}`", ephemeral=True)
+        await interaction.response.send_message(f"✨ 이름 변경 완료: `{old_name}` -> `{pet.name}`", ephemeral=False)
 
         # 2. 상태창 Followup: 펫 정보 갱신 (기존 메시지를 수정해야 할 경우)
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
@@ -1956,13 +1986,13 @@ class PetActionExecutionView(View):
         climate = ClimateManager().get_current_climate()
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
         if penalty == "RUNAWAY":
-            return await interaction.followup.send("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=True)
+            return await interaction.followup.send("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=False)
             
         if pet.mood_state == "화남" and act_name not in ["PvP", "랭크전"]:
             refusal_chance = 0.3
             if pet.affinity_rank == "균형": refusal_chance -= 0.10
             if random.random() < refusal_chance:
-                return await interaction.followup.send(f"💢 {pet.name}이(가) 기분이 최악이라 명령을 거부했습니다! 놀아주거나 산책을 일찍 시켜주세요.", ephemeral=True)
+                return await interaction.followup.send(f"💢 {pet.name}이(가) 기분이 최악이라 명령을 거부했습니다! 놀아주거나 산책을 일찍 시켜주세요.", ephemeral=False)
             
         # 기후 패널티
         energy_penalty_msg = ""
@@ -1974,7 +2004,7 @@ class PetActionExecutionView(View):
         if act_name in ["PvP", "랭크전"]:
             if act_name == "PvP":
                 if pet.mood_state == "화남":
-                    return await interaction.followup.send(f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!", ephemeral=True)
+                    return await interaction.followup.send(f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!", ephemeral=False)
                 
                 types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
                 wild_pet = Pet("야생의 펫", random.choice(types))
@@ -2004,13 +2034,13 @@ class PetActionExecutionView(View):
             
             elif act_name == "랭크전":
                 if pet.mood_state == "화남":
-                    return await interaction.followup.send(f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!", ephemeral=True)
+                    return await interaction.followup.send(f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!", ephemeral=False)
 
                 await self.match_opponent(interaction, "랭크전")
                 return
             
         if act_name == "교배":
-            await interaction.response.edit_message(content="💞 교배소로 이동 중...", embed=None, view=None)
+            await interaction.edit_original_response(content="💞 교배소로 이동 중...", embed=None, view=None)
             from pet_views import BreedingView
             embed = discord.Embed(title="💞 신비섬 교배소", description="300,000 골드를 지불하고 최종 진화 펫을 교배시켜 강력한 알을 얻습니다.", color=0xff9ff3)
             return await interaction.followup.send(embed=embed, view=BreedingView(self.cog, self.user_id, self.guild_id))
@@ -2205,6 +2235,17 @@ class PetActionExecutionView(View):
                 pet.fullness = min(100, pet.fullness + 10)
                 msg = f"🍬 달콤한 간식을 주었습니다! {pet.name}이(가) 무척 행복해하며 당신을 따릅니다. (친밀도 대폭 상승)"
         
+        if "❌" not in msg:
+            quest_key = None
+            if act_name == "훈련": quest_key = "train"
+            elif act_name == "쓰다듬기": quest_key = "stroke"
+            elif act_name == "청소하기": quest_key = "clean"
+            elif act_name in ["먹이 주기", "먹이"]: quest_key = "feed"
+
+            if quest_key and hasattr(pet, 'daily_quests') and quest_key in pet.daily_quests:
+                if pet.daily_quests[quest_key]["count"] < pet.daily_quests[quest_key]["target"]:
+                    pet.daily_quests[quest_key]["count"] += 1
+
         # 6. 화면 최종 갱신 및 DB 저장 (들여쓰기 수정 완료 구역)
         if energy_penalty_msg:
             msg += energy_penalty_msg

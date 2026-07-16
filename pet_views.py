@@ -76,7 +76,7 @@ class SkillRemoveButton(discord.ui.Button):
         # 2. DB 저장
         self.parent_view.cog.save_user_pet(self.parent_view.guild_id, self.parent_view.user_id, pet)
         
-        await interaction.response.send_message(f"✅ {self.skill_name}을(를) 잊고 {self.parent_view.new_skill}을(를) 배웠습니다!", ephemeral=True)
+        await interaction.response.send_message(f"✅ {self.skill_name}을(를) 잊고 {self.parent_view.new_skill}을(를) 배웠습니다!", ephemeral=False)
         # 3. 홈 화면으로 복귀
         await go_to_home(interaction, self.parent_view.cog, self.parent_view.user_id, self.parent_view.guild_id)
 
@@ -123,7 +123,7 @@ class EvolutionView(View):
         
         if evo_msg:
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-            await interaction.response.send_message(f"🎉 진화에 성공했습니다!{evo_msg}", ephemeral=True)
+            await interaction.response.send_message(f"🎉 진화에 성공했습니다!{evo_msg}", ephemeral=False)
             # 상태 새로고침
             await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
         else:
@@ -179,14 +179,14 @@ class BreedingView(View):
     @discord.ui.button(label="💞 교배 진행 (30만 G)", style=discord.ButtonStyle.primary, row=0)
     async def breeding(self, interaction: Interaction, button: ui.Button):
         # 1. 봇 응답 지연 처리 (연산이 길어질 경우를 대비)
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
 
         # 2. 교배 로직 연결 (매니저의 start_breeding 호출)
         status, error_msg, embed = await self.cog.start_breeding(self.guild_id, self.user_id)
         
         if status == "SUCCESS":
             # 3-A. 교배 성공 시: 성공 메시지(임베드) 전송 후 메인 화면으로 복귀
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=False)
             await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
         else:
             # 3-B. 조건 미달 시: 실패 사유 출력
@@ -211,21 +211,26 @@ class QuestView(View):
     async def view_progress(self, interaction: Interaction, button: ui.Button):
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
-        # 🚨 수정됨: self.cog.pet_manager -> self.cog로 변경
+        # 퀘스트 할당 (이미 있다면 무시됨)
         self.cog.assign_daily_quests(pet)
+        # ✅ [추가] 뽑은 퀘스트가 날아가지 않게 즉시 DB에 세이브합니다.
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
         
         embed = discord.Embed(title=f"📜 {pet.name}의 오늘의 미션", color=0x3498db)
         
-        for q_id, status in pet.daily_quests.items():
-            # 🚨 수정됨: self.cog.pet_manager.quest_pool -> self.cog.quest_pool로 변경
-            quest_info = next(item for item in self.cog.quest_pool if item["id"] == q_id)
-            progress = status["count"]
-            target = status["target"]
-            embed.add_field(
-                name=quest_info["name"],
-                value=f"{quest_info['desc']} ({progress}/{target})",
-                inline=False
-            )
+        if not getattr(pet, 'daily_quests', None):
+            embed.description = "현재 단계에서 수행할 수 있는 미션이 없습니다."
+        else:
+            for q_id, status in pet.daily_quests.items():
+                quest_info = next((item for item in self.cog.quest_pool if item["id"] == q_id), None)
+                if quest_info:
+                    progress = status["count"]
+                    target = status["target"]
+                    embed.add_field(
+                        name=quest_info["name"],
+                        value=f"{quest_info['desc']} ({progress}/{target})",
+                        inline=False
+                    )
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -252,7 +257,7 @@ class QuestView(View):
         if pet.train_count_today < 1:
             return await interaction.response.send_message(
                 f"❌ 퀘스트 조건을 달성하지 못했습니다!\n급무: 오늘 최소 **1회 이상 훈련**을 완료해야 합니다. (현재: {pet.train_count_today}회)", 
-                ephemeral=True
+                ephemeral=False
             )
 
         # 4. 보상 지급 로직 (골드 추가 등)
@@ -264,7 +269,7 @@ class QuestView(View):
         if hasattr(self.cog, 'save_user_pet'):
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
         
-        await interaction.response.send_message("🎁 일일 퀘스트 완료! **5,000 골드**가 지급되었습니다.", ephemeral=True)
+        await interaction.response.send_message("🎁 일일 퀘스트 완료! **5,000 골드**가 지급되었습니다.", ephemeral=False)
 
     @discord.ui.button(label="처음으로", style=discord.ButtonStyle.danger, row=1)
     async def back(self, interaction: Interaction, button: ui.Button):
