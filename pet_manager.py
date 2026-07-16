@@ -18,9 +18,10 @@ from pet_climate import ClimateManager
 
 # 알 -> 새끼 -> 유년기 -> 성체 -> 최종 진화
 class Pet:
-    def __init__(self, name: str, main_type: str = "노말"):
+    def __init__(self, name: str, owner_name: str = None, main_type: str = "노말"):
         self.name = name
         self.stage = "알"
+        self.owner_name = owner_name
         self.level = 1
         self.main_type = main_type
         self.sub_type = None
@@ -61,7 +62,7 @@ class Pet:
         self.rank_score = 1000
         self.is_dead = False
         self.luck = 10
-        
+
         # 최종 진화 스탯 확장용
         self.crit = 0
         self.res = 0
@@ -748,7 +749,10 @@ class PetManager(commands.Cog):
             new_personality = random.choice(["용맹함", "신중함", "다혈질", "나태", "변덕", None])
         
         # 5. 새로운 알 객체 생성 및 보관함(Storage) 이동
-        child = Pet(name=f"{pet.name}의 알", main_type=new_type)
+        user = self.bot.get_user(int(user_id))
+        user_name = user.name if user else "보호자"
+        
+        child = Pet(name=f"@{user_name}의 알", owner_name=user_name, main_type=new_type)
         child.iv = new_iv
         child.personality = new_personality
         
@@ -1300,6 +1304,24 @@ class MainPetHubView(View):
         custom_id = interaction.data["custom_id"]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
+        from pet_skill import DiscordUIFormatter
+        if pet:
+            embed_data = DiscordUIFormatter.make_pet_embed_data(pet)
+            embed = discord.Embed(title=embed_data.get("title", "펫 정보"), 
+                                  description=embed_data.get("description", ""), 
+                                  color=0x3498db)
+            
+            # ✅ [수정] .get()을 사용하여 KeyError 방지
+            for f in embed_data.get("fields", []):
+                name = f.get("name", "알 수 없음")
+                value = f.get("value", "데이터 없음")
+                inline = f.get("inline", False)
+                embed.add_field(name=name, value=value, inline=inline)
+        else:
+            embed = discord.Embed(title="펫 없음", description="현재 등록된 펫이 없습니다.", color=0xe74c3c)
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
         if pet:
             penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
             if penalty == "RUNAWAY":
@@ -2057,7 +2079,7 @@ class PetActionExecutionView(View):
             from pet_views import BreedingView
             embed = discord.Embed(title="💞 신비섬 교배소", description="300,000 골드를 지불하고 최종 진화 펫을 교배시켜 강력한 알을 얻습니다.", color=0xff9ff3)
             return await interaction.followup.send(embed=embed, view=BreedingView(self.cog, self.user_id, self.guild_id))
-        
+            
         # 5. 일반 행동 수행 로직
         if pet.stage == "알":
             msg = pet.interact_egg(act_name)

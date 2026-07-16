@@ -309,7 +309,14 @@ class DiscordUIFormatter:
 
         
         if pet.stage == "알":
-            fields.append({"name": "🧬 알 유전 정보", "value": "개체값(IV) 및 성격 씨앗 비공개 상태", "inline": False})
+            title_text = f"{pet.owner_name}의 알" if hasattr(pet, 'owner_name') else "알"
+            return {
+                "title": f"🥚 {title_text}",
+                "description": f"{pet.name}이(가) 부화하기를 기다리고 있습니다.",
+                "fields": [
+                    {"name": "부화 진행도", "value": f"{pet.hatch_progress:.1f}%", "inline": True}
+                ]
+            }
         else:
             fields.append({"name": "📊 유전 능력치", "value": f"🧠 성격: {pet.personality} | 📊 IV: {pet.iv}/31", "inline": False})
 
