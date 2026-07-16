@@ -92,6 +92,11 @@ class Pet:
         self.last_update_time = time.time()
         self.last_update_time = getattr(self, 'last_update_time', time.time())
 
+        # 📜 [추가] 일일 퀘스트 카운터 및 보상 플래그
+        self.train_count_today = 0
+        self.stroke_count_today = 0
+        self.last_reward_date = None
+
     @property
     def mood_state(self):
         """기획서 기준 기분 5단계 정의"""
@@ -443,15 +448,6 @@ class Pet:
         if not hasattr(pet, 'inventory'):
             pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         return pet
-    
-    async def force_release_pet(self, guild_id: int, user_id: int) -> bool:
-        """관리자 권한으로 대상 유저의 현재 펫을 강제 방생(삭제)합니다."""
-        current_pet = await self.get_user_pet(guild_id, user_id)
-        if not current_pet:
-            return False # 펫이 없으면 False 반환
-        await self.db.execute("DELETE FROM user_pets WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
-        
-        return True
 
 class SkillConfirmView(discord.ui.View):
     def __init__(self, cog, user_id, guild_id, skill_to_remove):
@@ -510,7 +506,13 @@ class PetManager(commands.Cog):
         self.matching_queues = defaultdict(list)
         self.match_tasks = {}
         self.db_managers = {}
-        
+        self.quest_pool = [
+            {"id": "train", "name": "🏋️ 펫 훈련하기", "target": 3, "desc": "훈련을 3회 수행하세요."},
+            {"id": "stroke", "name": "❤️ 펫 쓰다듬기", "target": 5, "desc": "펫을 5회 쓰다듬어주세요."},
+            {"id": "clean", "name": "🧼 펫 청소하기", "target": 2, "desc": "펫 청소를 2회 완료하세요."},
+            {"id": "feed", "name": "🍖 펫 먹이주기", "target": 2, "desc": "펫에게 먹이를 2회 주세요."}
+        ]
+
         try:
             dummy_db = DatabaseManager(guild_id="pet_init_setup")
             dummy_db.create_table(
@@ -589,11 +591,49 @@ class PetManager(commands.Cog):
             (user_id, guild_id, pet_json, pet_json), 'none'
         )
 
+    def assign_daily_quests(self, pet):
+        """매일 새로운 퀘스트 3개를 무작위로 선정하여 펫에게 할당합니다."""
+        today = time.strftime('%Y-%m-%d', time.localtime(time.time() + 32400))
+        
+        # 이미 오늘 퀘스트가 할당되어 있다면 재생성하지 않음
+        if getattr(pet, 'quest_date', None) == today:
+            return
+
+        # 퀘스트 풀에서 3개 무작위 추출
+        selected_quests = random.sample(self.quest_pool, 3)
+        pet.daily_quests = {q["id"]: {"count": 0, "target": q["target"]} for q in selected_quests}
+        pet.quest_date = today
+
+    # 훈련 버튼 핸들러 예시
+    async def handle_train(self, pet):
+        pet.train_count_today += 1 # 기존 카운트
+    
+        # [확장] 무작위 퀘스트 카운트 체크
+        if hasattr(pet, 'daily_quests') and "train" in pet.daily_quests:
+            if pet.daily_quests["train"]["count"] < pet.daily_quests["train"]["target"]:
+                pet.daily_quests["train"]["count"] += 1
+
     def delete_user_pet(self, guild_id: str, user_id: str):
         """방치형 페널티로 야생으로 날아갈 시 DB 레코드 완전히 말소"""
         db = self._get_db(int(guild_id))
         db.execute_query("DELETE FROM user_pets WHERE user_id = ? AND guild_id = ?", (user_id, guild_id), 'none')
 
+    async def force_release_pet(self, guild_id: int, user_id: int) -> bool:
+        """관리자 권한으로 대상 유저의 현재 펫을 강제 방생(삭제)합니다."""
+        # await 제거 및 string 형변환
+        current_pet = self.get_user_pet(str(guild_id), str(user_id)) 
+        if not current_pet:
+            return False # 펫이 없으면 False 반환
+            
+        # 기존 설정하신 DatabaseManager 구조에 맞게 쿼리 실행
+        db = self._get_db(guild_id)
+        db.execute_query(
+            "DELETE FROM user_pets WHERE guild_id = ? AND user_id = ?", 
+            (str(guild_id), str(user_id)), 
+            'none'
+        )
+        return True
+    
     # --- 보관함 (Storage) DB 관리 로직 ---
     def get_stored_pets(self, guild_id: str, user_id: str) -> List[tuple]:
         """(id, Pet객체) 형태의 리스트 반환"""
@@ -747,6 +787,21 @@ class PetManager(commands.Cog):
             # 에러가 나거나 취소되었을 때 큐에서 확실히 제거
             if user_id in queue:
                 queue.remove(user_id)
+
+    def check_and_reset_daily_quest(self, pet) -> None:
+        """한국 시간 기준으로 날짜가 바뀌었다면 일일 퀘스트 카운터를 초기화합니다."""
+        if not pet:
+            return
+            
+        # 한국 시간(KST) 기준 오늘 날짜 생성
+        today = time.strftime('%Y-%m-%d', time.localtime(time.time() + 32400))
+        
+        # 펫 객체에 마지막 퀘스트 체크 날짜 저장용 변수가 없거나 날짜가 다르다면 초기화
+        last_check = getattr(pet, 'last_quest_check_date', None)
+        if last_check != today:
+            pet.train_count_today = 0
+            pet.stroke_count_today = 0
+            pet.last_quest_check_date = today
 
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
@@ -972,8 +1027,7 @@ class PetManager(commands.Cog):
         
         # 1. 강제방생 처리
         if 변경항목 == "release":
-            success = await self.pet_manager.force_release_pet(interaction.guild_id, 대상자.id)
-            
+            success = await self.force_release_pet(interaction.guild_id, 대상자.id)
             if success:
                 await interaction.response.send_message(f"✅ 관리자 권한으로 {대상자.mention}님의 펫을 **강제 방생**했습니다.", ephemeral=True)
             else:
@@ -1306,20 +1360,17 @@ class MainPetHubView(View):
 
         elif custom_id == "hub_퀘스트":
             from pet_views import QuestView
-            # 1. 즉시 응답: 로딩 메시지
-            await interaction.response.edit_message(content="📜 퀘스트 목록을 불러오는 중...", embed=None, view=None)
+            # 퀘스트 안내 임베드 생성
+            embed = discord.Embed(
+                title="📜 일일 퀘스트 센터", 
+                description="매일 갱신되는 미션을 확인하고 달성하여 보상을 획득하세요.", 
+                color=0x3498db
+            )
+            await interaction.response.edit_message(
+                embed=embed, 
+                view=QuestView(self.cog, self.user_id, self.guild_id)
+            )
             
-            # 2. 후속 전송: 퀘스트 뷰
-            await interaction.followup.send(view=QuestView(self.cog, self.user_id, self.guild_id))
-
-        elif custom_id == "hub_설정":
-            from pet_views import SettingView
-            # 1. 즉시 응답: 로딩 메시지
-            await interaction.response.edit_message(content="⚙️ 설정을 불러오는 중...", embed=None, view=None)
-            
-            # 2. 후속 전송: 설정 뷰
-            await interaction.followup.send(view=SettingView(self.cog, self.user_id, self.guild_id))
-
 class PetInfoSubView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str):
         super().__init__(timeout=60)

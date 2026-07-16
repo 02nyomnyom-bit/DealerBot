@@ -133,7 +133,6 @@ class EvolutionView(View):
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
         await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
 
-
 # 3. ⚙️ 설정 관리 뷰
 class SettingView(View):
     def __init__(self, cog, user_id, guild_id):
@@ -206,34 +205,65 @@ class QuestView(View):
         self.user_id = user_id
         self.guild_id = guild_id
 
-    @discord.ui.button(label="일일 퀘스트 보상 수령", style=discord.ButtonStyle.success, row=0)
+    # pet_views.py의 PetQuestView 내부 view_progress 함수 수정
+
+    @discord.ui.button(label="📜 퀘스트 현황 보기", style=discord.ButtonStyle.primary, row=0)
+    async def view_progress(self, interaction: Interaction, button: ui.Button):
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        # 퀘스트 할당 호출
+        self.cog.pet_manager.assign_daily_quests(pet)
+        
+        embed = discord.Embed(title=f"📜 {pet.name}의 오늘의 미션", color=0x3498db)
+        
+        for q_id, status in pet.daily_quests.items():
+            quest_info = next(item for item in self.cog.pet_manager.quest_pool if item["id"] == q_id)
+            progress = status["count"]
+            target = status["target"]
+            embed.add_field(
+                name=quest_info["name"],
+                value=f"{quest_info['desc']} ({progress}/{target})",
+                inline=False
+            )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🎁 보상 수령", style=discord.ButtonStyle.success, row=0)
     async def claim_reward(self, interaction: Interaction, button: ui.Button):
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         if not pet:
             return await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
 
+        # 날짜 변경 체크 및 초기화
+        if hasattr(self.cog, 'check_and_reset_daily_quest'):
+            self.cog.check_and_reset_daily_quest(pet)
+        elif hasattr(self.cog.pet_manager, 'check_and_reset_daily_quest'):
+            self.cog.pet_manager.check_and_reset_daily_quest(pet)
+
         # 1. 한국 시간 기준 오늘 날짜 생성
         today = time.strftime('%Y-%m-%d', time.localtime(time.time() + 32400))
         
-        # 2. 마지막 수령일 체크[cite: 5]
-        last_reward = getattr(pet, 'last_reward_date', None)
-        
-        if last_reward == today:
-            return await interaction.response.send_message("❌ 오늘은 이미 보상을 수령했습니다. 내일 다시 시도하세요!", ephemeral=True)
+        # 2. 이미 받았는지 중복 체크
+        if getattr(pet, 'last_reward_date', None) == today:
+            return await interaction.response.send_message("❌ 오늘은 이미 보상을 수령했습니다. 내일 다시 도전하세요!", ephemeral=True)
 
-        # 3. 보상 지급 로직[cite: 5]
-        # 예: 골드 추가, 경험치 획득 등
+        # 3. 🚨 [강화된 조건] 퀘스트 달성 여부 검증 (훈련 1회 이상)
+        if pet.train_count_today < 1:
+            return await interaction.response.send_message(
+                f"❌ 퀘스트 조건을 달성하지 못했습니다!\n급무: 오늘 최소 **1회 이상 훈련**을 완료해야 합니다. (현재: {pet.train_count_today}회)", 
+                ephemeral=True
+            )
+
+        # 4. 보상 지급 로직 (골드 추가 등)
         db = self.cog._get_db(int(self.guild_id))
-        db.add_user_cash(self.user_id, 5000) # 5,000골드 지급 예시
+        db.add_user_cash(self.user_id, 5000) # 5,000골드 지급
         
-        # 4. 수령 기록 업데이트[cite: 5]
+        # 5. 수령 기록 업데이트 및 저장
         pet.last_reward_date = today
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+        if hasattr(self.cog, 'save_user_pet'):
+            self.cog.save_user_pet(self.guild_id, self.user_id, pet)
         
-        # 5. UI 갱신 (이미 응답 여부 확인 후 조치)
-        from pet_views import go_to_home # go_to_home 함수 호출
-        await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
+        await interaction.response.send_message("🎁 일일 퀘스트 완료! **5,000 골드**가 지급되었습니다.", ephemeral=True)
 
-    @discord.ui.button(label="돌아가기", style=discord.ButtonStyle.danger, row=1)
-    async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="처음으로", style=discord.ButtonStyle.danger, row=1)
+    async def back(self, interaction: Interaction, button: ui.Button):
         await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
