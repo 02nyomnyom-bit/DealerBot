@@ -85,21 +85,10 @@ class Pet:
         self.bug_count_today = 0      # 벌레잡기 카운트
         self.last_decay_time = time.time()
 
-        # 장비 슬롯
-        self.equipment = {"무기": None, "방어구": None, "장신구": None}
-
         self.skills = []
         self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
         self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         self.learned_ultimate = None
-
-    @property
-    def max_mp(self):
-        return self._max_mp
-
-    @max_mp.setter
-    def max_mp(self, value):
-        self._max_mp = value
 
     @property
     def mood_state(self):
@@ -124,24 +113,6 @@ class Pet:
     def max_mp(self):
         """기획서 예시 기반 MP 연산 로직"""
         return int(50 + self.energy * (0.5 + (self.mood_score / 125.0)))
-
-    def check_ultimate_skill(self):
-        """친밀도 [수호/희귀] 및 [성체] 이상 도달 시 궁극기 자동 해금"""
-        if self.stage not in ["성체", "최종 진화"]:
-            return None
-        if self.affinity_rank not in ["수호", "희귀"]:
-            return None
-            
-        import pet_skill
-        ult_list = pet_skill.SKILL_DATABASE.get(self.main_type, {}).get("궁극기", [])
-        if not ult_list:
-            return None
-            
-        ult_skill = ult_list[0]["name"]
-        if ult_skill not in self.skills:
-            self.skills.append(ult_skill)
-            return ult_skill
-        return None
 
     def update_passive_decay(self):
         """시간 경과에 따른 스탯 자연 감소 및 일일 제한 리셋 (원본 복원)"""
@@ -441,36 +412,6 @@ class Pet:
             pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         return pet
 
-class MainPetHubView(discord.ui.View):
-    def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
-        super().__init__(timeout=180)
-        self.cog = cog
-        self.user_id = user_id
-        self.guild_id = guild_id
-        self.pet = pet
-
-    async def interaction_check(self, interaction: Interaction) -> bool:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ 이 펫의 주인만 조작할 수 있습니다.", ephemeral=True)
-            return False
-        return True
-    
-    @discord.ui.button(label="행동하기", style=discord.ButtonStyle.primary, row=0)
-    async def btn_action(self, interaction: Interaction, button: discord.ui.Button):
-        if interaction.response.is_done(): return
-        
-        self.pet.update_passive_decay()
-        
-        # 1. 즉시 응답으로 처리중임을 알림
-        await interaction.response.edit_message(content="🔄 행동을 준비 중입니다...", embed=None, view=None)
-        
-        # 2. 후속 전송으로 행동 선택창 띄우기
-        view = PetActionSelectionView(self.cog, self.user_id, self.guild_id, self.pet)
-        embed = discord.Embed(title=f"🎭 {self.pet.name}의 행동 선택", description="선택하세요.", color=0x3498db)
-        
-        await interaction.followup.send(embed=embed, view=view)
-
-
 class PetActionSelectionView(discord.ui.View):
     def __init__(self, cog, user_id: int, guild_id: int, pet: Pet):
         super().__init__(timeout=120)
@@ -507,10 +448,6 @@ class ActionButton(discord.ui.Button):
             view.pet,        # Pet 객체 전달
             self.action_name # action_name 전달
         )
-        await exec_view.handle_action(interaction)
-        
-        # 실행 화면 전환
-        exec_view = PetActionExecutionView(view.cog, view.user_id, view.guild_id, view.pet, self.action_name)
         await exec_view.handle_action(interaction)
 
 class PetManager(commands.Cog):
@@ -667,6 +604,28 @@ class PetManager(commands.Cog):
                 return "SICK_TRIGGERED"
 
         return None
+    
+    async def find_matching_user(self, guild_id: str, user_id: str) -> Optional[str]:
+        """60초 동안 대기열에서 다른 유저를 찾습니다."""
+        queue = self.matching_queues[guild_id]
+        queue.append(user_id)
+        
+        try:
+            for _ in range(60):  # 60초 동안 1초마다 확인
+                await asyncio.sleep(1)
+                # 큐에 나 말고 다른 유저가 있다면 매칭 성공!
+                opponents = [uid for uid in queue if uid != user_id]
+                if opponents:
+                    opponent_id = opponents[0]
+                    # 매칭되었으니 큐에서 두 명 모두 제거
+                    if user_id in queue: queue.remove(user_id)
+                    if opponent_id in queue: queue.remove(opponent_id)
+                    return opponent_id
+            return None  # 60초 초과 시 None 반환
+        finally:
+            # 에러가 나거나 취소되었을 때 큐에서 확실히 제거
+            if user_id in queue:
+                queue.remove(user_id)
 
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
@@ -1671,72 +1630,66 @@ class PvPInteractiveView(discord.ui.View):
         embed.add_field(name=f"🟢 {self.battle.pet_a.name} (나)", value=f"HP: {max(0, self.battle.hp_a)}/{self.battle.max_hp_a}\nMP: {max(0, self.battle.mp_a)}/{self.battle.pet_a.max_mp}")
         embed.add_field(name=f"🔴 {self.battle.pet_b.name} (적)", value=f"HP: {max(0, self.battle.hp_b)}/{self.battle.max_hp_b}\nMP: {max(0, self.battle.mp_b)}/{self.battle.pet_b.max_mp}")
         
-        # 전투/행동 종료 후 로직
-        if is_ranked:
-            # 랭크 점수 DB 업데이트 (비동기 처리 후 한 번만 응답)
-            try:
-                with db.get_connection() as conn:
-                    conn.execute("UPDATE users SET pet_rank_score = ? WHERE user_id = ? AND guild_id = ?", 
-                                 (rank_score, self.user_id, self.guild_id))
-                    conn.commit()
-            except Exception as e:
-                print(f"랭크 점수 업데이트 실패: {e}")
-
-            self.stop()
-            pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-            if pet:
-                pet.pvp_count = getattr(pet, 'pvp_count', 0) + 1
-                
-                # 랭크전 점수 처리
-                is_ranked = getattr(self.battle, 'is_ranked', False)
-                db = self.cog._get_db(self.guild_id)
-                user_data = db.get_user(self.user_id)
-                rank_score = user_data.get('pet_rank_score', 1000) if user_data else 1000
-                
-                if result == "A":
-                    pet.win_count = getattr(pet, 'win_count', 0) + 1
-                    pet.gain_exp(200 if not is_ranked else 300)
-                    if is_ranked:
-                        rank_score += 25
-                        embed.add_field(name="결과", value=f"🎉 [랭크전 승리!] 경험치 300과 랭크 점수 25점을 획득했습니다! (현재 점수: {rank_score}점)", inline=False)
-                    else:
-                        embed.add_field(name="결과", value="🎉 승리하여 경험치 200과 전적을 획득했습니다!", inline=False)
-                elif result == "DRAW":
-                    pet.gain_exp(50)
-                    embed.add_field(name="결과", value="🤝 무승부! 약간의 경험치를 획득했습니다.", inline=False)
-                else:
-                    if is_ranked:
-                        rank_score = max(0, rank_score - 15)
-                        embed.add_field(name="결과", value=f"💀 [랭크전 패배...] 랭크 점수가 15점 하락했습니다. (현재 점수: {rank_score}점)", inline=False)
-                    else:
-                        embed.add_field(name="결과", value="💀 패배했습니다. 다음 기회를 노리세요!", inline=False)
-                
-                self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-
-                pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-                embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-                for f in pet_data["fields"]:
-                    embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-
-                try:
-                    await interaction.message.edit(embed=embed, attachments=[])
-                except Exception as e:
-                    print(f"메시지 수정 에러: {e}")
+        # 1. 전투가 아직 진행 중이라면 메시지만 갱신하고 턴 유지
+        if result is None:
+            await interaction.response.edit_message(embed=embed, view=self)
+            return
+            
+        # 2. 여기서부터는 승패가 났을 때(전투 종료) 로직
+        self.stop()
+        is_ranked = getattr(self.battle, 'is_ranked', False)
+        db = self.cog._get_db(int(self.guild_id))
+        
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        if pet:
+            pet.pvp_count = getattr(pet, 'pvp_count', 0) + 1
+            
+            # 랭크전 점수 처리
+            user_data = db.get_user(self.user_id)
+            rank_score = user_data.get('pet_rank_score', 1000) if user_data else 1000
+            
+            if result == "A":
+                pet.win_count = getattr(pet, 'win_count', 0) + 1
+                pet.gain_exp(200 if not is_ranked else 300)
                 if is_ranked:
-                    try:
-                        with db.get_connection() as conn:
-                            conn.execute("UPDATE users SET pet_rank_score = ? WHERE user_id = ? AND guild_id = ?", (rank_score, self.user_id, self.guild_id))
-                            conn.commit()
-                    except Exception as e:
-                        print(f"랭크 점수 업데이트 실패: {e}")
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.edit_message(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+                    rank_score += 25
+                    embed.add_field(name="결과", value=f"🎉 [랭크전 승리!] 경험치 300과 랭크 점수 25점을 획득했습니다! (현재 점수: {rank_score}점)", inline=False)
                 else:
-                    # 이미 응답된 상태라면 followup으로 메인 허브 띄우기
-                    await interaction.followup.send(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
-            except Exception as e:
-                print(f"최종 UI 전환 오류: {e}")
+                    embed.add_field(name="결과", value="🎉 승리하여 경험치 200과 전적을 획득했습니다!", inline=False)
+            elif result == "DRAW":
+                pet.gain_exp(50)
+                embed.add_field(name="결과", value="🤝 무승부! 약간의 경험치를 획득했습니다.", inline=False)
+            else:
+                if is_ranked:
+                    rank_score = max(0, rank_score - 15)
+                    embed.add_field(name="결과", value=f"💀 [랭크전 패배...] 랭크 점수가 15점 하락했습니다. (현재 점수: {rank_score}점)", inline=False)
+                else:
+                    embed.add_field(name="결과", value="💀 패배했습니다. 다음 기회를 노리세요!", inline=False)
+            
+            # 펫 정보 업데이트
+            self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+            # 랭크 점수 DB 업데이트
+            if is_ranked:
+                try:
+                    db.execute_query("UPDATE users SET pet_rank_score = ? WHERE user_id = ? AND guild_id = ?", (rank_score, self.user_id, self.guild_id), 'none')
+                except Exception as e:
+                    print(f"랭크 점수 업데이트 실패: {e}")
+
+            # 최종 상태창 표시 데이터 덧붙이기
+            from pet_skill import DiscordUIFormatter
+            pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
+            for f in pet_data["fields"]:
+                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+
+        # 전투 종료 화면 출력 후 메인 허브로 복귀버튼 활성화
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.edit_message(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+            else:
+                await interaction.followup.send(embed=embed, view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+        except Exception as e:
+            print(f"최종 UI 전환 오류: {e}")
 
     async def on_timeout(self):
         result = None
@@ -1799,32 +1752,24 @@ class PetActionExecutionView(View):
 
     async def handle_action(self, interaction: discord.Interaction):
         from pet_skill import DiscordUIFormatter
-
-        # 2. 로직 처리
+        from pet_climate import ClimateManager
+        
         act_name = interaction.data.get("custom_id", "").split("_")[1]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        if not pet: return await interaction.response.send_message("❌ 펫 없음", ephemeral=True)
-
-        if not interaction.response.is_done():
-            await interaction.response.edit_message(content="✅ 처리 중...", embed=None, view=None)
         
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        if not pet: 
+            return await interaction.response.send_message("❌ 펫 없음", ephemeral=True)
 
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-
-        await interaction.followup.send(
-            embed=embed, 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet, action_name=None)
-        )
-
+        # 1. 모달(이름 변경)은 다른 화면 처리 전에 가장 먼저 호출해야 합니다.
         if act_name == "이름 변경":
             return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
-        
-        # 3. 행동 결과 즉시 응답 (최초 1회)
-        await interaction.response.edit_message(content=f"✅ {act_name} 완료!", embed=None, view=None)
-        
+
+        # 2. 로딩 처리 (버튼 누른 직후 로딩 표시)
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(content="⏳ 행동 처리 중...", embed=None, view=None)
+
+        msg = "" # 결과 대사가 들어갈 빈 변수 준비
+
         # 3. 각종 제한 검사 및 행동 로직 수행
         
         if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
@@ -1839,56 +1784,63 @@ class PetActionExecutionView(View):
         if act_name == "벌레잡기" and pet.affinity >= 297:
             return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
         
-        # 2. 결과창 즉시 갱신 (Interaction 응답)
-        embed_result = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-        await interaction.response.edit_message(embed=embed_result, view=None, attachments=[])
-        
-        # 3. 상태창 후속 전송 (Followup)
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-        
-        await interaction.response.edit_message(
-            embed=embed, 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-        )
-
-        embed_status = discord.Embed(title=pet_data["title"], color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed_status.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        try:
-            if pet_data.get("image_url"):
-                embed_status.set_thumbnail(url=pet_data["image_url"])
-        except Exception:
-            pass
-
-        await interaction.followup.send(
-            embed=embed, 
-            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-        )
-        
         climate = ClimateManager().get_current_climate()
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
         if penalty == "RUNAWAY":
-            await interaction.response.send_message("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=True)
-            return
+            return await interaction.followup.send("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=True)
             
-        if pet.mood_state == "화남":
+        if pet.mood_state == "화남" and act_name not in ["PvP", "랭크전"]:
             refusal_chance = 0.3
-            if pet.affinity_rank == "균형":
-                refusal_chance -= 0.10
-                
+            if pet.affinity_rank == "균형": refusal_chance -= 0.10
             if random.random() < refusal_chance:
-                await interaction.response.send_message(f"💢 {pet.name}이(가) 기분이 최악이라 명령을 거부했습니다! 놀아주거나 산책을 일찍 시켜주세요.", ephemeral=True)
-                return
+                return await interaction.followup.send(f"💢 {pet.name}이(가) 기분이 최악이라 명령을 거부했습니다! 놀아주거나 산책을 일찍 시켜주세요.", ephemeral=True)
             
-        # 기후 기반 에너지 소모 패널티
+        # 기후 패널티
         energy_penalty_msg = ""
-        if climate.weather == "한파" and pet.stage != "알" and act_name not in ["재우기", "휴식", "먹이 주기", "먹이", "간식 주기", "이름 변경"]:
+        if climate.weather == "한파" and pet.stage != "알" and act_name not in ["재우기", "휴식", "먹이 주기", "먹이", "간식 주기"]:
             pet.energy = max(0, pet.energy - 10)
             energy_penalty_msg = "\n❄️ [한파] 너무 추운 날씨로 인해 행동 시 에너지가 추가로 소모되었습니다."
+                        
+        # 4. PvP / 랭크전 로직 (배틀 뷰로 넘어가므로 처리 후 return)
+        if act_name in ["PvP", "랭크전"]:
+            if act_name == "PvP":
+                if pet.mood_state == "화남":
+                    return await interaction.followup.send(f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!", ephemeral=True)
+                
+                types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
+                wild_pet = Pet("야생의 펫", random.choice(types))
+                wild_pet.level = max(1, pet.level + random.randint(-2, 2))
+                wild_pet.stage = "성체"
+                wild_pet.attack = 10 + int(wild_pet.level * 2.5)
+                wild_pet.defense = 10 + int(wild_pet.level * 2.5)
+                wild_pet.speed = 10 + int(wild_pet.level * 2.5)
+                wild_pet._max_mp = 50 + int(wild_pet.level * 5)
+                wild_pet.skills = ["몸통박치기", "깨물기"]
+                
+                from pet_skill import PvPBattle
+                battle = PvPBattle(pet, wild_pet)
+                battle.is_ranked = False
+                battle.log.append(f"⚔️ **배틀 시작!** {pet.name} VS {wild_pet.name}")
+                
+                embed = discord.Embed(
+                    title="⚔️ 일반 친선전 시작!", 
+                    description=f"{pet.name} 님이 {wild_pet.name}을(를) 만났습니다!\n3초 이내에 스킬을 선택하세요!", 
+                    color=0xe74c3c
+                )
+                
+                battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
+                msg_obj = await interaction.edit_original_response(content=None, embed=embed, view=battle_view)
+                battle_view.message = msg_obj
+                return
             
-        # 행동 수행 로직
+            elif act_name == "랭크전":
+                if pet.mood_state == "화남":
+                    return await interaction.followup.send(f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!", ephemeral=True)
+
+                await self.match_opponent(interaction, "랭크전")
+                return
+            
+        # 5. 일반 행동 수행 로직
         if pet.stage == "알":
             msg = pet.interact_egg(act_name)
         elif act_name in ["먹이 주기", "먹이"]:
@@ -1945,7 +1897,7 @@ class PetActionExecutionView(View):
                 pet.stress = min(100, pet.stress + 15)
                 exp_result = pet.gain_exp(60)
                 msg = f"🏋️ 집중 훈련을 단행했습니다! (오늘 훈련: {pet.train_count_today}/3)\n{exp_result}"
-                
+
                 if pet.stage in ["성체", "최종 진화"] and random.random() < 0.20:
                     pot_gain = random.randint(1, 3)
                     pet.potential = min(100, getattr(pet, 'potential', 0) + pot_gain)
@@ -1957,7 +1909,7 @@ class PetActionExecutionView(View):
                 pet.explore_count += 1
                 pet.explore_count_today += 1
                 pet.stress = min(100, pet.stress + 15)
-                
+
                 base_exp = 100
                 if pet.affinity_rank == "신뢰":
                     base_exp = int(base_exp * 1.1)
@@ -1966,7 +1918,7 @@ class PetActionExecutionView(View):
                     base_exp = int(base_exp * 1.05)
                 if climate.season == "가을":
                     base_exp = int(base_exp * 1.1)
-                
+
                 exp_result = pet.gain_exp(base_exp)
                 msg = f"🗺️ 외부 지역으로 탐험을 떠났습니다! (오늘 탐험: {pet.explore_count_today}/3)\n{exp_result}"
                 if pet.affinity_rank == "신뢰":
@@ -1978,13 +1930,13 @@ class PetActionExecutionView(View):
                 
                 if climate.weather == "강풍":
                     msg += "\n💨 [강풍] 강풍을 타고 이동거리가 늘어나 탐험 보상을 더 많이 발견했습니다!"
-                    
+
                 if pet.stage in ["성체", "최종 진화"]:
                     if random.random() < 0.10:
                         pot_gain = random.randint(2, 5)
                         pet.potential = min(100, getattr(pet, 'potential', 0) + pot_gain)
                         msg += f"\n🌟 **[신비한 조우]** 탐험 중 신비한 기운을 흡수하여 잠재력이 {pot_gain} 상승했습니다! (현재: {pet.potential}%)"
-                        
+
                     roll = random.random()
                     drop_grade = None
                     if roll < 0.01:
@@ -1998,7 +1950,7 @@ class PetActionExecutionView(View):
                         part = random.choice(["머리", "견갑", "허리", "다리"])
                         pet.inventory["장비"].append({"부위": part, "등급": drop_grade})
                         msg += f"\n🎁 **[전리품 발견]** 탐험 중에 눈부신 빛을 내는 **[{drop_grade}]** 등급 {part} 장비를 발견했습니다! (가방 확인)"
-                        
+
                 # 돌발 이벤트
                 event_chance = 0.40
                 if climate.weather == "흐림":
@@ -2046,7 +1998,7 @@ class PetActionExecutionView(View):
                         if chest_roll < drop_cut:
                             pet.inventory["장비"].append({"부위": "변하지 않는 반지", "등급": "전설"})
                             msg += f"\n\n✨ **[전설의 보물 발견!]** 수풀 속에서 고대의 신비한 상자를 열어 **[변하지 않는 반지]**를 얻었습니다! (진화 방지 아이템)"
-                        
+            
         elif act_name == "채집":
             pet.stress = min(100, pet.stress + 15)
             exp_result = pet.gain_exp(30)
@@ -2062,170 +2014,100 @@ class PetActionExecutionView(View):
                 pet.affinity = min(300, pet.affinity + 20)
                 pet.fullness = min(100, pet.fullness + 10)
                 msg = f"🍬 달콤한 간식을 주었습니다! {pet.name}이(가) 무척 행복해하며 당신을 따릅니다. (친밀도 대폭 상승)"
-                
+        
+        # 6. 화면 최종 갱신 및 DB 저장 (들여쓰기 수정 완료 구역)
         if energy_penalty_msg:
             msg += energy_penalty_msg
+
+        ult = pet.check_ultimate_skill()
+        if ult:
+            msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
             
+        # 1. DB 저장 (가장 먼저 안전하게 처리)
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
-        # 4. PvP/랭크전 로직
-        if act_name in ["PvP", "랭크전"]:
-            # 1. 즉시 응답: 처리 중임을 알리고 상호작용 종료
-            await interaction.response.edit_message(content="⚔️ 배틀을 준비하는 중...", embed=None, view=None)
-            
-            if act_name == "PvP":
-                if pet.mood_state == "화남":
-                    msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                    # 이미 응답했으므로 followup 사용
-                    await interaction.followup.send(msg, ephemeral=True)
-                    return
-            else: # 랭크전 로직
-                types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-                wild_pet = Pet("야생의 펫", random.choice(types))
-                wild_pet.level = max(1, pet.level + random.randint(-2, 2))
-                wild_pet.stage = "성체"
-                wild_pet.attack = 10 + int(wild_pet.level * 2.5)
-                wild_pet.defense = 10 + int(wild_pet.level * 2.5)
-                wild_pet.speed = 10 + int(wild_pet.level * 2.5)
-                wild_pet._max_mp = 50 + int(wild_pet.level * 5)
-                wild_pet.skills = ["몸통박치기", "깨물기"]
-                
-                from pet_skill import PvPBattle
-                battle = PvPBattle(pet, wild_pet)
-                battle.is_ranked = False
-                battle.log.append(f"⚔️ **배틀 시작!** {pet.name} VS {wild_pet.name}")
-                
-                embed = discord.Embed(
-                    title="⚔️ 일반 친선전 시작!", 
-                    description=f"{pet.name} 님이 {wild_pet.name}을(를) 만났습니다!\n3초 이내에 스킬을 선택하세요!", 
-                    color=0xe74c3c
-                )
-                
-                # 2. 상태창 Followup: 배틀 뷰 전송
-                battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
-                msg_obj = await interaction.followup.send(embed=embed, view=battle_view)
-                battle_view.message = msg_obj # 생성된 메시지 객체를 뷰에 전달
-                return
-            
-        elif act_name == "랭크전":
-            # 1. 즉시 응답: 로딩 메시지를 먼저 보내 디스코드와의 연결을 확실히 종료
-            await interaction.response.edit_message(content="👑 랭크 상대를 매칭 중입니다...", embed=None, view=None)
-            
-            if pet.mood_state == "화남":
-                msg = f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!"
-                await interaction.followup.send(msg, ephemeral=True)
-                return
-            
-            # 2. 로직 처리: 랭크 데이터 조회 및 상대 생성
-            db = self.cog._get_db(interaction.guild.id)
-            user_data = db.get_user(self.user_id)
-            rank_score = user_data.get('pet_rank_score', 1000) if user_data else 1000
-            
-            base_enemy_level = max(1, 30 + int((rank_score - 1000) / 10))
-                
-            types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-            wild_pet = Pet("랭크 수문장", random.choice(types))
-            wild_pet.level = max(1, base_enemy_level + random.randint(-5, 5))
-            wild_pet.stage = "최종 진화" if wild_pet.level >= 75 else ("성체" if wild_pet.level >= 40 else "유년기")
-            wild_pet.rarity = "영웅" if rank_score >= 1400 else "희귀"
-                
-            wild_pet.attack = 10 + int(wild_pet.level * 2.5)
-            wild_pet.defense = 10 + int(wild_pet.level * 2.5)
-            wild_pet.speed = 10 + int(wild_pet.level * 2.5)
-            wild_pet._max_mp = 50 + int(wild_pet.level * 5)
-            wild_pet.skills = ["몸통박치기", "깨물기", "최면", "피하기"]
-                
-            from pet_skill import PvPBattle, DiscordUIFormatter
-            battle = PvPBattle(pet, wild_pet)
-            battle.is_ranked = True
-            battle.log.append(f"👑 **랭크전 매칭 완료!** {pet.name} VS {wild_pet.name} (Lv.{wild_pet.level}, {DiscordUIFormatter.get_tier_str(rank_score)})")
-            
-            embed = discord.Embed(
-                title="👑 랭크전 시작!", 
-                description=f"{pet.name} 님이 {DiscordUIFormatter.get_tier_str(rank_score)} 구간의 상대를 만났습니다!\n3초 이내에 스킬을 선택하세요!", 
-                color=0xf1c40f
-            )
-            # 3. 후속 전송 (Followup): 배틀 뷰를 안전하게 전송
-            battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
-            try:
-                msg_obj = await interaction.followup.send(embed=embed, view=battle_view)
-                battle_view.message = msg_obj
-            except Exception as e:
-                print(f"랭크전 배틀 뷰 전송 실패: {e}")
-            return
+        # 2. 임베드 만들기
+        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
         
-        else:
-            ult = pet.check_ultimate_skill()
-            if ult:
-                msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
-            
-            # 1. DB 저장 (가장 먼저 안전하게 처리)
-            self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+        # [결과 텍스트 + 펫 상태]가 합쳐진 최종 임베드 생성
+        embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
+        
+        for f in pet_data["fields"]:
+            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        
+        if pet_data.get("image_url"):
+            embed.set_thumbnail(url=pet_data["image_url"])
 
-            # 2. 즉시 응답: 디스코드와 상호작용 마무리
-            await interaction.response.edit_message(content=f"✅ {act_name} 완료!", embed=None, view=None)
-
-            # 3. 데이터 로직 처리
-            pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-            embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-            for f in pet_data["fields"]:
-                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-
-            # 마지막에 한 번만 전송
-            await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
-            
-            if pet_data.get("image_url"):
-                embed.set_thumbnail(url=pet_data["image_url"])
-
-            # 4. 후속 전송 (Followup): 상태창과 다음 행동 버튼 전송
-            try:
-                await interaction.followup.send(
-                    embed=embed, 
-                    view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions())
-                )
-            except Exception as e:
-                print(f"상태창 후속 전송 실패: {e}")
+        # 3. 로딩 메시지를 이 완성된 임베드와 다음 버튼으로 덮어씌움
+        await interaction.edit_original_response(
+            content=None, 
+            embed=embed, 
+            view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet, action_name=None)
+        )
 
     async def match_opponent(self, interaction, battle_type):
-        # 매칭 취소 여부를 추적할 이벤트
         cancel_event = asyncio.Event()
         
-        async def cancel_callback(interaction: discord.Interaction):
-            cancel_event.set() # 취소 이벤트 발생
-            await interaction.response.edit_message(content="❌ 매칭이 취소되었습니다.", embed=None, view=None)
+        async def cancel_callback(cancel_interaction: discord.Interaction):
+            cancel_event.set() 
+            await cancel_interaction.response.edit_message(content="❌ 매칭이 취소되었습니다.", embed=None, view=None)
 
-            # 1. 로딩 메시지와 함께 '매칭 취소' 버튼이 담긴 뷰 전송
-            await interaction.response.edit_message(
-                content=f"🔍 {battle_type} 매칭 중... (최대 60초)", 
-                embed=None, 
-                view=MatchingCancelView(cancel_callback)
+        # 1. 대기 화면 출력
+        await interaction.edit_original_response(
+            content=f"🔍 {battle_type} 상대를 찾는 중입니다... (최대 60초)", 
+            embed=None, 
+            view=MatchingCancelView(cancel_callback)
+        )
+
+        try:
+            # 2. 대기열에서 매칭 찾기
+            match_task = asyncio.create_task(self.cog.find_matching_user(self.guild_id, self.user_id))
+            done, pending = await asyncio.wait(
+                [match_task, asyncio.create_task(cancel_event.wait())],
+                timeout=60.0,
+                return_when=asyncio.FIRST_COMPLETED
             )
-
-            try:
-                # 2. 매칭 대기 (취소 이벤트가 발생하면 바로 종료)
-                # wait_for와 cancel_event를 결합하여 감시
-                match_task = asyncio.create_task(self.cog.find_matching_user())
-                done, pending = await asyncio.wait(
-                    [match_task, cancel_event.wait()],
-                    timeout=60.0,
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-                if cancel_event.is_set():
-                    return # 취소됨
-
-                if match_task in done:
-                    opponent = match_task.result()
-                    # 매칭 성공 처리 로직...
-                    await interaction.followup.send("⚔️ 유저 매칭 성공! 배틀을 시작합니다.")
-                else:
-                    raise asyncio.TimeoutError # 60초 경과
             
-            except asyncio.TimeoutError:
-                    match_task.cancel() # 대기 작업 취소
-                    if battle_type == "PvP":
-                        await self.start_npc_battle(interaction)
-                    else:
-                        await interaction.followup.send("⌛ 매칭 시간이 초과되어 랭크전이 자동 종료되었습니다.")
+            if cancel_event.is_set():
+                match_task.cancel()
+                return # 취소됨
+
+            if match_task in done:
+                opponent_id = match_task.result()
+                if not opponent_id:
+                    raise asyncio.TimeoutError
+                    
+                # 3. 매칭 성공! 상대방 펫 정보 불러오기
+                opponent_pet = self.cog.get_user_pet(self.guild_id, opponent_id)
+                if not opponent_pet:
+                    await interaction.followup.send("⚠️ 상대방의 펫 정보를 불러오지 못해 매칭이 취소되었습니다.")
+                    return
+                
+                # 4. 실제 배틀 셋업
+                from pet_skill import PvPBattle
+                battle = PvPBattle(self.pet, opponent_pet)
+                battle.is_ranked = True
+                battle.log.append(f"⚔️ **랭크전 매칭 성공!** {self.pet.name} VS {opponent_pet.name}")
+            
+                embed = discord.Embed(
+                    title="⚔️ 랭크전 시작!", 
+                    description=f"상대 유저의 펫 **{opponent_pet.name}**을(를) 만났습니다!\n3초 이내에 스킬을 선택하세요!", 
+                    color=0xe74c3c
+                )
+
+                battle_view = PvPInteractiveView(self.cog, self.user_id, self.guild_id, battle)
+                msg_obj = await interaction.edit_original_response(content=None, embed=embed, view=battle_view)
+                battle_view.message = msg_obj
+                
+            else:
+                raise asyncio.TimeoutError
+        
+        except asyncio.TimeoutError:
+            match_task.cancel() 
+            await interaction.edit_original_response(
+                content="⌛ 매칭 가능한 유저가 없어 랭크전이 자동으로 취소되었습니다. 나중에 다시 시도해 주세요.", 
+                view=None
+            )
 
 async def setup(bot):
     await bot.add_cog(PetManager(bot))
