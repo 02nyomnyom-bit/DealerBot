@@ -1360,15 +1360,10 @@ class MainPetHubView(View):
             await interaction.followup.send(embed=embed, view=PetInfoSubView(self.cog, self.user_id, self.guild_id))
 
         elif custom_id == "hub_상점":
-            # 1. 즉시 응답: 디스코드와의 상호작용을 먼저 완료하여 '봇이 살아있음'을 알림
-            await interaction.response.edit_message(content="🛒 상점을 불러오는 중...", embed=None, view=None)
-
-            # 2. 로직 처리: 데이터베이스 조회 및 상점 정보 구성
+            # 1. 상점 로직 처리
             db = self.cog._get_db(int(self.guild_id))
             user_data = db.get_user(self.user_id)
             
-            user_data = db.get_user(self.user_id)
-        
             # 최상급 열매 가격 호출
             fruit_top_price = 50000
             if os.path.exists("data/pet_config.json"):
@@ -1387,10 +1382,11 @@ class MainPetHubView(View):
             embed.add_field(name="🍎 열매 (포만감 회복)", value=f"- 최상급 열매 (포만감 +30): {fruit_top_price:,}원\n- 중급 열매 (포만감 +15): 30,000원\n- 하급 열매 (포만감 +5): 10,000원", inline=False)
             embed.add_field(name="🛡️ 일반 장비", value="- 머리/견갑/허리/다리 각 부위: 150,000원\n- 기본 스탯: HP +5, ATK +5, SPD +5", inline=False)
 
-            # 1. 즉시 응답: 로딩 메시지를 먼저 보내 디스코드와의 연결을 안전하게 마침
-            await interaction.response.edit_message(content="🎒 가방을 확인하는 중...", embed=None, view=None)
-            
-            # 2. 로직 처리: 아이템 데이터 구성
+            # 상점 화면으로 즉시 전환 (응답을 한 번만 사용하여 에러 방지)
+            await interaction.response.edit_message(content=None, embed=embed, view=ShopView(self.cog, self.user_id, self.guild_id))
+
+        elif custom_id == "hub_가방":
+            # 1. 가방 로직 처리
             fruits = pet.inventory.get("열매", {})
             equips = pet.inventory.get("장비", [])
             
@@ -1400,11 +1396,8 @@ class MainPetHubView(View):
             eq_list = ", ".join([f"{e['등급']} {e['부위']}" for e in equips]) if equips else "보유 장비 없음"
             embed.add_field(name="🛡️ 장비", value=eq_list, inline=False)
             
-            # 3. 후속 전송 (Followup): 완성된 가방 페이지 전송
-            try:
-                await interaction.followup.send(embed=embed, view=InventoryView(self.cog, self.user_id, self.guild_id))
-            except Exception as e:
-                print(f"가방 페이지 전송 실패: {e}")
+            # 가방 화면으로 즉시 전환
+            await interaction.response.edit_message(content=None, embed=embed, view=InventoryView(self.cog, self.user_id, self.guild_id))
 
         elif custom_id == "hub_퀘스트":
             from pet_views import QuestView
