@@ -1300,60 +1300,44 @@ class MainPetHubView(View):
             self.add_item(btn)
 
     async def handle_click(self, interaction: discord.Interaction):
-        msg = ""
         custom_id = interaction.data["custom_id"]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
-        from pet_skill import DiscordUIFormatter
-        if pet:
-            embed_data = DiscordUIFormatter.make_pet_embed_data(pet)
-            embed = discord.Embed(title=embed_data.get("title", "펫 정보"), 
-                                  description=embed_data.get("description", ""), 
-                                  color=0x3498db)
-            
-            # ✅ [수정] .get()을 사용하여 KeyError 방지
-            for f in embed_data.get("fields", []):
-                name = f.get("name", "알 수 없음")
-                value = f.get("value", "데이터 없음")
-                inline = f.get("inline", False)
-                embed.add_field(name=name, value=value, inline=inline)
-        else:
-            embed = discord.Embed(title="펫 없음", description="현재 등록된 펫이 없습니다.", color=0xe74c3c)
-
-        await interaction.response.edit_message(embed=embed, view=self)
-
+        # 1. 패널티 및 방치 상태 확인 (가장 먼저 실행)
         if pet:
             penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
             if penalty == "RUNAWAY":
-                await interaction.response.send_message("🚨 펫이 오랫동안 방치되어 야생으로 도망갔습니다.", ephemeral=False)
-                return
-        
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+                return await interaction.response.send_message("🚨 펫이 오랫동안 방치되어 야생으로 도망갔습니다.", ephemeral=False)
+            self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+            
+        from pet_skill import DiscordUIFormatter
         # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
         
         if custom_id == "hub_펫":
             if not pet:
-                await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
-                return
+                return await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
             
-            # 1. 즉시 응답으로 로딩 시작
+            # ✅ [정상 작동] 여기서 버튼에 대한 "첫 번째 응답"을 보냅니다.
             await interaction.response.edit_message(content="🔍 펫 정보를 불러오는 중...", embed=None, view=None)
             
-            # 2. 로직 처리 후 상태창 Followup
+            # 데이터 불러오기
             pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-            embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
-            for f in pet_data["fields"]:
-                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+            embed = discord.Embed(title=pet_data.get("title", "펫 정보"), description=pet_data.get("description", ""), color=0x2ecc71)
+            
+            # ✅ [KeyError 방지] 알 단계를 위해 안전하게 필드를 구성합니다.
+            for f in pet_data.get("fields", []):
+                name = f.get("name", "알 수 없음")
+                value = f.get("value", "데이터 없음")
+                inline = f.get("inline", False)
+                embed.add_field(name=name, value=value, inline=inline)
             
             pet_image_url = pet_data.get("image_url")
             if pet_image_url:
                 try:
-                    if pet_image_url:
-                        embed.set_thumbnail(url=pet_image_url)
+                    embed.set_thumbnail(url=pet_image_url)
                 except Exception as e:
                     print(f"이미지 로딩 실패, 무시함: {e}")
     
-
             await interaction.followup.send(embed=embed, view=PetInfoSubView(self.cog, self.user_id, self.guild_id))
 
         elif custom_id == "hub_상점":
