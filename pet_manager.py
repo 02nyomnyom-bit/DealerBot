@@ -86,6 +86,9 @@ class Pet:
         self.bug_count_today = 0      # 벌레잡기 카운트
         self.last_decay_time = time.time()
 
+        # 알 돌보기 일일 행동 기록용 딕셔너리
+        self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
+
         self.skills = []
         self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
         self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
@@ -151,6 +154,11 @@ class Pet:
 
         hours_passed = (current_time - self.last_update_time) / 3600.0
         if hours_passed <= 0: return
+        
+        # 알 상태일 경우 포만감/청결도 등 스탯 자연 감소를 진행하지 않고 여기서 중단합니다. (새끼부터 적용됨)
+        if self.stage == "알":
+            self.last_decay_time = current_time
+            return
         
         # 스트레스 60% 이상부터 기분 감소 가속화
         decay_modifier = 2.0 if self.stress >= 60 else 1.0
@@ -226,17 +234,22 @@ class Pet:
 
     def interact_egg(self, action_name):
         """알 단계 전용 행동 핸들러"""
+        # ✅ 1. 기존에 생성된 알(DB에 정보가 없는 경우)을 위한 방어 코드
+        if not hasattr(self, 'egg_actions_today'):
+            self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
+
+        # ✅ 2. 하루 1회 제한 검사
+        if self.egg_actions_today.get(action_name, 0) >= 1:
+            return f"❌ [{action_name}] 행동은 하루에 한 번만 가능합니다! 내일 다시 돌봐주세요."
+
+        # ✅ 3. 통과 시 해당 행동 카운터 증가
+        self.egg_actions_today[action_name] = 1
+
+        # (이하 기존 로직 동일하게 유지)
         climate = ClimateManager().get_current_climate()
         
         if action_name == "햇빛받기":
             self.warmth = min(100, self.warmth + 15)
-        elif action_name == "보듬어주기":
-            self.stability = min(100, self.stability + 15)
-        elif action_name == "씻겨주기":
-            self.cleanliness_egg = min(100, self.cleanliness_egg + 15)
-        elif action_name == "품어주기":
-            self.warmth = min(100, self.warmth + 10)
-            self.stability = min(100, self.stability + 10)
             
         base_progress = random.uniform(8.0, 15.0)
         # 맑음: 부화 진행도 +10%, 봄: 부화 진행도 +10%
@@ -1324,6 +1337,12 @@ class MainPetHubView(View):
             pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
             embed = discord.Embed(title=pet_data.get("title", "펫 정보"), description=pet_data.get("description", ""), color=0x2ecc71)
             
+            image_url = pet_data.get("image_url")
+            if pet.stage == "알" and not image_url:
+                image_url = "https://i.imgur.com/알_이미지_주소.png" 
+                pet_data["image_url"] = image_url 
+            #
+
             # ✅ [KeyError 방지] 알 단계를 위해 안전하게 필드를 구성합니다.
             for f in pet_data.get("fields", []):
                 name = f.get("name", "알 수 없음")

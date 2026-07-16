@@ -277,7 +277,6 @@ def get_equipment_bonus(pet):
     return bonus
 
 class DiscordUIFormatter:
-    @staticmethod
     def make_pet_embed_data(pet):
         pet.update_passive_decay()
         bonus = get_equipment_bonus(pet)
@@ -307,25 +306,6 @@ class DiscordUIFormatter:
         eq_text = f"머리: {eq.get('머리') or '없음'} | 견갑: {eq.get('견갑') or '없음'} | 허리: {eq.get('허리') or '없음'} | 다리: {eq.get('다리') or '없음'}"
         fields.append({"name": "🛡️ 착용 중인 장비", "value": f"`{eq_text}`", "inline": False})
 
-        
-        if pet.stage == "알":
-            title_text = f"{pet.owner_name}의 알" if hasattr(pet, 'owner_name') else "알"
-            return {
-                "title": f"🥚 {title_text}",
-                "description": f"{pet.name}이(가) 부화하기를 기다리고 있습니다.",
-                "fields": [
-                    {"name": "부화 진행도", "value": f"{pet.hatch_progress:.1f}%", "inline": True}
-                ]
-            }
-        else:
-            fields.append({"name": "📊 유전 능력치", "value": f"🧠 성격: {pet.personality} | 📊 IV: {pet.iv}/31", "inline": False})
-
-        # 병걸림 상태 경고 추가
-        if getattr(pet, "is_sick", False):
-            fields.append({"name": "⚠️ 상태 이상: [질병]", "value": "🧼 청결도 방치로 병에 걸렸습니다! 모든 전투 능력치(공격, 방어, 속도)가 30% 감소합니다.", "inline": False})
-
-        rarity_emoji = {"일반": "🐾", "희귀": "✨", "영웅": "🌟", "전설": "👑"}.get(pet.rarity, "🐾")
-        
         IMAGE_DATABASE = {
             "불": { # 호랑이
                 "알": "https://media.discordapp.net/attachments/1464543163669680171/1526774743368470578/A.png?ex=6a583f48&is=6a56edc8&hm=34a1d61d61ceecfedfde9ee0880b752a65d343a74e8d7bcd700a857d64cede53&=&format=webp&quality=lossless",
@@ -405,6 +385,30 @@ class DiscordUIFormatter:
                 "최종 진화": "https://media.discordapp.net/attachments/1464543163669680171/1526774687349080205/FFFFF.png?ex=6a583f3b&is=6a56edbb&hm=89d65476e63dc853e3b31bdd387cf6f8a76900eb2c2df28792f7334ca0786490&=&format=webp&quality=lossless"
             }
         }
+        
+        # 2️⃣ 알 단계 처리 로직 수정
+        if pet.stage == "알":
+            # 메인 속성에 맞는 데이터를 찾고, 그 안에서 '알' 이미지를 꺼내옵니다.
+            type_data = IMAGE_DATABASE.get(pet.main_type, IMAGE_DATABASE["노말"])
+            egg_image_url = type_data.get("알", "https://media.discordapp.net/attachments/1464543163669680171/1527167130657624134/LL.png?ex=6a59acb9&is=6a585b39&hm=5813336263eeb4cfc7ff8cb8585408baef392b7733e40c7cdf3e4f878d35ef9f&=&format=webp&quality=lossless")
+
+            return {
+                "title": f"🥚 {pet.name}",
+                "description": f"{pet.owner_name}님의 소중한 알입니다.",
+                "fields": [
+                    {"name": "부화 진행도", "value": f"{pet.hatch_progress:.1f}%", "inline": True}
+                ],
+                "image_url": egg_image_url  # 👈 이제 준비해둔 DB에서 정확한 알 이미지를 가져옵니다!
+            }
+        else:
+            fields.append({"name": "📊 유전 능력치", "value": f"🧠 성격: {pet.personality} | 📊 IV: {pet.iv}/31", "inline": False})
+
+        # 병걸림 상태 경고 추가
+        if getattr(pet, "is_sick", False):
+            fields.append({"name": "⚠️ 상태 이상: [질병]", "value": "🧼 청결도 방치로 병에 걸렸습니다! 모든 전투 능력치(공격, 방어, 속도)가 30% 감소합니다.", "inline": False})
+
+        rarity_emoji = {"일반": "🐾", "희귀": "✨", "영웅": "🌟", "전설": "👑"}.get(pet.rarity, "🐾")
+        
         
         # 메인 타입에 맞는 데이터셋 확인 후 현재 단계의 이미지 URL을 가져옵니다.
         # 데이터가 비어있거나 타입이 존재하지 않으면 기본 에러 방지용 대체 이미지가 들어갑니다.
