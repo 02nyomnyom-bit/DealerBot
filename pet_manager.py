@@ -41,7 +41,6 @@ class Pet:
         self.name_changed = False
         
         # 기획서 기준 실시간 변동 상태 요소 (0~100)
-        # 기획서 기준 실시간 변동 상태 요소 (0~100)
         self.fullness = 100
         self.cleanliness = 100
         self.closeness = 30
@@ -887,6 +886,9 @@ class PetManager(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
     async def open_guardian_hub(self, interaction: discord.Interaction):
+        # 🚨 [수정 2] 명령어가 시작되자마자 타임아웃 방지 (생각 중... 띄우기)
+        await interaction.response.defer() 
+
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
         db = self._get_db(interaction.guild.id)
@@ -902,7 +904,8 @@ class PetManager(commands.Cog):
         if pet:
             penalty = self.check_penalties_and_update(guild_id, user_id, pet)
             if penalty == "RUNAWAY":
-                await interaction.response.send_message("🚨 **경고:** 펫을 너무 오랫동안 굶주린 상태로 방치하여 펫이 야생으로 도망갔습니다... (데이터가 완전히 말소되었습니다)", ephemeral=True)
+                # defer() 이후에는 반드시 followup.send() 사용
+                await interaction.followup.send("🚨 **경고:** 펫을 너무 오랫동안 굶주린 상태로 방치하여 펫이 야생으로 도망갔습니다... (데이터가 완전히 말소되었습니다)", ephemeral=True)
                 return
             elif penalty == "SICK_TRIGGERED":
                 await interaction.followup.send("🚨 **경고:** 청결도를 너무 오랜 시간 방치하여 펫이 병에 걸렸습니다! 동물 보호 위반 벌금으로 **3,000원**이 자산에서 강제 차감됩니다.", ephemeral=True)
@@ -913,12 +916,12 @@ class PetManager(commands.Cog):
         for f in data["fields"]:
             embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
             
-        # 보유 수량 표시 덧붙임
         total_p = self.get_total_pet_count(guild_id, user_id)
         embed.set_footer(text=f"🔑 총 보유 펫 공간: {total_p} / 3마리")
             
-        await interaction.response.send_message(embed=embed, view=MainPetHubView(self, user_id, guild_id))
-
+        # 🚨 마지막 출력도 followup.send()로 수정
+        await interaction.followup.send(embed=embed, view=MainPetHubView(self, user_id, guild_id))
+        
     @app_commands.command(name="펫관리", description="[관리자 전용] 특정 유저의 펫 능력치 및 성장 단계를 강제 조정합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
@@ -1829,17 +1832,9 @@ class PetActionExecutionView(View):
         if not pet: 
             return await interaction.response.send_message("❌ 펫 없음", ephemeral=True)
 
-        # 1. 모달(이름 변경)은 다른 화면 처리 전에 가장 먼저 호출해야 합니다.
+        # 1. 모달(이름 변경)은 다른 화면 처리 전에 가장 먼저 호출
         if act_name == "이름 변경":
             return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
-
-        # 2. 로딩 처리 (버튼 누른 직후 로딩 표시)
-        if not interaction.response.is_done():
-            await interaction.response.edit_message(content="⏳ 행동 처리 중...", embed=None, view=None)
-
-        msg = "" # 결과 대사가 들어갈 빈 변수 준비
-
-        # 3. 각종 제한 검사 및 행동 로직 수행
         
         if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
             return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
@@ -1853,6 +1848,12 @@ class PetActionExecutionView(View):
         if act_name == "벌레잡기" and pet.affinity >= 297:
             return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
         
+        # 2. 통과했다면 로딩 처리 (버튼 누른 직후 로딩 표시)
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(content="⏳ 행동 처리 중...", embed=None, view=None)
+
+        msg = "" # 결과 대사가 들어갈 빈 변수 준비
+
         climate = ClimateManager().get_current_climate()
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
         if penalty == "RUNAWAY":
