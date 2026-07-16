@@ -902,7 +902,7 @@ class PetManager(commands.Cog):
             
         if not stored:
             embed.add_field(name="📦 보관함", value="보관 중인 펫이나 알이 없습니다.", inline=False)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=False)
             return
             
         for idx, (db_id, p) in enumerate(stored):
@@ -939,7 +939,7 @@ class PetManager(commands.Cog):
                     break
                     
         if not target_pet:
-            await interaction.response.send_message(f"❌ 보호 중인 펫 중 이름이 **[{펫이름}]**인 아이를 찾을 수 없습니다. 다시 확인해 주세요.", ephemeral=True)
+            await interaction.response.send_message(f"❌ 보호 중인 펫 중 이름이 **[{펫이름}]**인 아이를 찾을 수 없습니다. 다시 확인해 주세요.", ephemeral=False)
             return
 
         # 2. 입양 3일(72시간 / 259,200초) 제약 검사
@@ -1035,7 +1035,7 @@ class PetManager(commands.Cog):
                 return
             elif penalty == "SICK_TRIGGERED":
                 # 텍스트 변경: 보유 자산의 30% 차감 안내
-                await interaction.followup.send("🚨 **경고:** 청결도를 너무 오랜 시간 방치하여 펫이 병에 걸렸습니다! 동물 보호 위반 벌금으로 **보유 자산의 30%**가 강제 차감됩니다.", ephemeral=True)
+                await interaction.followup.send("🚨 **경고:** 청결도를 너무 오랜 시간 방치하여 펫이 병에 걸렸습니다! 동물 보호 위반 벌금으로 **보유 자산의 30%**가 강제 차감됩니다.", ephemeral=False)
             self.save_user_pet(guild_id, user_id, pet)
 
         data = DiscordUIFormatter.make_user_embed_data(user_data, pet)
@@ -1367,6 +1367,9 @@ class MainPetHubView(View):
             db = self.cog._get_db(int(self.guild_id))
             user_data = db.get_user(self.user_id)
             
+            user_data = db.get_user(self.user_id)
+        
+            # 최상급 열매 가격 호출
             fruit_top_price = 50000
             if os.path.exists("data/pet_config.json"):
                 try:
@@ -1375,7 +1378,7 @@ class MainPetHubView(View):
                         fruit_top_price = cfg.get("fruit_high_price", 50000)
                 except Exception: 
                     pass
-            
+
             embed = discord.Embed(
                 title="🛒 펫 상점", 
                 description=f"아이템을 구매하세요!\n보유 자산: **{user_data.get('cash', 0):,}원**", 
@@ -1384,17 +1387,6 @@ class MainPetHubView(View):
             embed.add_field(name="🍎 열매 (포만감 회복)", value=f"- 최상급 열매 (포만감 +30): {fruit_top_price:,}원\n- 중급 열매 (포만감 +15): 30,000원\n- 하급 열매 (포만감 +5): 10,000원", inline=False)
             embed.add_field(name="🛡️ 일반 장비", value="- 머리/견갑/허리/다리 각 부위: 150,000원\n- 기본 스탯: HP +5, ATK +5, SPD +5", inline=False)
 
-            # 3. 후속 전송 (Followup): 완성된 상점 페이지 전송
-            try:
-                await interaction.followup.send(embed=embed, view=ShopView(self.cog, self.user_id, self.guild_id))
-            except Exception as e:
-                print(f"상점 페이지 전송 실패: {e}")
-
-        elif custom_id == "hub_가방":
-            if not pet:
-                await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
-                return
-            
             # 1. 즉시 응답: 로딩 메시지를 먼저 보내 디스코드와의 연결을 안전하게 마침
             await interaction.response.edit_message(content="🎒 가방을 확인하는 중...", embed=None, view=None)
             
@@ -1747,7 +1739,7 @@ class InventoryView(discord.ui.View):
             equips = pet.inventory.get("장비", [])
             part_equips = [e for e in equips if e["부위"] == item_name]
             if not part_equips:
-                await interaction.response.send_message(f"❌ 장착할 {item_name} 부위 장비가 가방에 없습니다.", ephemeral=True)
+                await interaction.response.send_message(f"❌ 장착할 {item_name} 부위 장비가 가방에 없습니다.", ephemeral=False)
                 return
             
             grade_val = {"일반": 1, "희귀": 2, "영웅": 3, "전설": 4}
@@ -2008,16 +2000,16 @@ class PetActionExecutionView(View):
             return await interaction.response.send_modal(NameChangeModal(self.cog, self.user_id, self.guild_id))
         
         if act_name in ["먹이 주기", "먹이"] and pet.fullness >= 99:
-            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=True)
+            return await interaction.response.send_message("❌ 이미 배가 꽉 차 있습니다!", ephemeral=False)
         
         if act_name == "청소하기" and pet.cleanliness >= 99:
-            return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=True)
+            return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=False)
         
         if act_name == "쓰다듬기" and pet.affinity >= 297: # 친밀도 300 상한
-            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
+            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=False)
 
         if act_name == "벌레잡기" and pet.affinity >= 297:
-            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=True)
+            return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=False)
         
         # 2. 통과했다면 로딩 처리 (버튼 누른 직후 로딩 표시)
         if not interaction.response.is_done():
