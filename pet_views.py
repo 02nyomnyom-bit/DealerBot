@@ -170,6 +170,33 @@ class SettingView(View):
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
         await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
 
+class BreedingView(View):
+    def __init__(self, cog, user_id, guild_id):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.user_id = user_id
+        self.guild_id = guild_id
+
+    @discord.ui.button(label="💞 교배 진행 (30만 G)", style=discord.ButtonStyle.primary, row=0)
+    async def breeding(self, interaction: Interaction, button: ui.Button):
+        # 1. 봇 응답 지연 처리 (연산이 길어질 경우를 대비)
+        await interaction.response.defer(ephemeral=True)
+
+        # 2. 교배 로직 연결 (매니저의 start_breeding 호출)
+        status, error_msg, embed = await self.cog.start_breeding(self.guild_id, self.user_id)
+        
+        if status == "SUCCESS":
+            # 3-A. 교배 성공 시: 성공 메시지(임베드) 전송 후 메인 화면으로 복귀
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
+        else:
+            # 3-B. 조건 미달 시: 실패 사유 출력
+            await interaction.followup.send(error_msg, ephemeral=True)
+
+    @discord.ui.button(label="처음으로", style=discord.ButtonStyle.danger, row=1)
+    async def back(self, interaction: Interaction, button: ui.Button):
+        # 취소 시 안전하게 메인 화면(MainPetHubView)으로 복귀
+        await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
 
 # 4. 📋 퀘스트 관리 뷰
 class QuestView(View):

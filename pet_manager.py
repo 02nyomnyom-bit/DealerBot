@@ -443,6 +443,15 @@ class Pet:
         if not hasattr(pet, 'inventory'):
             pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         return pet
+    
+    async def force_release_pet(self, guild_id: int, user_id: int) -> bool:
+        """관리자 권한으로 대상 유저의 현재 펫을 강제 방생(삭제)합니다."""
+        current_pet = await self.get_user_pet(guild_id, user_id)
+        if not current_pet:
+            return False # 펫이 없으면 False 반환
+        await self.db.execute("DELETE FROM user_pets WHERE guild_id = ? AND user_id = ?", (guild_id, user_id))
+        
+        return True
 
 class SkillConfirmView(discord.ui.View):
     def __init__(self, cog, user_id, guild_id, skill_to_remove):
@@ -629,6 +638,73 @@ class PetManager(commands.Cog):
         count += len(stored)
         return count
 
+    # pet_manager.py -> PetManager 클래스 내부에 추가
+    async def start_breeding(self, guild_id: str, user_id: str) -> tuple[str, str, Optional[discord.Embed]]:
+        """교배 시스템 데이터 연산 및 유전 로직을 처리합니다."""
+        db = self._get_db(int(guild_id))
+        
+        # 1. 보유 공간 체크 (최대 3마리 제한)
+        total_pets = self.get_total_pet_count(guild_id, user_id)
+        if total_pets >= 3:
+            return "SPACE_FULL", "❌ 더 이상 알을 품을 수 있는 둥지가 없습니다. 보유 공간(최대 3마리 제한)을 먼저 정리해 주세요.", None
+            
+        # 2. 펫 상태 및 진화 단계 체크
+        pet = self.get_user_pet(guild_id, user_id)
+        if not pet:
+            return "NO_PET", "❌ 동행 중인 펫이 없습니다.", None
+            
+        if pet.stage != "최종 진화":
+            return "NOT_FINAL_STAGE", "❌ 교배는 **최종 진화** 단계의 펫만 가능합니다.", None
+            
+        # 3. 비용 체크 및 차감 (300,000 골드)
+        user_data = db.get_user(user_id)
+        cash = user_data.get('cash', 0) if user_data else 0
+        
+        if cash < 300000:
+            return "NOT_ENOUGH_GOLD", "❌ 교배 비용(300,000원)이 부족합니다.", None
+            
+        db.add_user_cash(user_id, -300000)
+        
+        # 4. 유전 및 능력치 결정 로직 (NPC 파트너 생성)
+        types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
+        npc_type = random.choice(types)
+        npc_iv = random.randint(15, 31)
+        
+        # 🧬 개체값(IV) 계산: 부모 평균 + 랜덤 보정치(-3 ~ +5), 최대 31 상한
+        base_iv = (pet.iv + npc_iv) // 2
+        new_iv = min(31, max(0, base_iv + random.randint(-3, 5)))
+        
+        # 🧬 속성(Type) 계산: 50% 확률로 내 펫 or NPC 속성
+        new_type = random.choice([pet.main_type, npc_type])
+        
+        # 🧬 성격 계산: 30% 확률로 부모 유전, 70% 확률로 랜덤
+        if pet.personality and random.random() < 0.3:
+            new_personality = pet.personality
+        else:
+            new_personality = random.choice(["용맹함", "신중함", "다혈질", "나태", "변덕", None])
+        
+        # 5. 새로운 알 객체 생성 및 보관함(Storage) 이동
+        child = Pet(name=f"{pet.name}의 알", main_type=new_type)
+        child.iv = new_iv
+        child.personality = new_personality
+        
+        # 메인 자리를 교체하지 않고 보관함으로 즉시 전송
+        self.add_stored_pet(guild_id, user_id, child)
+        
+        # 6. 성공 임베드 제작
+        embed = discord.Embed(
+            title="💞 교배 성공!", 
+            description="교배소에서 30만 골드를 지불하고 훌륭한 파트너와 교배를 마쳤습니다.", 
+            color=0xff9ff3
+        )
+        embed.add_field(
+            name="🥚 새로운 생명", 
+            value=f"새로운 **[{new_type}]** 속성의 알이 태어났습니다!\n(개체값 보정: {base_iv} ➡️ {new_iv})\n알은 즉시 **🗃️ 펫 보관함**으로 이동되었습니다. (보유 공간: {total_pets + 1}/3)", 
+            inline=False
+        )
+        
+        return "SUCCESS", "", embed
+        
     def check_penalties_and_update(self, guild_id: str, user_id: str, pet: Pet) -> Optional[str]:
         """행동 명령 전 펫 상태가 24시간 이상 방치 상태인지 실시간 검증합니다"""
         pet.update_passive_decay()
@@ -732,59 +808,7 @@ class PetManager(commands.Cog):
             
         view = StorageSwapView(self, user_id, guild_id, stored, active_pet)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-        
-    @app_commands.command(name="교배", description="NPC와 교배하여 강력한 알을 얻습니다. (10만 골드 소모, 최종 진화체 필요)")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
-    @app_commands.default_permissions(administrator=True)
-    async def breed_pet(self, interaction: discord.Interaction):
-        user_id = str(interaction.user.id)
-        guild_id = str(interaction.guild.id)
-        db = self._get_db(interaction.guild.id)
-        
-        # 총보유 3마리 락 체크
-        total_pets = self.get_total_pet_count(guild_id, user_id)
-        if total_pets >= 3:
-            await interaction.response.send_message("❌ 더 이상 알을 품을 수 있는 둥지가 없습니다. 보유 공간(최대 3마리 제한)을 먼저 정리해 주세요.", ephemeral=True)
-            return
-            
-        pet = self.get_user_pet(guild_id, user_id)
-        if not pet:
-            await interaction.response.send_message("❌ 동행 중인 펫이 없습니다.", ephemeral=True)
-            return
-            
-        if pet.stage != "최종 진화":
-            await interaction.response.send_message("❌ 교배는 **최종 진화** 단계의 펫만 가능합니다.", ephemeral=True)
-            return
-            
-        user_data = db.get_user(user_id)
-        cash = user_data.get('cash', 0) if user_data else 0
-        if cash < 100000:
-            await interaction.response.send_message("❌ 교배 비용(100,000원)이 부족합니다.", ephemeral=True)
-            return
-            
-        db.add_user_cash(user_id, -100000)
-        
-        types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-        npc_type = random.choice(types)
-        npc_iv = random.randint(15, 31)
-        
-        base_iv = (pet.iv + npc_iv) // 2
-        new_iv = min(31, max(0, base_iv + random.randint(-3, 5)))
-        new_type = random.choice([pet.main_type, npc_type])
-        
-        new_personality = pet.personality if (pet.personality and random.random() < 0.3) else random.choice(["용맹함", "신중함", "다혈질", "나태", "변덕", None])
-        
-        child = Pet(f"{pet.name}의 알", new_type)
-        child.iv = new_iv
-        child.personality = new_personality
-        
-        self.add_stored_pet(guild_id, user_id, child)
-        
-        embed = discord.Embed(title="💞 교배 성공!", description="교배소에서 10만 골드를 지불하고 훌륭한 종마와 교배를 마쳤습니다.", color=0xff9ff3)
-        embed.add_field(name="🥚 새로운 생명", value=f"새로운 **[{new_type}]** 속성의 알이 태어났습니다!\n(개체값 보정: {base_iv} ➡️ {new_iv})\n알은 즉시 **🗃️ 펫 보관함**으로 이동되었습니다. (보유 공간: {total_pets + 1}/3)", inline=False)
-        
-        await interaction.response.send_message(embed=embed)
-
+    
     @app_commands.command(name="방생", description="현재 키우는 펫 중 하나를 자연으로 방생합니다. (이름 일치 필수, 3일 경과 제약)")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
@@ -921,7 +945,7 @@ class PetManager(commands.Cog):
             
         # 🚨 마지막 출력도 followup.send()로 수정
         await interaction.followup.send(embed=embed, view=MainPetHubView(self, user_id, guild_id))
-        
+
     @app_commands.command(name="펫관리", description="[관리자 전용] 특정 유저의 펫 능력치 및 성장 단계를 강제 조정합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
@@ -935,16 +959,31 @@ class PetManager(commands.Cog):
         app_commands.Choice(name="🧬 성장단계 강제 설정", value="stage"),
         app_commands.Choice(name="❤️ 친밀도 수치 조정 (0 ~ 300)", value="affinity"),
         app_commands.Choice(name="🧼 질병 상태 강제 완치", value="heal_sick"),
-        app_commands.Choice(name="⚡ 에너지 완충 (100)", value="heal_energy")
+        app_commands.Choice(name="⚡ 에너지 완충 (100)", value="heal_energy"),
+        app_commands.Choice(name="강제방생", value="release")
     ])
-    async def admin_set_pet_status(self, interaction: discord.Interaction, 대상자: discord.Member, 변경항목: str, 설정값: str):
+    async def admin_set_pet_status(self, interaction: discord.Interaction, 대상자: discord.Member, 변경항목: str, 설정값: str = None):
         user_id = str(대상자.id)
-        guild_id = str(interaction.guild.id)
+        guild_id = str(interaction.guild_id)
         
         pet = self.get_user_pet(guild_id, user_id)
         if not pet:
             return await interaction.response.send_message(f"❌ {대상자.display_name}님은 현재 동행 중인 펫이 없습니다.", ephemeral=True)
-
+        
+        # 1. 강제방생 처리
+        if 변경항목 == "release":
+            success = await self.pet_manager.force_release_pet(interaction.guild_id, 대상자.id)
+            
+            if success:
+                await interaction.response.send_message(f"✅ 관리자 권한으로 {대상자.mention}님의 펫을 **강제 방생**했습니다.", ephemeral=True)
+            else:
+                await interaction.response.send_message(f"❌ {대상자.display_name}님은 현재 보유 중인 펫이 없습니다.", ephemeral=True)
+            return
+        
+        # 2. 설정값이 반드시 필요한 항목들 예외 처리
+        if 변경항목 in ["level", "stage", "affinity"] and 설정값 is None:
+            return await interaction.response.send_message("❌ 해당 항목은 `설정값`을 반드시 입력해야 합니다.", ephemeral=True)
+        
         msg = ""
         if 변경항목 == "level":
             try:
@@ -981,6 +1020,7 @@ class PetManager(commands.Cog):
             pet.stress = 0
             msg = f"⚡ {대상자.display_name}님의 펫 **[{pet.name}]**의 에너지를 100으로 완충하고 누적 스트레스를 0으로 관리했습니다."
 
+        # 3. 변경된 펫 정보 저장 및 결과 전송
         self.save_user_pet(guild_id, user_id, pet)
         
         embed = discord.Embed(title="⚙️ [어드민] 펫 상태 수동 개입", description=msg, color=discord.Color.purple())
@@ -1368,6 +1408,14 @@ class PetInfoSubView(View):
             # 2. 후속 전송
             from pet_views import EvolutionView
             await interaction.response.send(view=EvolutionView(self.cog, self.user_id, self.guild_id))
+        
+        # 기존 뷰의 handle_click 등 내부에서 호출할 때
+        elif custom_id == "pet_교배소":
+            await interaction.response.edit_message(content="💞 교배소로 이동 중...", embed=None, view=None)
+            from pet_views import BreedingView
+    
+            embed = discord.Embed(title="💞 신비섬 교배소", description="300,000 골드를 지불하고 최종 진화 펫을 교배시켜 강력한 알을 얻습니다.", color=0xff9ff3)
+            await interaction.followup.send(embed=embed, view=BreedingView(self.cog, self.user_id, self.guild_id))
 
 class ShopView(discord.ui.View):
     def __init__(self, cog, user_id, guild_id):
