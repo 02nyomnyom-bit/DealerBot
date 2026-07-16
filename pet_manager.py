@@ -15,7 +15,6 @@ from typing import Optional, Dict, List
 from database_manager import DatabaseManager
 from pet_skill import DiscordUIFormatter
 from pet_climate import ClimateManager
-from pet_skill import ALL_SKILLS
 
 # 알 -> 새끼 -> 유년기 -> 성체 -> 최종 진화
 class Pet:
