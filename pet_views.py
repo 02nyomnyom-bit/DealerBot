@@ -210,13 +210,15 @@ class QuestView(View):
     @discord.ui.button(label="📜 퀘스트 현황 보기", style=discord.ButtonStyle.primary, row=0)
     async def view_progress(self, interaction: Interaction, button: ui.Button):
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        # 퀘스트 할당 호출
-        self.cog.pet_manager.assign_daily_quests(pet)
+        
+        # 🚨 수정됨: self.cog.pet_manager -> self.cog로 변경
+        self.cog.assign_daily_quests(pet)
         
         embed = discord.Embed(title=f"📜 {pet.name}의 오늘의 미션", color=0x3498db)
         
         for q_id, status in pet.daily_quests.items():
-            quest_info = next(item for item in self.cog.pet_manager.quest_pool if item["id"] == q_id)
+            # 🚨 수정됨: self.cog.pet_manager.quest_pool -> self.cog.quest_pool로 변경
+            quest_info = next(item for item in self.cog.quest_pool if item["id"] == q_id)
             progress = status["count"]
             target = status["target"]
             embed.add_field(

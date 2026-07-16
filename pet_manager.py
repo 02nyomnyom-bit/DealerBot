@@ -2009,6 +2009,12 @@ class PetActionExecutionView(View):
                 await self.match_opponent(interaction, "랭크전")
                 return
             
+        if act_name == "교배":
+            await interaction.response.edit_message(content="💞 교배소로 이동 중...", embed=None, view=None)
+            from pet_views import BreedingView
+            embed = discord.Embed(title="💞 신비섬 교배소", description="300,000 골드를 지불하고 최종 진화 펫을 교배시켜 강력한 알을 얻습니다.", color=0xff9ff3)
+            return await interaction.followup.send(embed=embed, view=BreedingView(self.cog, self.user_id, self.guild_id))
+        
         # 5. 일반 행동 수행 로직
         if pet.stage == "알":
             msg = pet.interact_egg(act_name)
