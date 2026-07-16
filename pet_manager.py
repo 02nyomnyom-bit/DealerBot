@@ -213,9 +213,9 @@ class Pet:
         actions = {
             "알": ["햇빛받기", "보듬어주기", "씻겨주기", "품어주기"],
             "새끼": ["먹이 주기", "간식 주기", "쓰다듬기", "청소하기", "놀아주기", "벌레잡기", "산책"],
-            "유년기": ["먹이", "간식 주기", "훈련", "탐험", "채집", "장난감", "휴식", "산책"],
-            "성체": ["먹이", "간식 주기", "훈련", "탐험", "채집", "PvP", "휴식", "산책"],
-            "최종 진화": ["먹이", "간식 주기", "훈련", "랭크전", "탐험", "교배", "휴식", "산책"]
+            "유년기": ["먹이 주기", "간식 주기", "청소하기", "훈련", "탐험", "채집", "장난감", "휴식", "산책"],
+            "성체": ["먹이 주기", "간식 주기", "청소하기", "훈련", "탐험", "채집", "PvP", "휴식", "산책"],
+            "최종 진화": ["먹이 주기", "간식 주기", "청소하기", "훈련", "랭크전", "탐험", "교배", "휴식", "산책"]
         }
         available = actions.get(self.stage, []).copy()
         if self.stage != "알" and not getattr(self, "name_changed", False):
@@ -1400,6 +1400,18 @@ class MainPetHubView(View):
                 embed=embed, 
                 view=QuestView(self.cog, self.user_id, self.guild_id)
             )
+
+        elif custom_id == "hub_설정":
+            from pet_views import SettingView
+            embed = discord.Embed(
+                title="⚙️ 설정 센터", 
+                description="기기 설정 및 진화 방지 락 등을 관리합니다.", 
+                color=0x95a5a6
+            )
+            await interaction.response.edit_message(
+                embed=embed, 
+                view=SettingView(self.cog, self.user_id, self.guild_id)
+            )
             
 class PetInfoSubView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str):
@@ -2049,13 +2061,44 @@ class PetActionExecutionView(View):
         if pet.stage == "알":
             msg = pet.interact_egg(act_name)
         elif act_name in ["먹이 주기", "먹이"]:
+            fruits = pet.inventory.get("열매", {})
+            used_fruit = None
+            heal_amount = 0
             pet.fullness = min(100, pet.fullness + 30)
             pet.stress = max(0, pet.stress - 10)
-            if climate.weather == "폭염":
-                pet.fullness = max(0, pet.fullness - 15)
-                msg = f"🍖 먹이를 주었습니다. (포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100)\n🔥 [폭염] 더위로 인해 포만감이 빠르게 줄어듭니다."
+            # 하급 -> 중급 -> 최상급 순으로 소모
+            if fruits.get("하", 0) > 0:
+                used_fruit = "하"
+                heal_amount = 5
+            elif fruits.get("중", 0) > 0:
+                used_fruit = "중"
+                heal_amount = 15
+            elif fruits.get("상", 0) > 0:
+                used_fruit = "상"
+                heal_amount = 30
+
+            if not used_fruit:
+                msg = "❌ 가방에 열매가 하나도 없습니다! [상점]에서 열매를 구매하거나 [가방]에서 사용해주세요."
             else:
-                msg = f"🍖 먹이를 주었습니다. 포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100"
+                pet.inventory["열매"][used_fruit] -= 1  # 아이템 차감!
+                pet.fullness = min(100, pet.fullness + heal_amount)
+                pet.stress = max(0, pet.stress - 10)
+                
+                if climate.weather == "폭염":
+                    pet.fullness = max(0, pet.fullness - 15)
+                    msg = f"🍖 [{used_fruit}급 열매]를 먹였습니다. (포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100)\n🔥 [폭염] 더위로 인해 포만감이 빠르게 줄어듭니다."
+                else:
+                    msg = f"🍖 [{used_fruit}급 열매]를 1개 소모하여 먹이를 주었습니다. 포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100"
+        
+        elif act_name == "간식 주기":
+            if getattr(pet, 'snack_count_today', 0) >= 1:
+                msg = "❌ 사탕은 하루에 한 번만 줄 수 있습니다! 너무 많이 먹으면 건강에 안 좋아요."
+            else:
+                pet.snack_count_today = getattr(pet, 'snack_count_today', 0) + 1
+                pet.affinity = min(300, pet.affinity + 20)
+                pet.fullness = min(100, pet.fullness + 10)
+                msg = f"🍬 달콤한 사탕을 주었습니다! {pet.name}이(가) 무척 행복해하며 당신을 따릅니다. (친밀도 대폭 상승)"
+
         elif act_name == "쓰다듬기":
             if getattr(pet, "pet_count_today", 0) >= 5:
                 msg = "❌ 쓰다듬기는 하루에 다섯 번만 가능합니다!"
