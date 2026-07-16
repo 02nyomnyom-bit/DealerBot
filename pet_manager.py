@@ -854,11 +854,12 @@ class PetManager(commands.Cog):
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
-    async def start_game(self, interaction: discord.Interaction, 펫이름: str, 타입: str = "노말"):
+    async def start_game(self, interaction: discord.Interaction, 펫이름: str): 
         # 명령어 핸들러 내부
         types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-        selected_type = random.choice(types) # 랜덤 속성 알 할당
-        new_pet = Pet(name=펫이름, main_type=selected_type)
+        weights = [8, 8, 8, 8, 8, 8, 8, 8, 8, 28]
+        selected_type = random.choices(types, weights=weights, k=1)[0]
+        new_pet = Pet(name=펫이름, main_type=selected_type) # 랜덤 속성 펫 완성!
         
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
@@ -875,15 +876,14 @@ class PetManager(commands.Cog):
         
         # 🌟 [개선] 메인 동행 자리가 비어있다면, 보관함을 거치지 않고 즉시 활성화 슬롯에 안착시킵니다.
         if active_pet is None:
-            new_pet = Pet(펫이름, 타입)
+            # 💡 중복 생성 코드 삭제 완료
             self.save_user_pet(guild_id, user_id, new_pet)
-            await interaction.response.send_message(f"🎉 첫 번째 동행 파트너 지정 완료! ??? 알 **[{펫이름}]**이 메인 파트너로 즉시 활성화되었습니다! (현재 보유: {total_pets + 1}/3)")
+            await interaction.response.send_message(f"🎉 첫 번째 동행 파트너 지정 완료! {selected_type} 속성의 알 **[{펫이름}]**이 메인 파트너로 즉시 활성화되었습니다! (현재 보유: {total_pets + 1}/3)")
         else:
-            # 메인 자리가 이미 차 있을 때만 보관함(Storage)으로 자동 안전 수령
-            new_pet = Pet(펫이름, 타입)
+            # 💡 중복 생성 코드 삭제 완료
             self.add_stored_pet(guild_id, user_id, new_pet)
-            await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
-
+            await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 {selected_type} 속성의 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
+            
     @app_commands.command(name="펫보관함", description="보관 중인 펫을 확인하고 메인 펫과 교체(스왑)합니다. (최대 3마리 보존)")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
