@@ -1630,8 +1630,7 @@ class ShopView(discord.ui.View):
                 inline=f.get("inline", False)
             )
 
-        # 마지막에 한 번만 전송
-        await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
+        await interaction.response.edit_message(content=f"✅ {msg}", embed=embed, view=self)
         
         # 3. 펫 상태창 필드 추가
         for f in pet_data["fields"]:
