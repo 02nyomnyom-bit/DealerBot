@@ -878,11 +878,11 @@ class PetManager(commands.Cog):
         if active_pet is None:
             # 💡 중복 생성 코드 삭제 완료
             self.save_user_pet(guild_id, user_id, new_pet)
-            await interaction.response.send_message(f"🎉 첫 번째 동행 파트너 지정 완료! {selected_type} 속성의 알 **[{펫이름}]**이 메인 파트너로 즉시 활성화되었습니다! (현재 보유: {total_pets + 1}/3)")
+            await interaction.response.send_message(f"🎉 첫 번째 동행 파트너 지정 완료! ???의 알 **[{펫이름}]**이 메인 파트너로 즉시 활성화되었습니다! (현재 보유: {total_pets + 1}/3)")
         else:
             # 💡 중복 생성 코드 삭제 완료
             self.add_stored_pet(guild_id, user_id, new_pet)
-            await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 {selected_type} 속성의 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
+            await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 ???의 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
             
     @app_commands.command(name="펫보관함", description="보관 중인 펫을 확인하고 메인 펫과 교체(스왑)합니다. (최대 3마리 보존)")
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
