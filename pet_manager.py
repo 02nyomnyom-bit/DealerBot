@@ -1638,8 +1638,12 @@ class ShopView(discord.ui.View):
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
 
         embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        for f in pet_data.get("fields", []):
+            embed.add_field(
+                name=f.get("name", "\u200b"), 
+                value=f.get("value", "데이터 없음"), 
+                inline=f.get("inline", False)
+            )
 
         # 마지막에 한 번만 전송
         await interaction.response.edit_message(embed=embed, view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet.get_available_actions()))
@@ -2331,9 +2335,12 @@ class PetActionExecutionView(View):
         
         # [결과 텍스트 + 펫 상태]가 합쳐진 최종 임베드 생성
         embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
-        
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+        for f in pet_data.get("fields", []):
+            embed.add_field(
+                name=f.get("name", "\u200b"), 
+                value=f.get("value", "데이터 없음"), 
+                inline=f.get("inline", False)
+            )
         
         if pet_data.get("image_url"):
             embed.set_thumbnail(url=pet_data["image_url"])

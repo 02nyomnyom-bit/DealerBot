@@ -296,7 +296,7 @@ class DiscordUIFormatter:
             {"name": "교감 친밀도", "value": f"❤️ {pet.affinity} [등급: {pet.affinity_rank}]", "inline": True},
             {"name": "현재 기분", "value": f"🎭 {pet.mood_state} (점수: {int(pet.mood_score)})", "inline": True},
             {"name": "신체 지표", "value": f"🍗 포만감: {int(pet.fullness)}/100 | 🧼 청결도: {int(pet.cleanliness)}/100\n⚡ 에너지: {int(pet.energy)}/100 | 💢 스트레스: {pet.stress}/100", "inline": False},
-            {"value": f"⚔️ 공격: {f_atk}{atk_str} | 🛡️ 방어: {f_def}\n💨 속도: {f_spd}{spd_str} | 🍀 행운: {getattr(pet, 'luck', 10)}", "inline": False}
+            {"name": "⚔️ 전투 능력치", "value": f"⚔️ 공격: {f_atk}{atk_str} | 🛡️ 방어: {f_def}\n💨 속도: {f_spd}{spd_str} | 🍀 행운: {getattr(pet, 'luck', 10)}", "inline": False}
         ]
         
         skill_text = ", ".join(pet.skills) if pet.skills else "장착된 스킬 없음"
