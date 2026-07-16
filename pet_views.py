@@ -82,22 +82,24 @@ class SkillRemoveButton(discord.ui.Button):
 
 # pet_views.py에 추가
 class SkillSelectionView(discord.ui.View):
+
     def __init__(self, cog, user_id, guild_id, new_skill):
         super().__init__()
         pet = cog.get_user_pet(guild_id, user_id)
-        # 현재 보유 스킬을 버튼으로 생성하여 유저가 선택하게 함
+        # 현재 보유 스킬들을 버튼으로 나열
         for skill in pet.skills:
-            self.add_item(self.create_remove_button(skill, cog, user_id, guild_id, new_skill))
+            self.add_item(self.create_button(skill, cog, user_id, guild_id, new_skill))
+    # pet_manager.py 내부
 
-    def create_remove_button(self, skill_name, cog, user_id, guild_id, new_skill):
+    def create_button(self, skill_name, cog, user_id, guild_id, new_skill):
         btn = discord.ui.Button(label=f"잊기: {skill_name}", style=discord.ButtonStyle.danger)
         async def callback(interaction: discord.Interaction):
             pet = cog.get_user_pet(guild_id, user_id)
-            pet.skills.remove(skill_name)
-            pet.skills.append(new_skill)
-            cog.save_user_pet(guild_id, user_id, pet)
+            pet.skills.remove(skill_name) # 선택한 스킬 삭제
+            pet.skills.append(new_skill)  # 새 스킬 추가
+            cog.save_user_pet(guild_id, user_id, pet) # DB 반영
             await interaction.response.send_message(f"✅ {skill_name}을(를) 잊고 {new_skill}을(를) 배웠습니다!", ephemeral=True)
-            await go_to_home(interaction, cog, user_id, guild_id)
+            await go_to_home(interaction, cog, user_id, guild_id) # 메인화면 복귀
         btn.callback = callback
         return btn
     

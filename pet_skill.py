@@ -439,6 +439,23 @@ class DiscordUIFormatter:
             ]
         }
 
+def get_random_skill_by_type(pet_type):
+    """속성과 등급 확률(10/30/70)에 맞춰 스킬 이름을 반환"""
+    # 1. 등급 결정
+    roll = random.random() * 100
+    if roll < 10: grade = "상급"
+    elif roll < 40: grade = "중급"
+    else: grade = "하급"
+    
+    # 2. 펫 속성에 맞는 데이터 찾기 (없으면 노말)
+    target_data = SKILL_DATABASE.get(pet_type, SKILL_DATABASE.get("노말"))
+    
+    # 3. 해당 등급의 스킬 리스트가 없으면 하급으로 대체
+    skill_list = target_data.get(grade, target_data.get("하급"))
+    
+    # 4. 랜덤 딕셔너리에서 "name"만 추출해서 반환
+    chosen_skill = random.choice(skill_list)
+    return chosen_skill["name"]
 
 class PvPBattle:
     def __init__(self, pet_a, pet_b):

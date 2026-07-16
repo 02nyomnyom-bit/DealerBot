@@ -15,6 +15,7 @@ from typing import Optional, Dict, List
 from database_manager import DatabaseManager
 from pet_skill import DiscordUIFormatter
 from pet_climate import ClimateManager
+from pet_skill import ALL_SKILLS
 
 # 알 -> 새끼 -> 유년기 -> 성체 -> 최종 진화
 class Pet:
@@ -89,7 +90,7 @@ class Pet:
         self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
         self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         self.learned_ultimate = None
-        
+
         self.last_update_time = time.time()
         self.last_update_time = getattr(self, 'last_update_time', time.time())
 
@@ -418,6 +419,23 @@ class Pet:
     def to_dict(self) -> dict:
         return self.__dict__
 
+    def try_learn_skill(self) -> tuple:
+        from pet_skill import get_random_skill_by_type
+        
+        is_full = len(self.skills) >= 4
+        success_chance = 0.25 if is_full else 0.70
+        
+        if random.random() > success_chance:
+            return ("FAIL", "...아쉽게도 새로운 스킬을 떠올리지 못했습니다.")
+
+        new_skill = get_random_skill_by_type(self.main_type)
+        
+        if not is_full:
+            self.skills.append(new_skill)
+            return ("SUCCESS", f"✨ {new_skill}을(를) 배웠습니다!")
+        else:
+            return ("CHOICE_NEEDED", new_skill)
+        
     @classmethod
     def from_dict(cls, data: dict) -> Pet:
         pet = cls(data.get('name', '이름없음'), data.get('main_type', '노말'))
@@ -660,9 +678,9 @@ class PetManager(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
     @app_commands.default_permissions(administrator=True)
     async def start_game(self, interaction: discord.Interaction, 펫이름: str, 타입: str = "노말"):
-        # 랜덤 속성 부여 예시
+        # 명령어 핸들러 내부
         types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-        selected_type = random.choice(types)
+        selected_type = random.choice(types) # 랜덤 속성 알 할당
         new_pet = Pet(name=펫이름, main_type=selected_type)
         
         user_id = str(interaction.user.id)
@@ -1741,9 +1759,24 @@ class PvPInteractiveView(discord.ui.View):
             if result == "A":
                 pet.win_count = getattr(pet, 'win_count', 0) + 1
                 pet.gain_exp(200)
-                skill_msg = pet.try_learn_skill()
+                
+                # 1. 결과값 받기
+                result_code, message = pet.try_learn_skill()
+                
+                # 2. 메시지 보완
                 embed.add_field(name="결과", value="🎉 승리하여 경험치 200과 전적을 획득했습니다!", inline=False)
-                embed.add_field(name="스킬 습득", value=skill_msg, inline=False)
+                
+                if result_code == "CHOICE_NEEDED":
+                    new_skill = message
+                    from pet_views import SkillSelectionView
+                    # 타임아웃 시에는 interaction이 없으므로 채널로 메시지 전송
+                    await self.message.channel.send(
+                        f"✨ {new_skill}을(를) 배웠지만 슬롯이 꽉 찼습니다! 어떤 스킬을 잊으시겠습니까?",
+                        view=SkillSelectionView(self.cog, self.user_id, self.guild_id, new_skill)
+                    )
+                else:
+                    embed.add_field(name="스킬 습득", value=message, inline=False)
+
             elif result == "DRAW":
                 pet.gain_exp(50)
                 embed.add_field(name="결과", value="🤝 무승부! 약간의 경험치를 획득했습니다.", inline=False)
@@ -1752,16 +1785,17 @@ class PvPInteractiveView(discord.ui.View):
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
             pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-            embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
+            pet_info_embed = discord.Embed(title=pet_data["title"], description=pet_data["description"], color=0x2ecc71)
             for f in pet_data["fields"]:
-                embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
+                pet_info_embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
 
         if self.message:
             try:
-                await self.message.edit(embed=embed, attachments=[], view=MainPetHubView(self.cog, self.user_id, self.guild_id))
+                # 두 개의 임베드를 리스트로 전달
+                await self.message.edit(embeds=[embed, pet_info_embed], attachments=[], view=MainPetHubView(self.cog, self.user_id, self.guild_id))
             except Exception as e:
                 print(f"타임아웃 UI 갱신 실패: {e}")
-
+        
 class PetActionExecutionView(View):
     def __init__(self, cog: PetManager, user_id: str, guild_id: str, pet: Pet, action_name: Optional[str] = None):
         super().__init__(timeout=60)
@@ -1932,14 +1966,27 @@ class PetActionExecutionView(View):
                 pet.train_count_today += 1
                 pet.stress = min(100, pet.stress + 15)
                 exp_result = pet.gain_exp(60)
-                skill_msg = pet.try_learn_skill()
-                msg += f"\n{skill_msg}"
+                
+                # 📌 꼬여있던 부분 정리: 바로 메시지와 튜플을 받아냅니다.
                 msg = f"🏋️ 집중 훈련을 단행했습니다! (오늘 훈련: {pet.train_count_today}/3)\n{exp_result}"
+                result_code, message = pet.try_learn_skill()
+                
+                # 2. 결과에 따른 처리
+                if result_code == "CHOICE_NEEDED":
+                    new_skill = message
+                    from pet_views import SkillSelectionView 
+                    await interaction.followup.send(
+                        f"✨ {new_skill}을(를) 배웠지만 슬롯이 꽉 찼습니다! 어떤 스킬을 잊으시겠습니까?",
+                        view=SkillSelectionView(self.cog, self.user_id, self.guild_id, new_skill)
+                    )
+                else:
+                    await interaction.followup.send(message)
 
                 if pet.stage in ["성체", "최종 진화"] and random.random() < 0.20:
                     pot_gain = random.randint(1, 3)
                     pet.potential = min(100, getattr(pet, 'potential', 0) + pot_gain)
                     msg += f"\n✨ **[대성공!]** 훈련 중 한계를 돌파하여 잠재력이 {pot_gain} 상승했습니다! (현재: {pet.potential}%)"
+
         elif act_name == "탐험":
             if pet.explore_count_today >= 3:
                 msg = "❌ 오늘 모험을 떠날 수 있는 최대 횟수(3회)를 초과했습니다! 내일 다시 시도하세요."
@@ -2082,37 +2129,7 @@ class PetActionExecutionView(View):
             embed=embed, 
             view=PetActionExecutionView(self.cog, self.user_id, self.guild_id, pet, action_name=None)
         )
-
-    def try_learn_skill(self) -> str:
-        """PvP나 훈련 후 확률적으로 스킬을 습득합니다."""
-        # 1. 습득할 수 있는 스킬 리스트 (기획에 맞게 추가 가능)
-        available_skills = ["불꽃", "물대포", "바람일으키기", "전광석화", "방어", "강철날개"]
         
-        # 이미 배운 스킬 제외
-        can_learn = [s for s in available_skills if s not in self.skills]
-        if not can_learn:
-            return "💡 이미 모든 스킬을 습득했습니다!"
-
-        # 2. 확률 계산
-        # 슬롯이 4개 미만이면 70%, 꽉 찼으면 25%
-        is_full = len(self.skills) >= 4
-        success_chance = 0.25 if is_full else 0.70
-        
-        if random.random() > success_chance:
-            return "...아쉽게도 새로운 스킬을 떠올리지 못했습니다."
-
-        new_skill = random.choice(can_learn)
-
-        # 3. 습득 처리
-        if not is_full:
-            self.skills.append(new_skill)
-            return f"✨ 새로운 스킬 **[{new_skill}]**을(를) 배웠습니다! (슬롯 추가)"
-        else:
-            # 슬롯이 찼을 경우 랜덤하게 교체
-            old_skill = random.choice(self.skills)
-            self.skills.remove(old_skill)
-            self.skills.append(new_skill)
-            return f"✨ 새로운 스킬 **[{new_skill}]**을(를) 배웠습니다! (기존 스킬 **[{old_skill}]** 교체)"
     async def match_opponent(self, interaction, battle_type):
         cancel_event = asyncio.Event()
         
