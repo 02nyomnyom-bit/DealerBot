@@ -424,6 +424,10 @@ class BlackjackView(View):
         self.message = None
 
     async def on_timeout(self):
+        # 게임이 이미 정상 종료된 경우 타임아웃 로직 실행 방지
+        if getattr(self, "_already_ended", False):
+            return
+        
         # 1. 중복 방지 세션 해제
         self.cog.processing_users.discard(self.user.id)
         
@@ -506,6 +510,9 @@ class BlackjackView(View):
         
         # 4. 게임 종료 후 유저 고정 해제
         self.cog.processing_users.discard(self.user.id)
+        
+        # 5. View 종료 (타임아웃 방지)
+        self.stop()
 
 # 메인 Cog. 명령어
 class BlackjackCog(commands.Cog):

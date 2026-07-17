@@ -1,7 +1,5 @@
 # pet_skill.py
 import random
-import discord
-from typing import Optional, Dict
 from pet_climate import ClimateManager
 
 # [기획서 100% 매핑 완료된 상성 차트]
@@ -302,7 +300,7 @@ class DiscordUIFormatter:
         
         pet.update_passive_decay()
         bonus = get_equipment_bonus(pet)
-        hp_str = f" (+{bonus['hp']})" if bonus['hp'] else ""
+        # hp_str은 미사용이므로 제거 (atk_str, spd_str은 embed에서 사용)
         atk_str = f" (+{bonus['atk']})" if bonus['atk'] else ""
         spd_str = f" (+{bonus['spd']})" if bonus['spd'] else ""
         
@@ -463,7 +461,7 @@ class DiscordUIFormatter:
         tier = DiscordUIFormatter.get_tier_str(rank_score)
         
         return {
-            "title": f"🛡️ 보호자 프로필 허브",
+            "title": "🛡️ 보호자 프로필 허브",
             "description": f"**동행 중인 메인 펫:** `{active_pet_name}`",
             "fields": [
                 {"name": "💰 보유 자산", "value": f"**{cash:,}원**", "inline": True},
@@ -654,7 +652,7 @@ class PvPBattle:
                 self.log.append(f"🛡️ {defender.name}이(가) [수호] 혜택으로 치명타를 방어했습니다!")
             else:
                 final_dmg *= self.calculate_crit_multiplier(attacker, defender)
-                self.log.append(f"💥 **치명타 적중!**")
+                self.log.append("💥 **치명타 적중!**")
                 
         final_dmg *= self.calculate_affinity_damage_multiplier(attacker)
         
@@ -768,15 +766,15 @@ class PvPBattle:
         elif comp < 1.0 and comp > 0.0:
             if attacker.main_type == "노말":
                 comp = 1.0
-                self.log.append(f"✨ [노말] 패시브 발동! 상성 열위를 무시하고 안정적인 데미지를 가합니다! (x1.0)")
+                self.log.append("✨ [노말] 패시브 발동! 상성 열위를 무시하고 안정적인 데미지를 가합니다! (x1.0)")
             else:
                 self.log.append(f"📉 효과가 별로인 것 같다... (상성 열위 x{comp})")
         elif comp == 0.0:
             if attacker.main_type == "노말":
                 comp = 1.0
-                self.log.append(f"✨ [노말] 패시브 발동! 상성 무효를 무시하고 데미지를 가합니다! (x1.0)")
+                self.log.append("✨ [노말] 패시브 발동! 상성 무효를 무시하고 데미지를 가합니다! (x1.0)")
             else:
-                self.log.append(f"❌ 효과가 없다! (상성 무효)")
+                self.log.append("❌ 효과가 없다! (상성 무효)")
             
         final_dmg = base_dmg * comp
         

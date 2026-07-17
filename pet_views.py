@@ -1,6 +1,6 @@
 import discord
-from discord import ui, Interaction, ButtonStyle
-from discord.ui import View, Button
+from discord import ui, Interaction
+from discord.ui import View
 import time
 # MainPetHubView는 pet_manager에서 불러와야 하므로 내부에서 로드합니다.
 
@@ -118,7 +118,6 @@ class EvolutionView(View):
             return await interaction.response.send_message("❌ 펫이 없습니다.", ephemeral=True)
 
         # 진화 조건 수동 검사 진행
-        old_stage = pet.stage
         evo_msg = pet.check_evolution_conditions()
         
         if evo_msg:
@@ -221,6 +220,7 @@ class BreedingView(View):
         # 취소 시 안전하게 메인 화면(MainPetHubView)으로 복귀
         await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
 
+
 # 4. 📋 퀘스트 관리 뷰
 class QuestView(View):
     def __init__(self, cog, user_id, guild_id):
@@ -229,19 +229,17 @@ class QuestView(View):
         self.user_id = user_id
         self.guild_id = guild_id
 
-    # pet_views.py의 PetQuestView 내부 view_progress 함수 수정
-
     @discord.ui.button(label="📜 퀘스트 현황 보기", style=discord.ButtonStyle.primary, row=0)
     async def view_progress(self, interaction: Interaction, button: ui.Button):
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
-        
+
         # 퀘스트 할당 (이미 있다면 무시됨)
         self.cog.assign_daily_quests(pet)
-        # ✅ [추가] 뽑은 퀘스트가 날아가지 않게 즉시 DB에 세이브합니다.
+        # 뽑은 퀘스트가 날아가지 않게 즉시 DB에 세이브
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-        
+
         embed = discord.Embed(title=f"📜 {pet.name}의 오늘의 미션", color=0x3498db)
-        
+
         if not getattr(pet, 'daily_quests', None):
             embed.description = "현재 단계에서 수행할 수 있는 미션이 없습니다."
         else:
@@ -250,12 +248,13 @@ class QuestView(View):
                 if quest_info:
                     progress = status["count"]
                     target = status["target"]
+                    done = "✅" if progress >= target else "🔲"
                     embed.add_field(
-                        name=quest_info["name"],
+                        name=f"{done} {quest_info['name']}",
                         value=f"{quest_info['desc']} ({progress}/{target})",
                         inline=False
                     )
-        
+
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="🎁 보상 수령", style=discord.ButtonStyle.success, row=0)
@@ -264,36 +263,48 @@ class QuestView(View):
         if not pet:
             return await interaction.response.send_message("❌ 활성화된 펫이 없습니다.", ephemeral=True)
 
-        # 날짜 변경 체크 및 초기화
-        if hasattr(self.cog, 'check_and_reset_daily_quest'):
-            self.cog.check_and_reset_daily_quest(pet)
-        elif hasattr(self.cog.pet_manager, 'check_and_reset_daily_quest'):
-            self.cog.pet_manager.check_and_reset_daily_quest(pet)
-
-        # 1. 한국 시간 기준 오늘 날짜 생성
+        # 1. 한국 시간 기준 오늘 날짜
         today = time.strftime('%Y-%m-%d', time.localtime(time.time() + 32400))
-        
-        # 2. 이미 받았는지 중복 체크
+
+        # 2. 중복 수령 방지
         if getattr(pet, 'last_reward_date', None) == today:
             return await interaction.response.send_message("❌ 오늘은 이미 보상을 수령했습니다. 내일 다시 도전하세요!", ephemeral=True)
 
-        # 3. 🚨 [강화된 조건] 퀘스트 달성 여부 검증 (훈련 1회 이상)
-        if pet.train_count_today < 1:
+        # 3. daily_quests 달성 여부 검증
+        daily_quests = getattr(pet, 'daily_quests', None)
+        if not daily_quests:
             return await interaction.response.send_message(
-                f"❌ 퀘스트 조건을 달성하지 못했습니다!\n급무: 오늘 최소 **1회 이상 훈련**을 완료해야 합니다. (현재: {pet.train_count_today}회)", 
-                ephemeral=False
+                "❌ 오늘의 퀘스트가 할당되지 않았습니다. '📜 퀘스트 현황 보기'를 먼저 눌러주세요!",
+                ephemeral=True
             )
 
-        # 4. 보상 지급 로직 (골드 추가 등)
-        db = self.cog._get_db(int(self.guild_id))
-        db.add_user_cash(self.user_id, 5000) # 5,000골드 지급
-        
+        # 미완료 퀘스트 목록 수집
+        incomplete = []
+        for q_id, status in daily_quests.items():
+            if status["count"] < status["target"]:
+                quest_info = next((q for q in self.cog.quest_pool if q["id"] == q_id), None)
+                name = quest_info["name"] if quest_info else q_id
+                incomplete.append(f"• {name} ({status['count']}/{status['target']}회)")
+
+        if incomplete:
+            return await interaction.response.send_message(
+                "❌ 아직 달성하지 못한 퀘스트가 있습니다!\n" + "\n".join(incomplete),
+                ephemeral=True
+            )
+
+        # 4. 보상 지급 — 하급 열매 5개
+        if "열매" not in pet.inventory:
+            pet.inventory["열매"] = {}
+        pet.inventory["열매"]["하"] = pet.inventory["열매"].get("하", 0) + 5
+
         # 5. 수령 기록 업데이트 및 저장
         pet.last_reward_date = today
-        if hasattr(self.cog, 'save_user_pet'):
-            self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-        
-        await interaction.response.send_message("🎁 일일 퀘스트 완료! **5,000 골드**가 지급되었습니다.", ephemeral=False)
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+
+        await interaction.response.send_message(
+            "🎁 일일 퀘스트 **전부 달성** 완료!\n보상으로 **하급 열매 5개** 🍎가 가방에 지급되었습니다!",
+            ephemeral=False
+        )
 
     @discord.ui.button(label="처음으로", style=discord.ButtonStyle.danger, row=1)
     async def back(self, interaction: Interaction, button: ui.Button):

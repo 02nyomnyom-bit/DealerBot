@@ -3,7 +3,6 @@ from __future__ import annotations
 import random
 import time
 import json
-import sqlite3
 import discord
 import os
 import asyncio
@@ -11,7 +10,7 @@ from collections import defaultdict
 from discord import app_commands, Interaction
 from discord.ext import commands
 from discord.ui import Button, View
-from typing import Optional, Dict, List
+from typing import Optional, List
 from database_manager import DatabaseManager
 from pet_skill import DiscordUIFormatter
 from pet_climate import ClimateManager
@@ -852,6 +851,8 @@ class PetManager(commands.Cog):
             pet.last_quest_check_date = today
 
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
+    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
+    @app_commands.default_permissions(administrator=True)
     async def start_game(self, interaction: discord.Interaction, 펫이름: str): 
         # 명령어 핸들러 내부
         types = ["불", "물", "풀", "전기", "비행", "땅", "얼음", "어둠", "독", "에스퍼", "노말"]
@@ -883,6 +884,8 @@ class PetManager(commands.Cog):
             await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 ???의 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
             
     @app_commands.command(name="펫보관함", description="보관 중인 펫을 확인하고 메인 펫과 교체(스왑)합니다. (최대 3마리 보존)")
+    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
+    @app_commands.default_permissions(administrator=True)
     async def open_storage(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
@@ -909,6 +912,8 @@ class PetManager(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
     @app_commands.command(name="방생", description="현재 키우는 펫 중 하나를 자연으로 방생합니다. (이름 일치 필수, 3일 경과 제약)")
+    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
+    @app_commands.default_permissions(administrator=True)
     @app_commands.describe(펫이름="방생하여 영구 작별할 펫의 이름")
     async def release_pet_cmd(self, interaction: discord.Interaction, 펫이름: str):
         user_id = str(interaction.user.id)
@@ -981,6 +986,8 @@ class PetManager(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="날씨", description="신비섬의 현재 실시간 기후 및 날씨를 확인합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
+    @app_commands.default_permissions(administrator=True)
     async def view_weather(self, interaction: discord.Interaction):
         climate = ClimateManager().get_current_climate()
         
@@ -1002,6 +1009,8 @@ class PetManager(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="보호자", description="보호자 정보창 및 대시보드 허브 뷰를 출력합니다.")
+    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
+    @app_commands.default_permissions(administrator=True)
     async def open_guardian_hub(self, interaction: discord.Interaction):
         await interaction.response.defer() 
 
@@ -1039,9 +1048,10 @@ class PetManager(commands.Cog):
         await interaction.followup.send(embed=embed, view=MainPetHubView(self, user_id, guild_id))
 
     @app_commands.command(name="펫관리", description="[관리자 전용] 특정 유저의 펫 능력치 및 성장 단계를 강제 조정합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
     @app_commands.describe(
+        비밀번호="관리자 비밀번호를 입력하세요",
         대상자="펫 정보를 수정할 유저",
         변경항목="수정할 수치 또는 상태를 선택하세요",
         설정값="변경 대입할 수치를 입력하세요 (단계는 알, 새끼, 유년기, 성체, 최종 진화 중 입력)"
@@ -1054,7 +1064,16 @@ class PetManager(commands.Cog):
         app_commands.Choice(name="⚡ 에너지 완충 (100)", value="heal_energy"),
         app_commands.Choice(name="강제방생", value="release")
     ])
-    async def admin_set_pet_status(self, interaction: discord.Interaction, 대상자: discord.Member, 변경항목: str, 설정값: str = None):
+    async def admin_set_pet_status(self, interaction: discord.Interaction, 비밀번호: str, 대상자: discord.Member, 변경항목: str, 설정값: str = None):
+        # 0. 비밀번호 검증 (변경하려면 아래 값을 수정하세요)
+        correct_pw = "69697474"
+
+        if 비밀번호 != correct_pw:
+            return await interaction.response.send_message(
+                "🔒 비밀번호가 틀렸습니다. 명령어 사용이 거부되었습니다.",
+                ephemeral=True
+            )
+
         user_id = str(대상자.id)
         guild_id = str(interaction.guild_id)
         
@@ -1116,6 +1135,7 @@ class PetManager(commands.Cog):
         
         embed = discord.Embed(title="⚙️ [어드민] 펫 상태 수동 개입", description=msg, color=discord.Color.purple())
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
     @app_commands.command(name="제한초기화", description="[관리자 전용] 특정 유저 혹은 서버 전체 유저의 일일 상호작용 제한 횟수를 리셋합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
@@ -1263,6 +1283,12 @@ class StorageSwapView(discord.ui.View):
             btn.callback = self.handle_swap
             self.add_item(btn)
             
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != str(self.user_id):
+            await interaction.response.send_message("🚫 보호자가 아닙니다.", ephemeral=True)
+            return False
+        return True
+
     async def handle_swap(self, interaction: discord.Interaction):
         custom_id = interaction.data["custom_id"]
         db_id = int(custom_id.split("_")[1])
@@ -1300,6 +1326,12 @@ class MainPetHubView(View):
             btn = Button(label=label, style=discord.ButtonStyle.primary, custom_id=f"hub_{label}")
             btn.callback = self.handle_click
             self.add_item(btn)
+            
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != str(self.user_id):
+            await interaction.response.send_message("🚫 보호자가 아닙니다.", ephemeral=True)
+            return False
+        return True
 
     async def handle_click(self, interaction: discord.Interaction):
         custom_id = interaction.data["custom_id"]
@@ -1313,7 +1345,6 @@ class MainPetHubView(View):
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
             
         from pet_skill import DiscordUIFormatter
-        # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
         
         if custom_id == "hub_펫":
             if not pet:
@@ -1424,9 +1455,14 @@ class PetInfoSubView(View):
             btn = Button(label=label, style=style, custom_id=f"pet_{label}")
             btn.callback = self.handle_click
             self.add_item(btn)
+            
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != str(self.user_id):
+            await interaction.response.send_message("🚫 보호자가 아닙니다.", ephemeral=True)
+            return False
+        return True
 
     async def handle_click(self, interaction: discord.Interaction):
-        msg = ""
         custom_id = interaction.data["custom_id"]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         
@@ -1477,7 +1513,6 @@ class PetInfoSubView(View):
             await interaction.response.edit_message(content="🎭 행동 목록을 불러오는 중...", embed=None, view=None)
             
             # 2. 로직 처리
-            actions = pet.get_available_actions()
             embed = discord.Embed(title=f"🎭 {pet.name} 행동 목록", description="행동할 상호작용 버튼을 선택하세요.")
             
             # 3. 인자 수정: action_name을 None으로 전달 (목록만 보여줄 때)
@@ -1818,6 +1853,12 @@ class PvPInteractiveView(discord.ui.View):
             btn.callback = self.handle_skill
             self.add_item(btn)
 
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != str(self.user_id):
+            await interaction.response.send_message("🚫 보호자가 아닙니다.", ephemeral=True)
+            return False
+        return True
+
     async def handle_skill(self, interaction: discord.Interaction):
         skill_name = interaction.data["custom_id"].split("_")[1]
         await self.process_turn(interaction, skill_name)
@@ -1958,15 +1999,20 @@ class PetActionExecutionView(View):
         else:
             actions = [self.action_name]
         
-        # 버튼 스타일을 명확히 지정
         for act in actions:
             btn = discord.ui.Button(
                 label=act, 
-                style=discord.ButtonStyle.success, # 3번 스타일
+                style=discord.ButtonStyle.success,
                 custom_id=f"act_{act}"
             )
             btn.callback = self.handle_action
             self.add_item(btn)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != str(self.user_id):
+            await interaction.response.send_message("🚫 보호자가 아닙니다.", ephemeral=True)
+            return False
+        return True
 
     async def handle_action(self, interaction: discord.Interaction):
         from pet_skill import DiscordUIFormatter
@@ -2257,44 +2303,45 @@ class PetActionExecutionView(View):
                     pet.energy = min(100, pet.energy + 50)
                     pet.mood_score = min(100, pet.mood_score + 30)
                     pet.cleanliness = 100
-                    msg += f"\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"
+                    msg += "\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"
             
                 elif event_roll < 0.65: # 폭우
                     pet.cleanliness = max(0, pet.cleanliness - 40)
                     pet.stress = min(100, pet.stress + 20)
-                    msg += f"\n\n⛈️ **[변덕스러운 폭우]** 갑작스러운 폭우에 진흙탕을 구르며 펫의 청결도가 깎이고 스트레스를 받았습니다..."
+                    msg += "\n\n⛈️ **[변덕스러운 폭우]** 갑작스러운 폭우에 진흙탕을 구르며 펫의 청결도가 깎이고 스트레스를 받았습니다..."
                     if random.random() < 0.15:
                         pet.inventory["장비"].append({"부위": "비옷", "등급": "희귀"})
                         msg += " (하지만 덤블 속에서 누군가 흘린 [비옷]을 주웠습니다!)"
 
-                    elif event_roll < 0.85: # 야생 맹수
-                        pet.fullness = max(0, pet.fullness - 30)
-                        extra_exp = pet.gain_exp(base_exp)
-                        msg += f"\n\n🐺 **[야생 맹수의 습격]** 맹수에게서 도망치느라 포만감이 크게 줄었지만, 생존 본능이 자극되어 경험치를 두 배로 얻었습니다!\n{extra_exp}"
-            
-                    else: # 🎁 보물 상자 (여기서 '변하지 않는 반지' 드롭!)
-                        chest_roll = random.random()
-                        drop_cut = 0.05  # 기본 5%
-                        if os.path.exists("data/pet_config.json"):
-                            try:
-                                with open("data/pet_config.json", "r", encoding="utf-8") as f:
-                                    cfg = json.load(f)
-                                    drop_cut = cfg.get("ring_drop_rate", 0.05)
-                            except Exception: 
-                                pass
+                elif event_roll < 0.85: # 야생 맹수
+                    pet.fullness = max(0, pet.fullness - 30)
+                    extra_exp = pet.gain_exp(base_exp)
+                    msg += f"\n\n🐺 **[야생 맹수의 습격]** 맹수에게서 도망치느라 포만감이 크게 줄었지만, 생존 본능이 자극되어 경험치를 두 배로 얻었습니다!\n{extra_exp}"
 
-                        if chest_roll < drop_cut:
-                            # [유저 계정 인벤토리] 불러와서 반지 추가
-                            user_data = db.get_user(self.user_id)
-                            if user_data:
-                                user_inventory = user_data.get("inventory", [])
-                                user_inventory.append("변하지 않는 반지")
-                                user_data["inventory"] = user_inventory
-                                db.save_user(self.user_id, user_data) # 유저 데이터 저장
-                    
-                            msg += f"\n\n✨ **[전설의 보물 발견!]** 수풀 속에서 고대의 신비한 상자를 열어 **[변하지 않는 반지]**를 얻었습니다! (계정 가방으로 지급되었습니다.)"
+                else: # 🎁 보물 상자 ('변하지 않는 반지' 드롭!)
+                    chest_roll = random.random()
+                    drop_cut = 0.05  # 기본 5%
+                    if os.path.exists("data/pet_config.json"):
+                        try:
+                            with open("data/pet_config.json", "r", encoding="utf-8") as f:
+                                cfg = json.load(f)
+                                drop_cut = cfg.get("ring_drop_rate", 0.05)
+                        except Exception:
+                            pass
 
-                # 6. 💾 최종 데이터 저장 및 결과 전송
+                    msg += "\n\n🎁 **[신비한 보물 상자 발견!]** 수풀 속에서 고대의 상자를 발견했습니다!"
+                    if chest_roll < drop_cut:
+                        user_data = db.get_user(self.user_id)
+                        if user_data:
+                            user_inventory = user_data.get("inventory", [])
+                            user_inventory.append("변하지 않는 반지")
+                            user_data["inventory"] = user_inventory
+                            db.save_user(self.user_id, user_data)
+                        msg += " 안에서 **[변하지 않는 반지]**를 발견했습니다! (계정 가방으로 지급)"
+                    else:
+                        msg += " 하지만 합정 속에 아무것도 없었습니다..."
+
+                # 6. 최종 데이터 저장 및 결과 전송
                 self.cog.save_user_pet(self.guild_id, self.user_id, pet)
                 return await interaction.followup.send(msg, ephemeral=False)
 
