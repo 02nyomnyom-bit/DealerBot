@@ -149,6 +149,9 @@ class Pet:
             self.clean_count_today = 0
             self.bug_count_today = 0
             
+            # ✅ 알 돌보기 일일 횟수도 자정에 함께 초기화!
+            self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
+            
             # 업데이트 시간 갱신
             self.last_update_time = current_time
 
@@ -1511,8 +1514,10 @@ class PetInfoSubView(View):
             
             # 2. 후속 전송
             from pet_views import EvolutionView
-            await interaction.response.send(view=EvolutionView(self.cog, self.user_id, self.guild_id))
-        
+            
+            # ✅ response.send 대신 followup.send로 변경해야 합니다!
+            await interaction.followup.send(view=EvolutionView(self.cog, self.user_id, self.guild_id))
+            
         # 기존 뷰의 handle_click 등 내부에서 호출할 때
         elif custom_id == "pet_교배소":
             await interaction.response.edit_message(content="💞 교배소로 이동 중...", embed=None, view=None)
