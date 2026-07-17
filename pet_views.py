@@ -146,23 +146,47 @@ class SettingView(View):
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
         if not pet:
             return await interaction.response.send_message("❌ 펫이 없습니다.", ephemeral=True)
-            
-        equips = pet.inventory.get("장비", [])
-        has_ring = any(e.get("부위") == "변하지 않는 반지" for e in equips)
+
+        # 1. 유저(계정) 데이터 및 인벤토리 불러오기
+        db = self.cog._get_db(int(self.guild_id))
+        user_data = db.get_user(self.user_id)
         
-        if not has_ring:
-            return await interaction.response.send_message("❌ 가방에 '변하지 않는 반지' 장비 아이템이 없습니다. (탐험 중 보물상자 조우를 통해 획득할 수 있습니다)", ephemeral=True)
-            
-        # 변하지 않는 반지를 장착/해제 토글 처리
-        current_head = pet.equipment.get("머리")
+        # 인벤토리가 리스트 형태(["포션", "변하지 않는 반지", ...])라고 가정한 로직
+        user_inventory = user_data.get("inventory", []) if user_data else []
+        current_head = pet.equipment.get("아이템")
+        
+        # 2. 장착 해제 로직 (펫 -> 가방)
         if current_head == "변하지 않는 반지":
-            pet.equipment["머리"] = None
-            msg = "💍 [변하지 않는 반지]를 해제했습니다! 이제 성장 조건 만족 시 정상적으로 진화합니다."
-        else:
-            pet.equipment["머리"] = "변하지 않는 반지"
-            msg = "💍 [변하지 않는 반지]를 장착했습니다! 성장 조건을 달성해도 강제로 진화하지 않고 현재 모습을 유지합니다."
+            pet.equipment["아이템"] = None
+            pet.locked_appearance = None
             
-        self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+            # 해제했으므로 유저 인벤토리에 반지 1개 반환
+            user_inventory.append("변하지 않는 반지")
+            msg = "💍 [변하지 않는 반지]를 해제하여 계정 가방으로 되돌려 놓았습니다!"
+            
+        # 3. 장착 로직 (가방 -> 펫)
+        else:
+            # 가방에 반지가 있는지 먼저 확인
+            if "변하지 않는 반지" not in user_inventory:
+                return await interaction.response.send_message(
+                    "❌ 계정 가방에 '변하지 않는 반지'가 없습니다.\n(다른 펫이 장착 중이거나 소지하고 있지 않습니다.)", 
+                    ephemeral=True
+                )
+                
+            # 장착하므로 유저 인벤토리에서 반지 1개 차감
+            user_inventory.remove("변하지 않는 반지")
+            
+            pet.equipment["아이템"] = "변하지 않는 반지"
+            pet.locked_appearance = pet.stage
+            msg = "💍 [변하지 않는 반지]를 장착했습니다! (가방에서 1개 소모됨)\n앞으로 진화하더라도 이미지는 현재 모습으로 고정됩니다.\n⚠️ **주의: 이 상태로 펫을 떠나보내면 반지도 함께 사라집니다.**"
+            
+        # 4. 변경된 인벤토리와 펫 정보를 모두 저장
+        if user_data:
+            user_data["inventory"] = user_inventory
+            db.save_user(self.user_id, user_data) # 유저(계정) 데이터 저장
+            
+        self.cog.save_user_pet(self.guild_id, self.user_id, pet) # 펫 데이터 저장
+        
         await interaction.response.send_message(msg, ephemeral=True)
 
     @discord.ui.button(label="돌아가기", style=discord.ButtonStyle.danger, row=1)

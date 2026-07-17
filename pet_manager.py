@@ -91,15 +91,13 @@ class Pet:
         self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
 
         self.skills = []
-        self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
+        self.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None, "아이템": None}
         self.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         self.learned_ultimate = None
 
-        self.last_update_time = time.time()
         self.last_update_time = getattr(self, 'last_update_time', time.time())
 
         # 📜 [추가] 일일 퀘스트 카운터 및 보상 플래그
-        self.train_count_today = 0
         self.stroke_count_today = 0
         self.last_reward_date = None
 
@@ -375,10 +373,6 @@ class Pet:
         """기획서 조건에 만족할 시 단계를 즉시 진화시키고 성격 및 고유 패시브를 각성시킵니다"""
         climate = ClimateManager().get_current_climate()
         
-        # "변하지 않는 반지" 장착 여부 검사 (진화 락)
-        if "변하지 않는 반지" in getattr(self, "inventory", {}).get("장비", [{"부위": "", "등급": ""}]) or \
-           any(e.get("부위") == "변하지 않는 반지" for e in getattr(self, "inventory", {}).get("장비", [])):
-            return ""
         # 1. 새끼 -> 유년기 (Lv.15 달성 및 친밀도 30 이상)
         if self.stage == "새끼" and self.level >= 15 and self.affinity >= 30:
             self.stage = "유년기"
@@ -465,7 +459,7 @@ class Pet:
         pet = cls(data.get('name', '이름없음'), data.get('main_type', '노말'))
         pet.__dict__.update(data)
         if not hasattr(pet, 'equipment'):
-            pet.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None}
+            pet.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None, "아이템": None}
         if not hasattr(pet, 'inventory'):
             pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
         return pet
@@ -1988,6 +1982,9 @@ class PetActionExecutionView(View):
     async def handle_action(self, interaction: discord.Interaction):
         from pet_skill import DiscordUIFormatter
         from pet_climate import ClimateManager
+        import os
+        import json
+        import random
         
         act_name = interaction.data.get("custom_id", "").split("_")[1]
         pet = self.cog.get_user_pet(self.guild_id, self.user_id)
@@ -2022,12 +2019,13 @@ class PetActionExecutionView(View):
         if penalty == "RUNAWAY":
             return await interaction.followup.send("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=False)
             
+        # 기분 최악일 때 행동 거부 로직
         if pet.mood_state == "화남" and act_name not in ["PvP", "랭크전"]:
             refusal_chance = 0.3
             if pet.affinity_rank == "균형": refusal_chance -= 0.10
             if random.random() < refusal_chance:
                 return await interaction.followup.send(f"💢 {pet.name}이(가) 기분이 최악이라 명령을 거부했습니다! 놀아주거나 산책을 일찍 시켜주세요.", ephemeral=False)
-            
+
         # 기후 패널티
         energy_penalty_msg = ""
         if climate.weather == "한파" and pet.stage != "알" and act_name not in ["재우기", "휴식", "먹이 주기", "먹이", "간식 주기"]:
@@ -2190,55 +2188,65 @@ class PetActionExecutionView(View):
                     msg += f"\n✨ **[대성공!]** 훈련 중 한계를 돌파하여 잠재력이 {pot_gain} 상승했습니다! (현재: {pet.potential}%)"
 
         elif act_name == "탐험":
+            # 1. 🚫 제한 사항 체크 (에너지 & 하루 탐험 횟수)
+            if pet.energy < 20:
+                return await interaction.followup.send("❌ 에너지가 부족하여 탐험을 떠날 수 없습니다. (필요 에너지: 20)", ephemeral=True)
+        
             if pet.explore_count_today >= 3:
-                msg = "❌ 오늘 모험을 떠날 수 있는 최대 횟수(3회)를 초과했습니다! 내일 다시 시도하세요."
-            else:
-                pet.explore_count += 1
-                pet.explore_count_today += 1
-                pet.stress = min(100, pet.stress + 15)
+                return await interaction.followup.send("❌ 오늘 모험을 떠날 수 있는 최대 횟수(3회)를 초과했습니다! 내일 다시 시도하세요.", ephemeral=True)
+    
+            # 2. ⚡ 기본 자원 소모 및 수치 조정
+            pet.energy -= 20
+            pet.explore_count += 1
+            pet.explore_count_today += 1
+            pet.stress = min(100, pet.stress + 15)
 
-                base_exp = 100
-                if pet.affinity_rank == "신뢰":
-                    base_exp = int(base_exp * 1.1)
-                    
-                if climate.weather == "맑음":
-                    base_exp = int(base_exp * 1.05)
-                if climate.season == "가을":
-                    base_exp = int(base_exp * 1.1)
+            # 3. 📈 경험치 계산 (날씨, 계절, 호감도 버프 반영)
+            base_exp = 100
+            if pet.affinity_rank == "신뢰":
+                base_exp = int(base_exp * 1.1)
+        
+            if climate.weather == "맑음":
+                base_exp = int(base_exp * 1.05)
+            if climate.season == "가을":
+                base_exp = int(base_exp * 1.1)
 
-                exp_result = pet.gain_exp(base_exp)
-                msg = f"🗺️ 외부 지역으로 탐험을 떠났습니다! (오늘 탐험: {pet.explore_count_today}/3)\n{exp_result}"
-                if pet.affinity_rank == "신뢰":
-                    msg += "\n🤝 [신뢰] 등급 혜택으로 탐험 보상이 10% 증가했습니다!"
-                if climate.weather == "맑음":
-                    msg += "\n☀️ [맑음] 맑은 날씨 효과로 경험치를 5% 추가로 얻었습니다!"
-                if climate.season == "가을":
-                    msg += "\n🍁 [가을] 가을 시즌 효과로 탐험 보상이 10% 증가했습니다!"
-                
-                if climate.weather == "강풍":
-                    msg += "\n💨 [강풍] 강풍을 타고 이동거리가 늘어나 탐험 보상을 더 많이 발견했습니다!"
+            exp_result = pet.gain_exp(base_exp)
 
-                if pet.stage in ["성체", "최종 진화"]:
-                    if random.random() < 0.10:
-                        pot_gain = random.randint(2, 5)
-                        pet.potential = min(100, getattr(pet, 'potential', 0) + pot_gain)
-                        msg += f"\n🌟 **[신비한 조우]** 탐험 중 신비한 기운을 흡수하여 잠재력이 {pot_gain} 상승했습니다! (현재: {pet.potential}%)"
+            msg = f"🗺️ **{pet.name}**이(가) 외부 지역으로 탐험을 떠났습니다! (오늘 탐험: {pet.explore_count_today}/3)\n{exp_result}"
+            
+            # 버프 메시지 추가
+            if pet.affinity_rank == "신뢰":
+                msg += "\n🤝 [신뢰] 등급 혜택으로 탐험 보상이 10% 증가했습니다!"
+            if climate.weather == "맑음":
+                msg += "\n☀️ [맑음] 맑은 날씨 효과로 경험치를 5% 추가로 얻었습니다!"
+            if climate.season == "가을":
+                msg += "\n🍁 [가을] 가을 시즌 효과로 탐험 보상이 10% 증가했습니다!"
+            if climate.weather == "강풍":
+                msg += "\n💨 [강풍] 강풍을 타고 이동거리가 늘어나 탐험 보상을 더 많이 발견했습니다!"
 
-                    roll = random.random()
-                    drop_grade = None
-                    if roll < 0.01:
-                        drop_grade = "전설"
-                    elif roll < 0.06:
-                        drop_grade = "영웅"
-                    elif roll < 0.21:
-                        drop_grade = "희귀"
+            # 4. ⚔️ 성체/최종 진화 단계 펫 전용 추가 보상 (반지 제외 일반 장비)
+            if pet.stage in ["성체", "최종 진화"]:
+                if random.random() < 0.10:
+                    pot_gain = random.randint(2, 5)
+                    pet.potential = min(100, getattr(pet, 'potential', 0) + pot_gain)
+                    msg += f"\n🌟 **[신비한 조우]** 탐험 중 신비한 기운을 흡수하여 잠재력이 {pot_gain} 상승했습니다! (현재: {pet.potential}%)"
+
+                roll = random.random()
+                drop_grade = None
+                if roll < 0.01:
+                    drop_grade = "전설"
+                elif roll < 0.06:
+                    drop_grade = "영웅"
+                elif roll < 0.21:
+                    drop_grade = "희귀"
                         
-                    if drop_grade:
-                        part = random.choice(["머리", "견갑", "허리", "다리"])
-                        pet.inventory["장비"].append({"부위": part, "등급": drop_grade})
-                        msg += f"\n🎁 **[전리품 발견]** 탐험 중에 눈부신 빛을 내는 **[{drop_grade}]** 등급 {part} 장비를 발견했습니다! (가방 확인)"
+                if drop_grade:
+                    part = random.choice(["머리", "견갑", "허리", "다리"])
+                    pet.inventory["장비"].append({"부위": part, "등급": drop_grade})
+                    msg += f"\n🎁 **[전리품 발견]** 탐험 중에 눈부신 빛을 내는 **[{drop_grade}]** 등급 {part} 장비를 발견했습니다! (가방 확인)"
 
-                # 돌발 이벤트
+                # 5. 🎲 돌발 이벤트 처리 (확률 및 날씨 반영)
                 event_chance = 0.40
                 if climate.weather == "흐림":
                     event_chance += 0.05
@@ -2247,31 +2255,35 @@ class PetActionExecutionView(View):
                 
                 if random.random() < event_chance:
                     event_roll = random.random()
-                    db = self.cog._get_db(interaction.guild.id)
+                    db = self.cog._get_db(int(self.guild_id))
                     
-                    if event_roll < 0.25: # 방랑 상인
-                        fruit_grade = random.choice(["상", "중", "하"])
-                        pet.inventory.setdefault("열매", {})
-                        pet.inventory["열매"][fruit_grade] = pet.inventory["열매"].get(fruit_grade, 0) + 1
-                        pet.affinity = min(300, pet.affinity + 10)
-                        msg += f"\n\n🎒 **[방랑 상인 조우]** 숲속에서 길을 잃은 상인을 도와주고 **최고급 열매({fruit_grade})** 1개를 얻었습니다!"
-                    elif event_roll < 0.45: # 옹달샘
-                        pet.energy = min(100, pet.energy + 50)
-                        pet.mood_score = min(100, pet.mood_score + 30)
-                        pet.cleanliness = 100
-                        msg += f"\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"
-                    elif event_roll < 0.65: # 폭우
-                        pet.cleanliness = max(0, pet.cleanliness - 40)
-                        pet.stress = min(100, pet.stress + 20)
-                        msg += f"\n\n⛈️ **[변덕스러운 폭우]** 갑작스러운 폭우에 진흙탕을 구르며 펫의 청결도가 깎이고 스트레스를 받았습니다..."
-                        if random.random() < 0.15:
-                            pet.inventory["장비"].append({"부위": "비옷", "등급": "희귀"})
-                            msg += " (하지만 덤블 속에서 누군가 흘린 [비옷]을 주웠습니다!)"
+                if event_roll < 0.25: # 방랑 상인
+                    fruit_grade = random.choice(["상", "중", "하"])
+                    pet.inventory.setdefault("열매", {})
+                    pet.inventory["열매"][fruit_grade] = pet.inventory["열매"].get(fruit_grade, 0) + 1
+                    pet.affinity = min(300, pet.affinity + 10)
+                    msg += f"\n\n🎒 **[방랑 상인 조우]** 숲속에서 길을 잃은 상인을 도와주고 **최고급 열매({fruit_grade})** 1개를 얻었습니다!"
+            
+                elif event_roll < 0.45: # 옹달샘
+                    pet.energy = min(100, pet.energy + 50)
+                    pet.mood_score = min(100, pet.mood_score + 30)
+                    pet.cleanliness = 100
+                    msg += f"\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"
+            
+                elif event_roll < 0.65: # 폭우
+                    pet.cleanliness = max(0, pet.cleanliness - 40)
+                    pet.stress = min(100, pet.stress + 20)
+                    msg += f"\n\n⛈️ **[변덕스러운 폭우]** 갑작스러운 폭우에 진흙탕을 구르며 펫의 청결도가 깎이고 스트레스를 받았습니다..."
+                    if random.random() < 0.15:
+                        pet.inventory["장비"].append({"부위": "비옷", "등급": "희귀"})
+                        msg += " (하지만 덤블 속에서 누군가 흘린 [비옷]을 주웠습니다!)"
+
                     elif event_roll < 0.85: # 야생 맹수
                         pet.fullness = max(0, pet.fullness - 30)
                         extra_exp = pet.gain_exp(base_exp)
                         msg += f"\n\n🐺 **[야생 맹수의 습격]** 맹수에게서 도망치느라 포만감이 크게 줄었지만, 생존 본능이 자극되어 경험치를 두 배로 얻었습니다!\n{extra_exp}"
-                    else: # 보물 상자
+            
+                    else: # 🎁 보물 상자 (여기서 '변하지 않는 반지' 드롭!)
                         chest_roll = random.random()
                         drop_cut = 0.05  # 기본 5%
                         if os.path.exists("data/pet_config.json"):
@@ -2283,9 +2295,20 @@ class PetActionExecutionView(View):
                                 pass
 
                         if chest_roll < drop_cut:
-                            pet.inventory["장비"].append({"부위": "변하지 않는 반지", "등급": "전설"})
-                            msg += f"\n\n✨ **[전설의 보물 발견!]** 수풀 속에서 고대의 신비한 상자를 열어 **[변하지 않는 반지]**를 얻었습니다! (진화 방지 아이템)"
-            
+                            # [유저 계정 인벤토리] 불러와서 반지 추가
+                            user_data = db.get_user(self.user_id)
+                            if user_data:
+                                user_inventory = user_data.get("inventory", [])
+                                user_inventory.append("변하지 않는 반지")
+                                user_data["inventory"] = user_inventory
+                                db.save_user(self.user_id, user_data) # 유저 데이터 저장
+                    
+                            msg += f"\n\n✨ **[전설의 보물 발견!]** 수풀 속에서 고대의 신비한 상자를 열어 **[변하지 않는 반지]**를 얻었습니다! (계정 가방으로 지급되었습니다.)"
+
+                # 6. 💾 최종 데이터 저장 및 결과 전송
+                self.cog.save_user_pet(self.guild_id, self.user_id, pet)
+                return await interaction.followup.send(msg, ephemeral=False)
+
         elif act_name == "채집":
             pet.stress = min(100, pet.stress + 15)
             exp_result = pet.gain_exp(30)
@@ -2293,6 +2316,7 @@ class PetActionExecutionView(View):
             find_gold = random.randint(100, 300)
             db.add_user_cash(str(interaction.user.id), find_gold)
             msg = f"🌿 숲속을 채집하여 맛있는 먹이 원료와 **{find_gold:,}원**을 찾아냈습니다!\n{exp_result}"
+            
         elif act_name == "간식 주기":
             if getattr(pet, 'snack_count_today', 0) >= 1:
                 msg = "❌ 간식은 하루에 한 번만 줄 수 있습니다! 너무 많이 먹으면 건강에 안 좋아요."

@@ -299,6 +299,7 @@ def get_equipment_bonus(pet):
 
 class DiscordUIFormatter:
     def make_pet_embed_data(pet):
+        
         pet.update_passive_decay()
         bonus = get_equipment_bonus(pet)
         hp_str = f" (+{bonus['hp']})" if bonus['hp'] else ""
