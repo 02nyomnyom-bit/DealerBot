@@ -165,14 +165,15 @@ class Pet:
             self.last_decay_time = current_time
             return
         
-        # 스트레스 60% 이상부터 기분 감소 가속화
-        decay_modifier = 2.0 if self.stress >= 60 else 1.0
+        # 48시간(이틀) 기준 = 2.1
+        # 72시간(3일) 기준 = 1.4
+        # 96시간(4일) 기준 = 1.0
         
         # 3. 상태 감소 연산 (기존 로직 유지)
         decay_modifier = 2.0 if self.stress >= 60 else 1.0
-        self.fullness = max(0, self.fullness - (hours_passed * 1.5))
-        self.mood_score = max(0, self.mood_score - (hours_passed * 1.0 * decay_modifier))
-        self.cleanliness = max(0, self.cleanliness - (hours_passed * 0.8))
+        self.fullness = max(0, self.fullness - (hours_passed * 2.1))
+        self.cleanliness = max(0, self.cleanliness - (hours_passed * 2.1))
+        self.mood_score = max(0, self.mood_score - (hours_passed * 1.5 * decay_modifier))
 
         # 4. 상태 0 처리 (기존 로직 유지)
         if self.fullness <= 0 and self.zero_fullness_time is None:
@@ -2131,12 +2132,9 @@ class PetActionExecutionView(View):
             pet.cleanliness = min(100, pet.cleanliness + 50)
             msg = "🧼 깨끗이 청소했습니다!"
         elif act_name in ["놀아주기", "장난감"]:
-            if pet.energy < 15:
-                msg = f"❌ {pet.name}의 에너지가 부족하여 놀아줄 수 없습니다!"
-            else:
-                pet.mood_score = min(100, pet.mood_score + 25)
-                exp_result = pet.gain_exp(40)
-                msg = f"🧸 장난감을 활용해 신나게 놀아주었습니다! 기분이 대폭 상승합니다.\n{exp_result}"
+            pet.mood_score = min(100, pet.mood_score + 25)
+            exp_result = pet.gain_exp(40)
+            msg = f"🧸 장난감을 활용해 신나게 놀아주었습니다! 기분이 대폭 상승합니다.\n{exp_result}"
         elif act_name in ["재우기", "휴식"]:
             if getattr(pet, 'sleep_count_today', 0) >= 5:
                 msg = f"❌ [{act_name}] 행동은 하루에 다섯 번만 가능합니다! 너무 많이 자면 밤에 잠을 못 자요. 내일 다시 시도하세요."
