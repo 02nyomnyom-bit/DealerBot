@@ -851,8 +851,6 @@ class PetManager(commands.Cog):
             pet.last_quest_check_date = today
 
     @app_commands.command(name="키우기", description="첫 펫을 입양하고 알을 지급받습니다. (최대 3마리 제한)")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
-    @app_commands.default_permissions(administrator=True)
     async def start_game(self, interaction: discord.Interaction, 펫이름: str): 
         # 명령어 핸들러 내부
         types = ["불", "물", "풀", "전기", "비행", "땅", "얼음", "어둠", "독", "에스퍼", "노말"]
@@ -884,8 +882,6 @@ class PetManager(commands.Cog):
             await interaction.response.send_message(f"📦 현재 메인 파트너 자리가 차 있습니다! 새로운 ???의 알 **[{펫이름}]**은(는) **🗃️ 펫 보관함**으로 안전하게 수령되었습니다! (현재 보유: {total_pets + 1}/3)")
             
     @app_commands.command(name="펫보관함", description="보관 중인 펫을 확인하고 메인 펫과 교체(스왑)합니다. (최대 3마리 보존)")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
-    @app_commands.default_permissions(administrator=True)
     async def open_storage(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
@@ -912,8 +908,6 @@ class PetManager(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
     @app_commands.command(name="방생", description="현재 키우는 펫 중 하나를 자연으로 방생합니다. (이름 일치 필수, 3일 경과 제약)")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
-    @app_commands.default_permissions(administrator=True)
     @app_commands.describe(펫이름="방생하여 영구 작별할 펫의 이름")
     async def release_pet_cmd(self, interaction: discord.Interaction, 펫이름: str):
         user_id = str(interaction.user.id)
@@ -986,8 +980,6 @@ class PetManager(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="날씨", description="신비섬의 현재 실시간 기후 및 날씨를 확인합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
-    @app_commands.default_permissions(administrator=True)
     async def view_weather(self, interaction: discord.Interaction):
         climate = ClimateManager().get_current_climate()
         
@@ -1009,8 +1001,6 @@ class PetManager(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="보호자", description="보호자 정보창 및 대시보드 허브 뷰를 출력합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 뾰로롱
-    @app_commands.default_permissions(administrator=True)
     async def open_guardian_hub(self, interaction: discord.Interaction):
         await interaction.response.defer() 
 

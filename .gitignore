@@ -7,3 +7,4 @@ logs/database.log
 __pycache__/fishing.cpython-312.pyc
 __pycache__/
 scan_result.txt
+data/pet_config.json
