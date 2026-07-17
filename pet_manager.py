@@ -84,6 +84,7 @@ class Pet:
         self.pet_count_today = 0      # 쓰다듬기 카운트
         self.clean_count_today = 0    # 청소 카운트
         self.bug_count_today = 0      # 벌레잡기 카운트
+        self.sleep_count_today = 0    # 휴식 및 재우기 일일 카운트
         self.last_decay_time = time.time()
 
         # 알 돌보기 일일 행동 기록용 딕셔너리
@@ -148,7 +149,8 @@ class Pet:
             self.pet_count_today = 0
             self.clean_count_today = 0
             self.bug_count_today = 0
-            
+            self.sleep_count_today = 0 
+
             # ✅ 알 돌보기 일일 횟수도 자정에 함께 초기화!
             self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
             
@@ -1517,7 +1519,7 @@ class PetInfoSubView(View):
             
             # ✅ response.send 대신 followup.send로 변경해야 합니다!
             await interaction.followup.send(view=EvolutionView(self.cog, self.user_id, self.guild_id))
-            
+
         # 기존 뷰의 handle_click 등 내부에서 호출할 때
         elif custom_id == "pet_교배소":
             await interaction.response.edit_message(content="💞 교배소로 이동 중...", embed=None, view=None)
@@ -2135,13 +2137,18 @@ class PetActionExecutionView(View):
                 pet.mood_score = min(100, pet.mood_score + 25)
                 exp_result = pet.gain_exp(40)
                 msg = f"🧸 장난감을 활용해 신나게 놀아주었습니다! 기분이 대폭 상승합니다.\n{exp_result}"
-        elif act_name == "재우기" or act_name == "휴식":
-            heal_amount = 100 if getattr(pet, 'personality', None) == "나태" else 50
-            pet.energy = min(100, pet.energy + heal_amount)
-            pet.stress = max(0, pet.stress - 20)
-            msg = f"💤 푹 쉬면서 편안하게 재웠습니다. (에너지: {int(pet.energy)}/100, stress: {pet.stress}/100)"
-            if getattr(pet, 'personality', None) == "나태":
-                msg += "\n🦥 [나태] 성격 덕분에 휴식 효율이 2배가 되었습니다!"
+        elif act_name in ["재우기", "휴식"]:
+            if getattr(pet, 'sleep_count_today', 0) >= 5:
+                msg = f"❌ [{act_name}] 행동은 하루에 다섯 번만 가능합니다! 너무 많이 자면 밤에 잠을 못 자요. 내일 다시 시도하세요."
+            else:
+                pet.sleep_count_today = getattr(pet, 'sleep_count_today', 0) + 1
+                # 👇 아래 줄부터 모두 else 안쪽으로 들여쓰기 되어야 합니다!
+                heal_amount = 100 if getattr(pet, 'personality', None) == "나태" else 50
+                pet.energy = min(100, pet.energy + heal_amount)
+                pet.stress = max(0, pet.stress - 20)
+                msg = f"💤 푹 쉬면서 편안하게 재웠습니다. (에너지: {int(pet.energy)}/100, 스트레스: {pet.stress}/100)"
+                if getattr(pet, 'personality', None) == "나태":
+                    msg += "\n🦥 [나태] 성격 덕분에 휴식 효율이 2배가 되었습니다!"
         elif act_name == "벌레잡기":
             if getattr(pet, "bug_count_today", 0) >= 3:
                 msg = "❌ 벌레잡기는 하루에 세 번만 가능합니다!"
