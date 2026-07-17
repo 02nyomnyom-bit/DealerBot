@@ -259,7 +259,7 @@ class EnhancedBot(commands.Bot):
         elif 20 <= hour < 23: greeting = "“암거래 시작”"
         else: greeting = "“새벽 밀수 중”"
 
-        await self.change_presence(activity=discord.CustomActivity(name=f"📅{date_str} | {greeting} | (v1.12.3)"), status=discord.Status.online)
+        await self.change_presence(activity=discord.CustomActivity(name=f"📅{date_str} | {greeting} | (v1.12.4)"), status=discord.Status.online)
 
     @update_daily_status.before_loop
     async def before_daily_status(self):
@@ -296,7 +296,7 @@ class EnhancedBot(commands.Bot):
                         value="10초 후 자동으로 서버에서 나가겠습니다.",
                         inline=False
                     )
-                    embed.set_footer(text="보석상 v1.12.3 - 서버 제한 시스템")
+                    embed.set_footer(text="보석상 v1.12.4 - 서버 제한 시스템")
                     
                     await guild.system_channel.send(embed=embed)
             except Exception as e:
@@ -381,7 +381,7 @@ class EnhancedBot(commands.Bot):
         self.logger.info(f"🏠 현재 {len(self.guilds)}개의 서버에 연결됨.")
         
         print("=" * 50)
-        print(f"🎉 보석상(v1.12.3) 시스템 가동 성공 (60초 후 백그라운드 명령어 동기화 예정)")
+        print(f"🎉 보석상(v1.12.4) 시스템 가동 성공 (60초 후 백그라운드 명령어 동기화 예정)")
         print(f"✨ {self.user} | {len(self.guilds)}개 서버")
         print("=" * 50)
         
@@ -442,7 +442,7 @@ async def main():
     setup_signal_handlers(bot)
     
     try:
-        logger.info("🚀 보석상 v1.12.3 향상된 업데이트 시스템 시작 중...")
+        logger.info("🚀 보석상 v1.12.4 향상된 업데이트 시스템 시작 중...")
         
         # 봇 시작
         async with bot:

@@ -213,7 +213,7 @@ class Pet:
         if self.stage in ["성체", "최종 진화"] and self.closeness >= 100 and not self.learned_ultimate:
             ult_skills = {
                 "불": "지옥불", "물": "대해일", "풀": "대자연의 분노", "전기": "천벌", "비행": "폭풍우",
-                "땅": "대지진", "어둠": "빅뱅", "독": "맹독지대", "에스퍼": "차원절단", "노말": "최후의 일격"
+                "땅": "대지진", "얼음": "절대영도", "어둠": "빅뱅", "독": "맹독지대", "에스퍼": "차원절단", "노말": "최후의 일격"
             }
             skill = ult_skills.get(self.main_type, "최후의 일격")
             self.learned_ultimate = skill
@@ -750,7 +750,7 @@ class PetManager(commands.Cog):
         db.add_user_cash(user_id, -300000)
         
         # 4. 유전 및 능력치 결정 로직 (NPC 파트너 생성)
-        types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
+        types = ["불", "물", "풀", "전기", "비행", "땅", "얼음", "어둠", "독", "에스퍼", "노말"]
         npc_type = random.choice(types)
         npc_iv = random.randint(15, 31)
         
@@ -862,8 +862,8 @@ class PetManager(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     async def start_game(self, interaction: discord.Interaction, 펫이름: str): 
         # 명령어 핸들러 내부
-        types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
-        weights = [8, 8, 8, 8, 8, 8, 8, 8, 8, 28]
+        types = ["불", "물", "풀", "전기", "비행", "땅", "얼음", "어둠", "독", "에스퍼", "노말"]
+        weights = [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 50]
         selected_type = random.choices(types, weights=weights, k=1)[0]
         new_pet = Pet(name=펫이름, main_type=selected_type) # 랜덤 속성 펫 완성!
         
@@ -2040,7 +2040,7 @@ class PetActionExecutionView(View):
                 if pet.mood_state == "화남":
                     return await interaction.followup.send(f"❌ {pet.name}이(가) 기분이 최악이라 배틀에 참가할 수 없습니다!", ephemeral=False)
                 
-                types = ["불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼", "노말"]
+                types = ["불", "물", "풀", "전기", "비행", "땅", "얼음", "어둠", "독", "에스퍼", "노말"]
                 wild_pet = Pet("야생의 펫", random.choice(types))
                 wild_pet.level = max(1, pet.level + random.randint(-2, 2))
                 wild_pet.stage = "성체"
