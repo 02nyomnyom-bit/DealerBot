@@ -147,12 +147,18 @@ class Pet:
             self.clean_count_today = 0
             self.bug_count_today = 0
             self.sleep_count_today = 0 
-
-            # ✅ 알 돌보기 일일 횟수도 자정에 함께 초기화!
             self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
             
             # 업데이트 시간 갱신
             self.last_update_time = current_time
+
+            # ✅ 알 돌보기 일일 횟수도 자정에 함께 초기화!
+            self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
+            
+        # 🚨 [수정할 부분] last_update_time 대신 last_decay_time을 사용해야 합니다!
+        hours_passed = (current_time - self.last_decay_time) / 3600.0
+        
+        if hours_passed <= 0: return
 
         hours_passed = (current_time - self.last_update_time) / 3600.0
         if hours_passed <= 0: return
