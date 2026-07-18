@@ -138,7 +138,7 @@ class Pet:
         last_date = time.strftime('%Y-%m-%d', time.localtime(self.last_update_time + 32400))
         current_date = time.strftime('%Y-%m-%d', time.localtime(current_time + 32400))
 
-        # 3. 자정 리셋 로직
+                # 3. 자정 리셋 로직
         if last_date != current_date:
             self.train_count_today = 0
             self.explore_count_today = 0
@@ -147,7 +147,6 @@ class Pet:
             self.clean_count_today = 0
             self.bug_count_today = 0
             self.sleep_count_today = 0 
-            self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
             
             # 업데이트 시간 갱신
             self.last_update_time = current_time
@@ -160,9 +159,6 @@ class Pet:
         
         if hours_passed <= 0: return
 
-        hours_passed = (current_time - self.last_update_time) / 3600.0
-        if hours_passed <= 0: return
-        
         # 알 상태일 경우 포만감/청결도 등 스탯 자연 감소를 진행하지 않고 여기서 중단합니다. (새끼부터 적용됨)
         if self.stage == "알":
             self.last_decay_time = current_time
