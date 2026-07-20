@@ -1058,7 +1058,7 @@ class PetManager(commands.Cog):
     ])
     async def admin_set_pet_status(self, interaction: discord.Interaction, 비밀번호: str, 대상자: discord.Member, 변경항목: str, 설정값: str = None):
         # 0. 비밀번호 검증 (변경하려면 아래 값을 수정하세요)
-        correct_pw = "9919"
+        correct_pw = "6974"
 
         if 비밀번호 != correct_pw:
             return await interaction.response.send_message(
