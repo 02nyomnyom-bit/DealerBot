@@ -138,7 +138,7 @@ class Pet:
         last_date = time.strftime('%Y-%m-%d', time.localtime(self.last_update_time + 32400))
         current_date = time.strftime('%Y-%m-%d', time.localtime(current_time + 32400))
 
-        # 3. 자정 리셋 로직
+                # 3. 자정 리셋 로직
         if last_date != current_date:
             self.train_count_today = 0
             self.explore_count_today = 0
@@ -147,16 +147,18 @@ class Pet:
             self.clean_count_today = 0
             self.bug_count_today = 0
             self.sleep_count_today = 0 
-
-            # ✅ 알 돌보기 일일 횟수도 자정에 함께 초기화!
-            self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
             
             # 업데이트 시간 갱신
             self.last_update_time = current_time
 
-        hours_passed = (current_time - self.last_update_time) / 3600.0
-        if hours_passed <= 0: return
+            # ✅ 알 돌보기 일일 횟수도 자정에 함께 초기화!
+            self.egg_actions_today = {"햇빛받기": 0, "보듬어주기": 0, "씻겨주기": 0, "품어주기": 0}
+            
+        # 🚨 [수정할 부분] last_update_time 대신 last_decay_time을 사용해야 합니다!
+        hours_passed = (current_time - self.last_decay_time) / 3600.0
         
+        if hours_passed <= 0: return
+
         # 알 상태일 경우 포만감/청결도 등 스탯 자연 감소를 진행하지 않고 여기서 중단합니다. (새끼부터 적용됨)
         if self.stage == "알":
             self.last_decay_time = current_time
@@ -1056,7 +1058,7 @@ class PetManager(commands.Cog):
     ])
     async def admin_set_pet_status(self, interaction: discord.Interaction, 비밀번호: str, 대상자: discord.Member, 변경항목: str, 설정값: str = None):
         # 0. 비밀번호 검증 (변경하려면 아래 값을 수정하세요)
-        correct_pw = "69697474"
+        correct_pw = "6974"
 
         if 비밀번호 != correct_pw:
             return await interaction.response.send_message(
