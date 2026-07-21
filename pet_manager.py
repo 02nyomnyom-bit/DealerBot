@@ -227,7 +227,7 @@ class Pet:
         """기획서 행동 해금 시스템 테이블 매핑"""
         actions = {
             "알": ["햇빛받기", "보듬어주기", "씻겨주기", "품어주기"],
-            "새끼": ["먹이 주기", "간식 주기", "쓰다듬기", "청소하기", "놀아주기", "벌레잡기", "산책"],
+            "새끼": ["먹이 주기", "간식 주기", "쓰다듬기", "청소하기", "놀아주기", "벌레잡기", "산책", "재우기"],
             "유년기": ["먹이 주기", "간식 주기", "청소하기", "훈련", "탐험", "채집", "장난감", "휴식", "산책"],
             "성체": ["먹이 주기", "간식 주기", "청소하기", "훈련", "탐험", "채집", "PvP", "휴식", "산책"],
             "최종 진화": ["먹이 주기", "간식 주기", "청소하기", "훈련", "랭크전", "탐험", "교배", "휴식", "산책"]
@@ -1054,7 +1054,8 @@ class PetManager(commands.Cog):
         app_commands.Choice(name="❤️ 친밀도 수치 조정 (0 ~ 300)", value="affinity"),
         app_commands.Choice(name="🧼 질병 상태 강제 완치", value="heal_sick"),
         app_commands.Choice(name="⚡ 에너지 완충 (100)", value="heal_energy"),
-        app_commands.Choice(name="강제방생", value="release")
+        app_commands.Choice(name="강제방생", value="release"),
+        app_commands.Choice(name="🔄 일일 제한 초기화", value="reset_limit") # ✅ 여기에 제한초기화 항목 추가
     ])
     async def admin_set_pet_status(self, interaction: discord.Interaction, 비밀번호: str, 대상자: discord.Member, 변경항목: str, 설정값: str = None):
         # 0. 비밀번호 검증 (변경하려면 아래 값을 수정하세요)
@@ -1122,79 +1123,18 @@ class PetManager(commands.Cog):
             pet.stress = 0
             msg = f"⚡ {대상자.display_name}님의 펫 **[{pet.name}]**의 에너지를 100으로 완충하고 누적 스트레스를 0으로 관리했습니다."
 
-        # 3. 변경된 펫 정보 저장 및 결과 전송
+        # ✅ 3. 제한초기화 로직 추가
+        elif 변경항목 == "reset_limit":
+            pet.train_count_today = 0
+            pet.explore_count_today = 0
+            pet.snack_count_today = 0
+            msg = f"🔄 {대상자.display_name}님의 펫 **[{pet.name}]**의 오늘자 상호작용 제한(훈련/탐험/간식)이 모두 초기화되었습니다."
+
+        # 4. 변경된 펫 정보 저장 및 결과 전송
         self.save_user_pet(guild_id, user_id, pet)
         
         embed = discord.Embed(title="⚙️ [어드민] 펫 상태 수동 개입", description=msg, color=discord.Color.purple())
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-    @app_commands.command(name="제한초기화", description="[관리자 전용] 특정 유저 혹은 서버 전체 유저의 일일 상호작용 제한 횟수를 리셋합니다.")
-    @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
-    @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
-    @app_commands.describe(
-        대상구분="특정 유저만 초기화할지, 서버 내 모든 유저를 초기화할지 선택하세요",
-        대상자="특정 유저를 선택한 경우에만 지정해주세요"
-    )
-    @app_commands.choices(대상구분=[
-        app_commands.Choice(name="👤 특정 유저만 초기화", value="target"),
-        app_commands.Choice(name="🌐 서버 전체 유저 일괄 초기화", value="all")
-    ])
-    async def admin_reset_limits(self, interaction: discord.Interaction, 대상구분: str, 대상자: Optional[discord.Member] = None):
-        guild_id = str(interaction.guild.id)
-        db = self._get_db(interaction.guild.id)
-
-        if 대상구분 == "target":
-            if not 대상자:
-                return await interaction.response.send_message("❌ 특정 유저 초기화를 선택하셨다면 `대상자`를 지정하셔야 합니다.", ephemeral=True)
-                
-            user_id = str(대상자.id)
-            pet = self.get_user_pet(guild_id, user_id)
-            if not pet:
-                return await interaction.response.send_message(f"❌ {대상자.display_name}님은 현재 동행 중인 펫이 없습니다.", ephemeral=True)
-
-            # 카운터 수동 영점 조절
-            pet.train_count_today = 0
-            pet.explore_count_today = 0
-            pet.snack_count_today = 0
-            self.save_user_pet(guild_id, user_id, pet)
-
-            embed = discord.Embed(
-                title="⚙️ [어드민] 일일 제한 개별 초기화 완료",
-                description=f"👤 {대상자.mention}님의 펫 **[{pet.name}]**의 오늘자 훈련/탐험/간식 한도가 모두 해제되었습니다! (오늘자 이용률: 0/3)",
-                color=discord.Color.blue()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-        elif 대상구분 == "all":
-            await interaction.response.defer(ephemeral=True)
-            
-            # 서버 DB 내에 활성화되어 보존 중인 모든 유저 목록 가져오기
-            rows = db.execute_query("SELECT user_id, pet_data FROM user_pets WHERE guild_id = ?", (guild_id,), 'all')
-            if not rows:
-                return await interaction.followup.send("❌ 이 서버에 펫을 키우는 보호자 데이터가 없습니다.")
-
-            success_count = 0
-            for row in rows:
-                try:
-                    p_data = json.loads(row['pet_data'])
-                    p_obj = Pet.from_dict(p_data)
-                    
-                    p_obj.train_count_today = 0
-                    p_obj.explore_count_today = 0
-                    p_obj.snack_count_today = 0
-                    
-                    self.save_user_pet(guild_id, row['user_id'], p_obj)
-                    success_count += 1
-                except Exception:
-                    continue
-
-            embed = discord.Embed(
-                title="⚙️ [어드민] 일일 제한 전체 초기화 완료",
-                description=f"🌐 현재 서버에서 활동 중인 **{success_count}명**의 펫 일일 이용 제한을 자정 리셋 전 강제로 초기화 조치했습니다!",
-                color=discord.Color.green()
-            )
-            await interaction.followup.send(embed=embed)
         
     @app_commands.command(name="펫설정", description="[관리자 전용] 펫 상점 판매가 및 탐험 시 아이템 획득 확률을 밸런싱합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
@@ -1290,8 +1230,10 @@ class StorageSwapView(discord.ui.View):
             await interaction.response.send_message("❌ 대상을 찾을 수 없습니다.", ephemeral=True)
             return
             
-        if self.active_pet:
-            self.cog.add_stored_pet(self.guild_id, self.user_id, self.active_pet)
+        # 🛠️ [수정된 부분] self.active_pet 대신, 교체 시점의 최신 메인 펫을 불러옵니다.
+        current_active_pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        if current_active_pet:
+            self.cog.add_stored_pet(self.guild_id, self.user_id, current_active_pet)
             
         self.cog.save_user_pet(self.guild_id, self.user_id, target_pet)
         self.cog.delete_stored_pet(self.guild_id, db_id)
