@@ -790,9 +790,7 @@ class PvPBattle:
         if attacker.personality == "나태":
             final_dmg *= 0.7
 
-        if attacker.main_type == "불" and random.random() < 0.15:
-            print("🔥 [불 타입 개성] 상대에게 지속 화상 피해 조건 부여!")
-            
+
         if attacker.main_type == "어둠":
             final_dmg *= 1.2
             

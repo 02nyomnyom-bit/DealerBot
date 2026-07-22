@@ -2327,13 +2327,8 @@ class FishingSystemCog(commands.Cog):
         db = self._get_db(interaction) # 인스턴스화된 안전한 DB 매니저 먼저 로드
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
-
-                from database_manager import DatabaseManager
-                if not DatabaseManager().get_user(str(interaction.user.id)):
-                    if not interaction.response.is_done():
-                        await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
-                    return
-                
+                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
+            return                
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
         ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
@@ -2747,8 +2742,8 @@ class FishingSystemCog(commands.Cog):
     ])
     # 📌 autocomplete=True 를 시설명 파라미터에 추가합니다.
     async def build_facility(self, interaction: discord.Interaction, 대분류: str, 시설명: str):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
+        db = self._get_db(interaction)
+        if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
                 await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
             return
@@ -2846,11 +2841,6 @@ class FishingSystemCog(commands.Cog):
     # ==========================================
     @app_commands.command(name="시설철거", description="낚시터에 지어진 시설을 파괴하고 명성을 일부 돌려받습니다.")
     async def destroy_facility(self, interaction: discord.Interaction, 시설명: str):
-        from database_manager import DatabaseManager
-        if not DatabaseManager().get_user(str(interaction.user.id)):
-            if not interaction.response.is_done():
-                await interaction.response.send_message("❗ 먼저 `/등록` 명령어로 명단에 등록해주세요!", ephemeral=True)
-            return
         db = self._get_db(interaction)
         if not db.get_user(str(interaction.user.id)):
             if not interaction.response.is_done():
