@@ -1,11 +1,10 @@
 # fishing.py - [게임] 낚시
 import discord
 from discord import app_commands
-from discord import embeds
 from discord.ext import commands, tasks
 import asyncio
 import random
-from typing import Optional, Literal
+from typing import Optional
 from datetime import datetime, timedelta, timezone
 
 # 한국 시간대 설정 (UTC+9)
@@ -433,12 +432,12 @@ class TrashActionView(discord.ui.View):
                     if current_cash < 50000:
                         ban_until = (datetime.now(KST) + timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S')
                         conn.execute("UPDATE users SET fishing_ban_until = ? WHERE user_id = ? AND guild_id = ?", (ban_until, uid, gid))
-                        ban_msg = f"\n\n🚫 **[저소득자 이용 제한]**\n무단투기 50회 누적되었으나, 벌금을 낼 자산이 부족하여 향후 **30분간** 이용이 금지됩니다."
+                        ban_msg = "\n\n🚫 **[저소득자 이용 제한]**\n무단투기 50회 누적되었으나, 벌금을 낼 자산이 부족하여 향후 **30분간** 이용이 금지됩니다."
                     else:
                         surcharge = 50000
                         conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (surcharge, uid, gid))
                         conn.execute("INSERT INTO point_history (user_id, transaction_type, amount, balance_after, description) VALUES (?, ?, ?, ?, ?)",
-                                     (uid, "과태료", -surcharge, current_cash - surcharge, f"투기 50회 누적 가중 과태료"))
+                                     (uid, "과태료", -surcharge, current_cash - surcharge, "투기 50회 누적 가중 과태료"))
                         ban_msg = f"\n\n💸 **[가중 과태료 부과]**\n무단투기 50회 누적 페널티로 가중 과태료 **{surcharge:,}원**이 추가 징수되었습니다. (소지금 보유로 이용 제한 면제)"
 
                 conn.commit() # ✅ 추가: 트랜잭션 완료
@@ -1032,7 +1031,7 @@ class BuyConfirmView(discord.ui.View):
             conn.commit()
             
             title = "⚔️ 낚시터 약탈 성공!" if is_takeover else "🎊 낚시터 매입 성공!"
-            takeover_msg = f"\n⚠️ 땅의 등급과 명성이 초기화되었습니다." if is_takeover else ""
+            takeover_msg = "\n⚠️ 땅의 등급과 명성이 초기화되었습니다." if is_takeover else ""
 
             embed = discord.Embed(
                 title=title,
@@ -2362,7 +2361,6 @@ class FishingSystemCog(commands.Cog):
             upkeep_mult = 0.0      # 💸 유지비 증가율
             rep_mult = 1.0         # ✨ 명성 획득 배율 (기본 1배)
             fish_price_mult = 1.0  # 🏪 물고기 판매가 배율 (기본 1배)
-            fail_rate = 0.0        # 🏫 낚시 실패 확률 증가
 
             if facilities:
                 for f in facilities:
@@ -2399,11 +2397,8 @@ class FishingSystemCog(commands.Cog):
 
             final_trash_chance = max(0.0, min(1.0, base_trash_chance + trash_rate + glove_buff))
 
-            final_upkeep_mod = (upkeep_mult - upkeep_discount) * 100
-
             base_land_price = ground['ground_price'] or 100000
             facilities_value = self._get_facilities_value(db, chid, gid)
-            current_property_value = base_land_price + facilities_value
 
             embed = discord.Embed(title=f"📍 낚시터 정보: {interaction.channel.name}", color=discord.Color.blue())
             embed.add_field(name="👑 소유주", value=owner, inline=True)
@@ -2469,7 +2464,7 @@ class FishingSystemCog(commands.Cog):
                 f"💰 **최종 매입가: {total_buy_price:,}원**"
             )
             if is_takeover:
-                desc += f"\n\n⚠️ **주의:** 이미 다른 주인이 있는 땅입니다. 매입 시 기존 주인의 시설은 철거되며 땅이 초기화됩니다."
+                desc += "\n\n⚠️ **주의:** 이미 다른 주인이 있는 땅입니다. 매입 시 기존 주인의 시설은 철거되며 땅이 초기화됩니다."
 
             confirm_embed = discord.Embed(title=title, description=desc, color=discord.Color.gold())
             view = BuyConfirmView(db, total_buy_price, chid, gid, uid)
@@ -2865,7 +2860,7 @@ class FishingSystemCog(commands.Cog):
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
 
         ground = db.execute_query("SELECT owner_id FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
-        if not ground or not ground['owner_id'] or ground['owner_id'] != uid:
+        if not ground or not ground['owner_id'] or str(ground['owner_id']) != uid:
             return await interaction.response.send_message("❌ 본인 소유의 낚시터 시설만 철거할 수 있습니다.", ephemeral=True)
 
         if 시설명 not in FACILITIES:
@@ -3358,19 +3353,7 @@ class FishingSystemCog(commands.Cog):
         )
         view = ResetConfirmView(interaction.user, db)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-    
-    def _ensure_ground_exists(self, db, chid: str, gid: str, channel_name: str):
-        """낚시터가 DB에 없을 경우 기본값으로 생성해주는 헬퍼 메서드"""
-        ground = db.execute_query(
-            "SELECT 1 FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", 
-            (chid, gid), 
-            'one'
-        )
-        if not ground:
-            db.execute_query(
-                "INSERT INTO fishing_ground (channel_id, guild_id, channel_name) VALUES (?, ?, ?)", 
-                (chid, gid, channel_name)
-            )
+
 
     @tasks.loop(minutes=1)
     async def auto_cleanup_inactive_grounds(self):
