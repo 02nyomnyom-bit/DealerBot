@@ -277,20 +277,21 @@ def get_skill_info(skill_name):
     return {"name": "몸통박치기", "mp": 0, "power": 10, "element": "노말"}
 
 EQUIPMENT_STATS = {
-    "일반": {"hp": 5, "atk": 5, "spd": 5, "crit": 0.0},
-    "희귀": {"hp": 8, "atk": 8, "spd": 8, "crit": 0.01},
-    "영웅": {"hp": 10, "atk": 10, "spd": 10, "crit": 0.03},
-    "전설": {"hp": 5, "atk": 15, "spd": 5, "crit": 0.05}
+    "일반": {"hp": 5, "atk": 5, "def": 5, "spd": 5, "crit": 0.0},
+    "희귀": {"hp": 8, "atk": 8, "def": 8, "spd": 8, "crit": 0.01},
+    "영웅": {"hp": 10, "atk": 10, "def": 10, "spd": 10, "crit": 0.03},
+    "전설": {"hp": 5, "atk": 15, "def": 15, "spd": 5, "crit": 0.05}
 }
 
 def get_equipment_bonus(pet):
-    bonus = {"hp": 0, "atk": 0, "spd": 0, "crit": 0.0}
+    bonus = {"hp": 0, "atk": 0, "def": 0, "spd": 0, "crit": 0.0}
     equipment = getattr(pet, "equipment", {"머리": None, "견갑": None, "허리": None, "다리": None})
     for part, grade in equipment.items():
         if grade and grade in EQUIPMENT_STATS:
             st = EQUIPMENT_STATS[grade]
             bonus["hp"] += st["hp"]
             bonus["atk"] += st["atk"]
+            bonus["def"] += st["def"]
             bonus["spd"] += st["spd"]
             bonus["crit"] += st["crit"]
     return bonus
@@ -300,14 +301,15 @@ class DiscordUIFormatter:
         
         pet.update_passive_decay()
         bonus = get_equipment_bonus(pet)
-        # hp_str은 미사용이므로 제거 (atk_str, spd_str은 embed에서 사용)
+        # hp_str은 미사용이므로 제거 (atk_str, spd_str, def_str은 embed에서 사용)
         atk_str = f" (+{bonus['atk']})" if bonus['atk'] else ""
+        def_str = f" (+{bonus['def']})" if bonus['def'] else ""
         spd_str = f" (+{bonus['spd']})" if bonus['spd'] else ""
         
         # 희귀도 계산 및 최종 스탯 도출
         mult = pet.rarity_multiplier
         f_atk = int((pet.attack + bonus['atk']) * mult)
-        f_def = int((pet.defense) * mult)
+        f_def = int((pet.defense + bonus['def']) * mult)
         f_spd = int((pet.speed + bonus['spd']) * mult)
         
         fields = [
@@ -316,7 +318,7 @@ class DiscordUIFormatter:
             {"name": "교감 친밀도", "value": f"❤️ {pet.affinity} [등급: {pet.affinity_rank}]", "inline": True},
             {"name": "현재 기분", "value": f"🎭 {pet.mood_state} (점수: {int(pet.mood_score)})", "inline": True},
             {"name": "신체 지표", "value": f"🍗 포만감: {int(pet.fullness)}/100 | 🧼 청결도: {int(pet.cleanliness)}/100\n⚡ 에너지: {int(pet.energy)}/100 | 💢 스트레스: {pet.stress}/100", "inline": False},
-            {"name": "⚔️ 전투 능력치", "value": f"⚔️ 공격: {f_atk}{atk_str} | 🛡️ 방어: {f_def}\n💨 속도: {f_spd}{spd_str} | 🍀 행운: {getattr(pet, 'luck', 10)}", "inline": False}
+            {"name": "⚔️ 전투 능력치", "value": f"⚔️ 공격: {f_atk}{atk_str} | 🛡️ 방어: {f_def}{def_str}\n💨 속도: {f_spd}{spd_str} | 🍀 행운: {getattr(pet, 'luck', 10)}", "inline": False}
         ]
         
         skill_text = ", ".join(pet.skills) if pet.skills else "장착된 스킬 없음"
@@ -408,8 +410,8 @@ class DiscordUIFormatter:
         
         # 2️⃣ 알 단계 처리 로직 수정
         if pet.stage == "알":
-            # 메인 속성에 맞는 데이터를 찾고, 그 안에서 '알' 이미지를 꺼내옵니다.
-            type_data = IMAGE_DATABASE.get(pet.main_type, IMAGE_DATABASE["노말"])
+            # 알의 속성을 숨기기 위해 강제로 노말 알 이미지를 가져옵니다.
+            type_data = IMAGE_DATABASE.get("노말")
             egg_image_url = type_data.get("알", "https://media.discordapp.net/attachments/1464543163669680171/1527167130657624134/LL.png?ex=6a59acb9&is=6a585b39&hm=5813336263eeb4cfc7ff8cb8585408baef392b7733e40c7cdf3e4f878d35ef9f&=&format=webp&quality=lossless")
 
             return {
@@ -521,8 +523,8 @@ class PvPBattle:
         
         self.atk_a = int((pet_a.attack + bonus_a["atk"]) * mult_a)
         self.atk_b = int((pet_b.attack + bonus_b["atk"]) * mult_b)
-        self.def_a = int((pet_a.defense) * mult_a)
-        self.def_b = int((pet_b.defense) * mult_b)
+        self.def_a = int((pet_a.defense + bonus_a["def"]) * mult_a)
+        self.def_b = int((pet_b.defense + bonus_b["def"]) * mult_b)
         self.spd_a = int((pet_a.speed + bonus_a["spd"]) * mult_a)
         self.spd_b = int((pet_b.speed + bonus_b["spd"]) * mult_b)
         
@@ -790,6 +792,15 @@ class PvPBattle:
         if attacker.personality == "나태":
             final_dmg *= 0.7
 
+        # 3. 기후 가중치 반영
+        from pet_climate import ClimateManager
+        climate = ClimateManager().get_current_climate()
+        if climate.weather == "비" and skill_element == "물":
+            final_dmg *= 1.1
+            self.log.append("🌧️ [날씨 보정: 비] 물 속성 위력이 상승했습니다! (x1.1)")
+        elif climate.weather == "폭염" and skill_element == "불":
+            final_dmg *= 1.1
+            self.log.append("☀️ [날씨 보정: 폭염] 불 속성 위력이 상승했습니다! (x1.1)")
 
         if attacker.main_type == "어둠":
             final_dmg *= 1.2

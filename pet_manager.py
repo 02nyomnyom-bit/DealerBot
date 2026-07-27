@@ -8,7 +8,7 @@ import os
 import asyncio
 from collections import defaultdict
 from discord import app_commands, Interaction
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ui import Button, View
 from typing import Optional, List
 from database_manager import DatabaseManager
@@ -255,6 +255,13 @@ class Pet:
         
         if action_name == "햇빛받기":
             self.warmth = min(100, self.warmth + 15)
+        elif action_name == "보듬어주기":
+            self.stability = min(100, self.stability + 15)
+        elif action_name == "씻겨주기":
+            self.cleanliness_egg = min(100, self.cleanliness_egg + 15)
+        elif action_name == "품어주기":
+            self.warmth = min(100, self.warmth + 10)
+            self.stability = min(100, self.stability + 10)
             
         base_progress = random.uniform(8.0, 15.0)
         # 맑음: 부화 진행도 +10%, 봄: 부화 진행도 +10%
@@ -346,9 +353,9 @@ class Pet:
             energy_cost = int(energy_cost * 0.5)  # 에너지 소모 50% 감소
         self.energy = max(0, self.energy - energy_cost)  # 소모한 만큼 에너지 감소
         
-        # 기획서 기준 레벨 경험치 공식 (EXP = 5N³ / 4) 적용
+        # 단순화된 레벨 경험치 공식 적용 (레벨업 속도 상향)
         def get_req_exp(lvl):
-            return int((5 * ((lvl + 1) ** 3)) / 4) - int((5 * (lvl ** 3)) / 4)
+            return 100 + (lvl * 30)
             
         next_exp = get_req_exp(self.level)
         level_up_msg = ""
@@ -367,11 +374,13 @@ class Pet:
             next_exp = get_req_exp(self.level)
 
         # 레벨업 후 성장 단계 진화 요건 자동 검증
-        evo_msg = self.check_evolution_conditions()
-        return f"✨ 경험치 **+{amount}** 획득! (남은 에너지: {int(self.energy)}){level_up_msg}{evo_msg}"
+        evo_msg, evo_embed = self.check_evolution_conditions()
+        return (f"✨ 경험치 **+{amount}** 획득! (남은 에너지: {int(self.energy)}){level_up_msg}{evo_msg}", evo_embed)
 
-    def check_evolution_conditions(self) -> str:
-        """기획서 조건에 만족할 시 단계를 즉시 진화시키고 성격 및 고유 패시브를 각성시킵니다"""
+    def check_evolution_conditions(self):
+        """기획서 조건에 만족할 시 단계를 즉시 진화시키고 성격 및 고유 패시브를 각성시킵니다.
+        Returns: (str_msg, Optional[discord.Embed])
+        """
         climate = ClimateManager().get_current_climate()
         
         # 1. 새끼 -> 유년기 (Lv.15 달성 및 친밀도 30 이상)
@@ -379,31 +388,54 @@ class Pet:
             self.stage = "유년기"
             self.personality = random.choice(["다혈질", "장난꾸러기", "나태", "신중함", "용맹함"])
             
-            # 기획서 규칙: 특정 성격 스킬 강제 셋팅 (삭제 및 교체 불가능)
             if self.personality == "장난꾸러기":
                 self.skills = ["놀리기"]
             elif self.personality == "나태":
                 self.skills = ["잠자기"]
             else:
                 self.skills = ["몸통박치기"]
-            return f"\n\n🌅 **[진화 완료]** {self.name}이(가) **유년기** 단계로 진화했습니다! 성격 **[{self.personality}]**이(가) 형성되었으며 고유 패시브가 장착되었습니다."
+
+            embed = discord.Embed(
+                title="🌅 진화 완료!",
+                description=(
+                    f"**{self.name}**이(가) **유년기** 단계로 진화했습니다!\n\n"
+                    f"🌱 새로운 성격 **[{self.personality}]**이(가) 형성되었으며\n"
+                    f"고유 패시브와 초기 스킬이 자동으로 장착되었습니다."
+                ),
+                color=0x2ecc71
+            )
+            embed.add_field(name="🎭 확정 성격", value=f"**{self.personality}**", inline=True)
+            embed.add_field(name="⚔️ 초기 스킬", value=self.skills[0] if self.skills else "없음", inline=True)
+            embed.add_field(name="📋 다음 진화 조건", value="Lv.40 달성 + 훈련 50회 + 탐험 50회", inline=False)
+            embed.set_footer(text="🌟 [유년기] 이제 훈련과 탐험으로 성체를 향해 나아가세요!")
+            return ("\n\n🌅 **[진화 완료]** 유년기로 진화했습니다!", embed)
 
         # 2. 유년기 -> 성체 (Lv.40 달성, 훈련 50회, 탐험 50회)
         elif self.stage == "유년기" and self.level >= 40 and self.train_count >= 50 and self.explore_count >= 50:
             self.stage = "성체"
-            # 기본 원소 외 부가 원소 획득 (매우 낮은 확률로 상극 원소가 들어올 수 있음)
             available_types = ["노말", "불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼"]
             available_types.remove(self.main_type)
             self.sub_type = random.choice(available_types)
-            
-            # 스킬 셋 확장
             self.skills.extend(["웅크리기", "피하기"])
-            return f"\n\n⚡ **[원소 각성 진화]** {self.name}이(가) **성체** 단계로 진화했습니다! 부속성 **[{self.sub_type}]**을(를) 깨우쳤으며 이제 일반 PvP전에 참여할 수 있습니다!"
 
-        # 3. 성체 -> 최종 진화 (Lv.75 달성, PvP 30회, 친밀도 70, 잠재력 50%)
+            embed = discord.Embed(
+                title="⚡ 원소 각성 진화!",
+                description=(
+                    f"**{self.name}**이(가) **성체** 단계로 각성했습니다!\n\n"
+                    f"수많은 훈련과 탐험을 통해 쌓아온 힘이 마침내 폭발했습니다!"
+                ),
+                color=0xf39c12
+            )
+            embed.add_field(name="🔥 주속성", value=f"**{self.main_type}**", inline=True)
+            embed.add_field(name="💧 부속성 각성", value=f"**{self.sub_type}**", inline=True)
+            embed.add_field(name="⚔️ 신규 습득 스킬", value="웅크리기, 피하기", inline=False)
+            embed.add_field(name="📋 다음 진화 조건", value="Lv.75 + PvP 30회 + 친밀도 70 + 잠재력 50%", inline=False)
+            embed.set_footer(text="⚡ [성체] 이제 PvP 배틀에 참여할 수 있습니다!")
+            return ("\n\n⚡ **[원소 각성 진화]** 성체로 진화했습니다!", embed)
+
+        # 3. 성체 -> 최종 진화
         elif self.stage == "성체" and self.level >= 75 and self.pvp_count >= 30 and self.affinity >= 70 and self.potential >= 50:
             
-            # 히든 진화 조건 체크 (일반 최종 진화보다 우선 적용)
             hidden_evo = None
             if climate.weather == "비" and climate.is_night and self.affinity >= 250 and self.main_type == "물":
                 hidden_evo = "심해의 수호자"
@@ -416,18 +448,40 @@ class Pet:
                 
             if hidden_evo:
                 self.stage = "최종 진화"
-                self.crit = 30 # 히든 보너스
+                self.crit = 30
                 self.res = 20
                 self.name = f"{hidden_evo} {self.name}"
-                return f"\n\n✨ **[히든 진화 발동!!]** 특수한 기후와 조건이 맞아떨어져 {self.name}이(가) 숨겨진 진화형인 **『{hidden_evo}』**(으)로 각성했습니다!"
+                embed = discord.Embed(
+                    title="✨ 히든 진화 발동!!!",
+                    description=(
+                        f"특수한 기후와 조건이 맞아떨어졌습니다!\n\n"
+                        f"**{self.name}**이(가) 숨겨진 진화형\n"
+                        f"**『{hidden_evo}』**(으)로 각성했습니다!"
+                    ),
+                    color=0x9b59b6
+                )
+                embed.add_field(name="🎁 히든 보너스", value="치명타율 +30% / 저항력 +20%", inline=False)
+                embed.add_field(name="🌟 특별 칭호", value=f"**{hidden_evo}**", inline=False)
+                embed.set_footer(text="✨ 극히 희귀한 히든 진화를 달성했습니다!")
+                return (f"\n\n✨ **[히든 진화 발동!!]** {self.name}(으)로 각성!", embed)
             
             self.stage = "최종 진화"
-            self.crit = 15  # 최종 진화 스탯 보너스 부여
+            self.crit = 15
             self.res = 10
-            
-            return f"\n\n🔥 **[최종 진화 완료]** {self.name}이(가) 마침내 궁극의 **최종 진화**를 이루었습니다! 전용 패시브가 개방되었으며 랭크전에 참전할 자격을 얻었습니다!"
+            embed = discord.Embed(
+                title="🔥 최종 진화 완료!",
+                description=(
+                    f"**{self.name}**이(가) 마침내 궁극의 **최종 진화**를 이루었습니다!\n\n"
+                    f"이제 더 이상 진화할 단계가 없습니다. 이것이 이 펫의 완성형입니다."
+                ),
+                color=0xe74c3c
+            )
+            embed.add_field(name="🎁 진화 보너스", value="치명타율 +15% / 저항력 +10%", inline=False)
+            embed.add_field(name="⚔️ 랭크전 참전 자격", value="✅ 해금됨!", inline=False)
+            embed.set_footer(text="🔥 [최종 진화] 이제 랭크전에 참전하세요!")
+            return ("\n\n🔥 **[최종 진화 완료]** 궁극의 최종 진화를 이루었습니다!", embed)
 
-        return ""
+        return ("", None)
 
     def feed(self):
         """포만감 및 스트레스 감소 행동"""
@@ -463,6 +517,10 @@ class Pet:
             pet.equipment = {"머리": None, "견갑": None, "허리": None, "다리": None, "아이템": None}
         if not hasattr(pet, 'inventory'):
             pet.inventory = {"열매": {"상": 0, "중": 0, "하": 0}, "장비": []}
+        if not hasattr(pet, 'is_fainted'):
+            pet.is_fainted = False
+        if not hasattr(pet, 'faint_time'):
+            pet.faint_time = None
         return pet
 
 class SkillConfirmView(discord.ui.View):
@@ -553,6 +611,41 @@ class PetManager(commands.Cog):
             )
         except Exception as e:
             print(f"⚠️ 테이블 설정 에러: {e}")
+
+    def cog_load(self):
+        self.pet_decay_loop.start()
+
+    def cog_unload(self):
+        self.pet_decay_loop.cancel()
+
+    @tasks.loop(minutes=30)
+    async def pet_decay_loop(self):
+        """30분마다 모든 활성 펫의 상태를 실시간 감소시킵니다."""
+        try:
+            for guild_id_str, db in list(self.db_managers.items()):
+                rows = db.execute_query(
+                    "SELECT user_id, guild_id, pet_data FROM user_pets",
+                    (), 'all'
+                )
+                if not rows:
+                    continue
+                for row in rows:
+                    try:
+                        pet = Pet.from_dict(json.loads(row['pet_data']))
+                        pet.update_passive_decay()
+                        pet_json = json.dumps(pet.to_dict(), ensure_ascii=False)
+                        db.execute_query(
+                            "UPDATE user_pets SET pet_data = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND guild_id = ?",
+                            (pet_json, row['user_id'], row['guild_id']), 'none'
+                        )
+                    except Exception as e:
+                        print(f"⚠️ [decay_loop] {row['user_id']} 펫 업데이트 실패: {e}")
+        except Exception as e:
+            print(f"⚠️ [decay_loop] 스케줄러 오류: {e}")
+
+    @pet_decay_loop.before_loop
+    async def before_decay_loop(self):
+        await self.bot.wait_until_ready()
 
     def _get_db(self, guild_id: int) -> DatabaseManager:
         gid_str = str(guild_id)
@@ -770,6 +863,12 @@ class PetManager(commands.Cog):
         child.iv = new_iv
         child.personality = new_personality
         
+        # 1% 돌연변이 확률 추가
+        if random.random() < 0.01:
+            child.main_type = random.choice(types)
+            child.personality = "돌연변이"
+            setattr(child, "is_mutant", True)
+        
         # 메인 자리를 교체하지 않고 보관함으로 즉시 전송
         self.add_stored_pet(guild_id, user_id, child)
         
@@ -787,15 +886,65 @@ class PetManager(commands.Cog):
         
         return "SUCCESS", "", embed
         
+    def get_server_rank(self, guild_id: str, user_id: str, new_score: int = None) -> int:
+        """서버 내 릭크 순위를 반환합니다. new_score를 주면 그 점수 기준으로 계산."""
+        try:
+            db = self._get_db(int(guild_id))
+            rows = db.execute_query(
+                "SELECT user_id, pet_rank_score FROM users WHERE guild_id = ? ORDER BY pet_rank_score DESC",
+                (guild_id,), 'all'
+            )
+            if not rows:
+                return 1
+            scores = [(r['user_id'], r.get('pet_rank_score', 1000)) for r in rows]
+            # new_score가 주어진 경우 해당 유저 점수 교체
+            if new_score is not None:
+                scores = [(uid, new_score if uid == user_id else sc) for uid, sc in scores]
+                scores.sort(key=lambda x: x[1], reverse=True)
+            for idx, (uid, _) in enumerate(scores, 1):
+                if uid == user_id:
+                    return idx
+            return len(scores)
+        except Exception:
+            return 0
+
+    def get_server_ranking_list(self, guild_id: str, top_n: int = 10) -> list:
+        """서버 내 릭크 상위 top_n명의 (user_id, score, pet_name) 리스트를 반환합니다."""
+        try:
+            db = self._get_db(int(guild_id))
+            rows = db.execute_query(
+                "SELECT user_id, pet_rank_score FROM users WHERE guild_id = ? ORDER BY pet_rank_score DESC LIMIT ?",
+                (guild_id, top_n), 'all'
+            )
+            result = []
+            for row in rows:
+                uid = row['user_id']
+                score = row.get('pet_rank_score', 1000)
+                pet = self.get_user_pet(guild_id, uid)
+                pet_name = pet.name if pet else "동행 펫 없음"
+                result.append((uid, score, pet_name))
+            return result
+        except Exception:
+            return []
+
     def check_penalties_and_update(self, guild_id: str, user_id: str, pet: Pet) -> Optional[str]:
         """행동 명령 전 펫 상태가 24시간 이상 방치 상태인지 실시간 검증합니다"""
         pet.update_passive_decay()
         current_time = time.time()
         
-        # 1. 포만감 0 상태로 24시간(86400초) 이상 방치 시 야생으로 도망
-        if pet.zero_fullness_time and (current_time - pet.zero_fullness_time) >= 86400:
-            self.delete_user_pet(guild_id, user_id)
-            return "RUNAWAY"
+        # 1. 포만감 0 상태 체크 (기절 및 도망 패널티)
+        if getattr(pet, 'zero_fullness_time', None):
+            if getattr(pet, 'is_fainted', False):
+                # 이미 기절 상태라면, 기절 시점으로부터 추가 24시간(86400초) 방치 시 완전 삭제(도망)
+                if getattr(pet, 'faint_time', None) and (current_time - pet.faint_time) >= 86400:
+                    self.delete_user_pet(guild_id, user_id)
+                    return "RUNAWAY"
+            else:
+                # 24시간 이상 포만감 0 방치 시 기절(건강 악화) 상태로 전환
+                if (current_time - pet.zero_fullness_time) >= 86400:
+                    pet.is_fainted = True
+                    pet.faint_time = current_time
+                    return "FAINTED"
             
         # 2. 청결도 0 상태로 24시간 이상 방치 시 동물 학대 벌금 부과
         if pet.zero_cleanliness_time and (current_time - pet.zero_cleanliness_time) >= 86400:
@@ -1039,111 +1188,54 @@ class PetManager(commands.Cog):
         # 🚨 마지막 출력도 followup.send()로 수정
         await interaction.followup.send(embed=embed, view=MainPetHubView(self, user_id, guild_id))
 
-    @app_commands.command(name="펫관리", description="[관리자 전용] 특정 유저의 펫 능력치 및 성장 단계를 강제 조정합니다.")
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.describe(
-        비밀번호="관리자 비밀번호를 입력하세요",
-        대상자="펫 정보를 수정할 유저",
-        변경항목="수정할 수치 또는 상태를 선택하세요",
-        설정값="변경 대입할 수치를 입력하세요 (단계는 알, 새끼, 유년기, 성체, 최종 진화 중 입력)"
-    )
-    @app_commands.choices(변경항목=[
-        app_commands.Choice(name="📈 레벨 설정 (1 ~ 100)", value="level"),
-        app_commands.Choice(name="🧬 성장단계 강제 설정", value="stage"),
-        app_commands.Choice(name="❤️ 친밀도 수치 조정 (0 ~ 300)", value="affinity"),
-        app_commands.Choice(name="🧼 질병 상태 강제 완치", value="heal_sick"),
-        app_commands.Choice(name="⚡ 에너지 완충 (100)", value="heal_energy"),
-        app_commands.Choice(name="강제방생", value="release"),
-        app_commands.Choice(name="🔄 일일 제한 초기화", value="reset_limit") # ✅ 여기에 제한초기화 항목 추가
-    ])
-    async def admin_set_pet_status(self, interaction: discord.Interaction, 비밀번호: str, 대상자: discord.Member, 변경항목: str, 설정값: str = None):
-        # 0. 비밀번호 검증 (변경하려면 아래 값을 수정하세요)
-        correct_pw = "6974"
 
-        if 비밀번호 != correct_pw:
-            return await interaction.response.send_message(
-                "🔒 비밀번호가 틀렸습니다. 명령어 사용이 거부되었습니다.",
-                ephemeral=True
-            )
-
-        user_id = str(대상자.id)
+        
+    @app_commands.command(name="펫랜킹", description="서버 내 펫 랜크전 순위와 내 순위를 확인합니다.")
+    async def pet_ranking(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         guild_id = str(interaction.guild_id)
-        
-        pet = self.get_user_pet(guild_id, user_id)
-        if not pet:
-            return await interaction.response.send_message(f"❌ {대상자.display_name}님은 현재 동행 중인 펫이 없습니다.", ephemeral=True)
-        
-        # 1. 강제방생 처리
-        if 변경항목 == "release":
-            success = await self.force_release_pet(interaction.guild_id, 대상자.id)
-            if success:
-                await interaction.response.send_message(f"✅ 관리자 권한으로 {대상자.mention}님의 펫을 **강제 방생**했습니다.", ephemeral=True)
-            else:
-                await interaction.response.send_message(f"❌ {대상자.display_name}님은 현재 보유 중인 펫이 없습니다.", ephemeral=True)
-            return
-        
-        # 2. 설정값이 반드시 필요한 항목들 예외 처리
-        if 변경항목 in ["level", "stage", "affinity"] and 설정값 is None:
-            return await interaction.response.send_message("❌ 해당 항목은 `설정값`을 반드시 입력해야 합니다.", ephemeral=True)
-        
-        msg = ""
-        if 변경항목 == "level":
-            try:
-                val = max(1, min(100, int(설정값)))
-                pet.level = val
-                msg = f"📈 {대상자.display_name}님의 펫 **[{pet.name}]**의 레벨을 강제로 **Lv.{val}**(으)로 조정했습니다."
-            except ValueError:
-                return await interaction.response.send_message("❌ 설정값에 올바른 정수 숫자(1~100)를 입력해 주세요.", ephemeral=True)
+        user_id = str(interaction.user.id)
 
-        elif 변경항목 == "stage":
-            if 설정값 in ["알", "새끼", "유년기", "성체", "최종 진화"]:
-                pet.stage = 설정값
-                msg = f"🧬 {대상자.display_name}님의 펫 **[{pet.name}]**의 성장 단계를 **[{설정값}]**(으)로 강제 조정했습니다."
-            else:
-                return await interaction.response.send_message("❌ 올바른 성장 단계를 입력하세요: `알`, `새끼`, `유년기`, `성체`, `최종 진화`", ephemeral=True)
+        ranking = self.get_server_ranking_list(guild_id, top_n=10)
+        my_rank = self.get_server_rank(guild_id, user_id)
 
-        elif 변경항목 == "affinity":
-            try:
-                val = max(0, min(300, int(설정값)))
-                pet.affinity = val
-                msg = f"❤️ {대상자.display_name}님의 펫 **[{pet.name}]**의 친밀도를 강제로 **{val} / 300**(으)로 조정했습니다."
-            except ValueError:
-                return await interaction.response.send_message("❌ 설정값에 올바른 정수 숫자(0~300)를 입력해 주세요.", ephemeral=True)
+        db = self._get_db(interaction.guild_id)
+        user_data = db.get_user(user_id)
+        my_score = user_data.get('pet_rank_score', 1000) if user_data else 1000
 
-        elif 변경항목 == "heal_sick":
-            pet.is_sick = False
-            pet.cleanliness = 100
-            pet.zero_cleanliness_time = None
-            pet.fine_charged = False
-            msg = f"🧼 {대상자.display_name}님의 펫 **[{pet.name}]**의 질병을 완치하고 주변 청결도를 최상(100)으로 조치했습니다."
+        medals = ["🥇", "🥈", "🥉"]
+        lines = []
+        for idx, (uid, score, pet_name) in enumerate(ranking, 1):
+            medal = medals[idx - 1] if idx <= 3 else f"**{idx}.**"
+            member = interaction.guild.get_member(int(uid))
+            name = member.display_name if member else f"(ID:{uid})"
+            marker = " ◀ 나" if uid == user_id else ""
+            lines.append(f"{medal} {name} — **{pet_name}** | {score:,}pt{marker}")
 
-        elif 변경항목 == "heal_energy":
-            pet.energy = 100
-            pet.stress = 0
-            msg = f"⚡ {대상자.display_name}님의 펫 **[{pet.name}]**의 에너지를 100으로 완충하고 누적 스트레스를 0으로 관리했습니다."
+        desc = "\n".join(lines) if lines else "랭크전 진행 중인 유저가 없습니다."
 
-        # ✅ 3. 제한초기화 로직 추가
-        elif 변경항목 == "reset_limit":
-            pet.train_count_today = 0
-            pet.explore_count_today = 0
-            pet.snack_count_today = 0
-            msg = f"🔄 {대상자.display_name}님의 펫 **[{pet.name}]**의 오늘자 상호작용 제한(훈련/탐험/간식)이 모두 초기화되었습니다."
+        embed = discord.Embed(
+            title="⚡ 서버 펫 랜크 리더보드",
+            description=desc,
+            color=0xf1c40f
+        )
+        embed.add_field(
+            name="📣 내 순위",
+            value=f"**{my_rank}위** | 점수: **{my_score:,}pt**",
+            inline=False
+        )
+        embed.set_footer(text="랜크전 승리 시 +25pt, 무승부 +5pt, 패배 시 -15pt")
+        await interaction.followup.send(embed=embed)
 
-        # 4. 변경된 펫 정보 저장 및 결과 전송
-        self.save_user_pet(guild_id, user_id, pet)
-        
-        embed = discord.Embed(title="⚙️ [어드민] 펫 상태 수동 개입", description=msg, color=discord.Color.purple())
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        
-    @app_commands.command(name="펫설정", description="[관리자 전용] 펫 상점 판매가 및 탐험 시 아이템 획득 확률을 밸런싱합니다.")
+    @app_commands.command(name="펫설정", description="[관리자 전용] 펫 상점 및 파밍 밸런싱, 유저 제한 초기화를 수행합니다.")
     @app_commands.checks.has_permissions(administrator=True) # 서버 내 실제 권한 체크
     @app_commands.default_permissions(administrator=True)    # 디스코드 메뉴 노출 설정
     @app_commands.describe(
         최상급열매가="최상급 열매의 상점 가격을 설정합니다.",
-        반지드롭확률="탐험 중 보물상자 조우 시, 전설 반지가 뜰 확률(%)을 지정합니다. (0.1 ~ 100 사이 입력)"
+        반지드롭확률="탐험 중 보물상자 조우 시, 전설 반지가 뜰 확률(%)을 지정합니다.",
+        제한초기화대상자="오늘자 상호작용 제한을 초기화할 유저를 선택하세요."
     )
-    async def admin_set_balancing(self, interaction: discord.Interaction, 최상급열매가: Optional[int] = None, 반지드롭확률: Optional[float] = None):
+    async def admin_set_balancing(self, interaction: discord.Interaction, 최상급열매가: Optional[int] = None, 반지드롭확률: Optional[float] = None, 제한초기화대상자: Optional[discord.Member] = None):
         config_path = "data/pet_config.json"
         
         # 디렉토리 체크 후 파일 로드 및 디폴트 세팅
@@ -1178,6 +1270,20 @@ class PetManager(commands.Cog):
             else:
                 return await interaction.response.send_message("❌ 확률은 0.01%에서 100.0% 사이로 지정해주셔야 합니다.", ephemeral=True)
 
+        if 제한초기화대상자 is not None:
+            pet = self.get_user_pet(str(interaction.guild_id), str(제한초기화대상자.id))
+            if pet:
+                pet.train_count_today = 0
+                pet.explore_count_today = 0
+                pet.snack_count_today = 0
+                pet.pet_count_today = 0
+                pet.sleep_count_today = 0
+                pet.bug_count_today = 0
+                self.save_user_pet(str(interaction.guild_id), str(제한초기화대상자.id), pet)
+                changes.append(f"🔄 {제한초기화대상자.display_name}님의 펫 **[{pet.name}]**의 일일 상호작용 제한이 모두 초기화되었습니다.")
+            else:
+                changes.append(f"❌ {제한초기화대상자.display_name}님은 현재 보유 중인 펫이 없어 제한 초기화에 실패했습니다.")
+
         # 수치 최종 보존
         try:
             with open(config_path, "w", encoding="utf-8") as f:
@@ -1211,9 +1317,13 @@ class StorageSwapView(discord.ui.View):
         self.active_pet = active_pet
         
         for idx, (db_id, p) in enumerate(stored_pets):
-            btn = discord.ui.Button(label=f"{idx+1}번 펫 스왑", style=discord.ButtonStyle.primary, custom_id=f"swap_{db_id}")
+            btn = discord.ui.Button(label=f"{idx+1}번 메인 교체", style=discord.ButtonStyle.primary, custom_id=f"swap_{db_id}", row=idx)
             btn.callback = self.handle_swap
             self.add_item(btn)
+            
+            rel_btn = discord.ui.Button(label=f"{idx+1}번 방생", style=discord.ButtonStyle.danger, custom_id=f"release_{db_id}", row=idx)
+            rel_btn.callback = self.handle_release
+            self.add_item(rel_btn)
             
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if str(interaction.user.id) != str(self.user_id):
@@ -1239,6 +1349,23 @@ class StorageSwapView(discord.ui.View):
         self.cog.delete_stored_pet(self.guild_id, db_id)
         
         await interaction.response.send_message(f"🔄 성공적으로 **{target_pet.name}**(으)로 스왑(교체) 되었습니다! `/보호자` 명령어를 확인하세요.", ephemeral=False)
+
+    async def handle_release(self, interaction: discord.Interaction):
+        custom_id = interaction.data["custom_id"]
+        db_id = int(custom_id.split("_")[1])
+        
+        target_pet = self.cog.get_stored_pet_by_id(self.guild_id, db_id)
+        if not target_pet:
+            await interaction.response.send_message("❌ 대상을 찾을 수 없습니다.", ephemeral=True)
+            return
+            
+        self.cog.delete_stored_pet(self.guild_id, db_id)
+        
+        # 골드 지급 보상
+        db = self.cog._get_db(int(self.guild_id))
+        db.add_user_cash(self.user_id, 5000)
+        
+        await interaction.response.send_message(f"🌱 보관함의 **{target_pet.name}**을(를) 자연으로 방생했습니다.\n(보상으로 5,000 골드를 획득했습니다.)", ephemeral=False)
 
 class MatchingCancelView(discord.ui.View):
     def __init__(self, cancel_callback):
@@ -1276,6 +1403,14 @@ class MainPetHubView(View):
             penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
             if penalty == "RUNAWAY":
                 return await interaction.response.send_message("🚨 펫이 오랫동안 방치되어 야생으로 도망갔습니다.", ephemeral=False)
+            elif penalty == "FAINTED" or getattr(pet, "is_fainted", False):
+                from pet_views import FaintedPetView
+                embed = discord.Embed(
+                    title="⚠️ 펫 건강 악화 (기절 상태) ⚠️", 
+                    description="펫이 심각한 영양실조로 기절했습니다. 방치 시 곧 영구적으로 도망갑니다!\n오직 **[치료하기 (500,000 골드)]**만 가능합니다.", 
+                    color=discord.Color.dark_red()
+                )
+                return await interaction.response.edit_message(embed=embed, view=FaintedPetView(self.cog, self.user_id, self.guild_id, pet))
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
             
         from pet_skill import DiscordUIFormatter
@@ -1405,6 +1540,14 @@ class PetInfoSubView(View):
             if penalty == "RUNAWAY":
                 await interaction.response.send_message("🚨 펫이 야생으로 도망갔습니다.", ephemeral=False)
                 return
+            elif penalty == "FAINTED" or getattr(pet, "is_fainted", False):
+                from pet_views import FaintedPetView
+                embed = discord.Embed(
+                    title="⚠️ 펫 건강 악화 (기절 상태) ⚠️", 
+                    description="펫이 심각한 영양실조로 기절했습니다. 오직 **[치료하기 (500,000 골드)]**만 가능합니다.", 
+                    color=discord.Color.dark_red()
+                )
+                return await interaction.response.edit_message(embed=embed, view=FaintedPetView(self.cog, self.user_id, self.guild_id, pet))
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
             # (여기에 있던 중복 응답 및 빈 메시지 전송 로직 삭제)
 
@@ -1492,12 +1635,19 @@ class ShopView(discord.ui.View):
         self.add_item(discord.ui.Button(label="중급 열매 (3만)", custom_id="buy_fruit_중", row=0))
         self.add_item(discord.ui.Button(label="하급 열매 (1만)", custom_id="buy_fruit_하", row=0))
         
-        self.add_item(discord.ui.Button(label="머리 장비 (15만)", custom_id="buy_equip_머리", row=1))
-        self.add_item(discord.ui.Button(label="견갑 장비 (15만)", custom_id="buy_equip_견갑", row=1))
-        self.add_item(discord.ui.Button(label="허리 장비 (15만)", custom_id="buy_equip_허리", row=1))
-        self.add_item(discord.ui.Button(label="다리 장비 (15만)", custom_id="buy_equip_다리", row=1))
+        self.add_item(discord.ui.Button(label="최상급 열매x10", custom_id="buy_fruit_상10", row=1))
+        self.add_item(discord.ui.Button(label="중급 열매x10", custom_id="buy_fruit_중10", row=1))
+        self.add_item(discord.ui.Button(label="하급 열매x10", custom_id="buy_fruit_하10", row=1))
         
-        btn = discord.ui.Button(label="처음으로", style=discord.ButtonStyle.danger, custom_id="buy_back_none", row=2)
+        self.add_item(discord.ui.Button(label="머리 장비 (15만)", custom_id="buy_equip_머리", row=2))
+        self.add_item(discord.ui.Button(label="견갑 장비 (15만)", custom_id="buy_equip_견갑", row=2))
+        self.add_item(discord.ui.Button(label="허리 장비 (15만)", custom_id="buy_equip_허리", row=2))
+        self.add_item(discord.ui.Button(label="다리 장비 (15만)", custom_id="buy_equip_다리", row=2))
+        
+        # 3. 소모품 (row=3)
+        self.add_item(discord.ui.Button(label="🧪 망각의 물약 (5만)", style=discord.ButtonStyle.secondary, custom_id="buy_potion_망각", row=3))
+        
+        btn = discord.ui.Button(label="처음으로", style=discord.ButtonStyle.danger, custom_id="buy_back_none", row=4)
         self.add_item(btn)
         
         for item in self.children:
@@ -1543,22 +1693,33 @@ class ShopView(discord.ui.View):
             return
 
         price = 0
+        amount = 1
+        real_item_name = item_name
+
         if item_type == "fruit":
-            if item_name == "상":
-                price = 50000
+            if item_name.endswith("10"):
+                amount = 10
+                real_item_name = item_name[:-2]
+                
+            if real_item_name == "상":
+                base_price = 50000
                 if os.path.exists("data/pet_config.json"):
                     try:
                         with open("data/pet_config.json", "r", encoding="utf-8") as f:
                             cfg = json.load(f)
-                            price = cfg.get("fruit_high_price", 50000)
+                            base_price = cfg.get("fruit_high_price", 50000)
                     except Exception: 
                         pass
-            elif item_name == "중": 
-                price = 30000
-            elif item_name == "하": 
-                price = 10000
+                price = base_price * amount
+            elif real_item_name == "중": 
+                price = 30000 * amount
+            elif real_item_name == "하": 
+                price = 10000 * amount
         elif item_type == "equip":
             price = 150000
+        elif item_type == "potion":
+            if item_name == "망각":
+                price = 50000 * amount
             
         if cash < price:
             await interaction.response.send_message("❌ 보유 자산이 부족합니다.", ephemeral=True)
@@ -1568,20 +1729,20 @@ class ShopView(discord.ui.View):
         
         msg = ""
         if item_type == "fruit":
-            pet.inventory["열매"][item_name] = pet.inventory["열매"].get(item_name, 0) + 1
-            msg = f"🛒 {item_name}급 열매를 구매하여 가방에 넣었습니다!"
+            pet.inventory["열매"][real_item_name] = pet.inventory["열매"].get(real_item_name, 0) + amount
+            msg = f"🛒 {real_item_name}급 열매 {amount}개를 구매하여 가방에 넣었습니다!"
         elif item_type == "equip":
             pet.inventory["장비"].append({"부위": item_name, "등급": "일반"})
             msg = f"🛒 일반 등급 {item_name} 장비를 구매하여 가방에 넣었습니다!"
+        elif item_type == "potion":
+            if "소모품" not in pet.inventory:
+                pet.inventory["소모품"] = {}
+            pet.inventory["소모품"][item_name] = pet.inventory["소모품"].get(item_name, 0) + amount
+            msg = f"🛒 🧪 {item_name}의 물약 {amount}개를 구매하여 가방에 넣었습니다!"
             
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
-        # 1. 펫 상태창 임베드 데이터 생성
         pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-
-        # 2. 결과 임베드 생성 (msg를 여기에 담습니다)
-        pet_data = DiscordUIFormatter.make_pet_embed_data(pet)
-
         embed = discord.Embed(title=f"명령: {act_name}", description=msg, color=0x2ecc71)
         for f in pet_data.get("fields", []):
             embed.add_field(
@@ -1592,18 +1753,6 @@ class ShopView(discord.ui.View):
 
         await interaction.response.edit_message(content=f"✅ {msg}", embed=embed, view=self)
         
-        # 3. 펫 상태창 필드 추가
-        for f in pet_data["fields"]:
-            embed.add_field(name=f["name"], value=f["value"], inline=f["inline"])
-        
-        # 4. 이미지 처리
-        pet_image_url = pet_data.get("image_url")
-        if pet_image_url:
-            embed.set_thumbnail(url=pet_image_url)
-        
-        user_data = db.get_user(self.user_id)
-        
-        # 최상급 열매 가격 재호출
         fruit_top_price = 50000
         if os.path.exists("data/pet_config.json"):
             try:
@@ -1621,7 +1770,6 @@ class ShopView(discord.ui.View):
         embed.add_field(name="🍎 열매 (포만감 회복)", value=f"- 최상급 열매 (포만감 +30): {fruit_top_price:,}원\n- 중급 열매 (포만감 +15): 30,000원\n- 하급 열매 (포만감 +5): 10,000원", inline=False)
         embed.add_field(name="🛡️ 일반 장비", value="- 머리/견갑/허리/다리 각 부위: 150,000원\n- 기본 스탯: HP +5, ATK +5, SPD +5", inline=False)
 
-        # 3. 후속 전송 (Followup): 완성된 상점 페이지 전송
         try:
             await interaction.followup.send(embed=embed, view=ShopView(self.cog, self.user_id, self.guild_id))
         except Exception as e:
@@ -1825,19 +1973,47 @@ class PvPInteractiveView(discord.ui.View):
             
             if result == "A":
                 pet.win_count = getattr(pet, 'win_count', 0) + 1
-                pet.gain_exp(200 if not is_ranked else 300)
+                exp_result, evo_embed = pet.gain_exp(200 if not is_ranked else 300)
                 if is_ranked:
+                    old_score = rank_score
                     rank_score += 25
-                    embed.add_field(name="결과", value=f"🎉 [랭크전 승리!] 경험치 300과 랭크 점수 25점을 획득했습니다! (현재 점수: {rank_score}점)", inline=False)
+                    my_rank = self.cog.get_server_rank(self.guild_id, self.user_id, rank_score)
+                    embed.add_field(
+                        name="🎉 [랭크전 승리!]",
+                        value=(f"경험치 **300** 획득!\n"
+                               f"포인트: **{old_score}** → **{rank_score}** (**+25**)\n"
+                               f"서버 순위: **{my_rank}위**"),
+                        inline=False
+                    )
                 else:
                     embed.add_field(name="결과", value="🎉 승리하여 경험치 200과 전적을 획득했습니다!", inline=False)
             elif result == "DRAW":
-                pet.gain_exp(50)
-                embed.add_field(name="결과", value="🤝 무승부! 약간의 경험치를 획득했습니다.", inline=False)
-            else:
+                exp_result, evo_embed = pet.gain_exp(50)
                 if is_ranked:
+                    old_score = rank_score
+                    rank_score += 5
+                    my_rank = self.cog.get_server_rank(self.guild_id, self.user_id, rank_score)
+                    embed.add_field(
+                        name="🤝 [랭크전 무승부]",
+                        value=(f"약간의 경험치 획득!\n"
+                               f"포인트: **{old_score}** → **{rank_score}** (**+5**)\n"
+                               f"서버 순위: **{my_rank}위**"),
+                        inline=False
+                    )
+                else:
+                    embed.add_field(name="결과", value="🤝 무승부! 약간의 경험치를 획득했습니다.", inline=False)
+            else:
+                evo_embed = None
+                if is_ranked:
+                    old_score = rank_score
                     rank_score = max(0, rank_score - 15)
-                    embed.add_field(name="결과", value=f"💀 [랭크전 패배...] 랭크 점수가 15점 하락했습니다. (현재 점수: {rank_score}점)", inline=False)
+                    my_rank = self.cog.get_server_rank(self.guild_id, self.user_id, rank_score)
+                    embed.add_field(
+                        name="💧 [랭크전 패배...]",
+                        value=(f"포인트: **{old_score}** → **{rank_score}** (**-15**)\n"
+                               f"서버 순위: **{my_rank}위**"),
+                        inline=False
+                    )
                 else:
                     embed.add_field(name="결과", value="💀 패배했습니다. 다음 기회를 노리세요!", inline=False)
             
@@ -1850,6 +2026,13 @@ class PvPInteractiveView(discord.ui.View):
                     db.execute_query("UPDATE users SET pet_rank_score = ? WHERE user_id = ? AND guild_id = ?", (rank_score, self.user_id, self.guild_id), 'none')
                 except Exception as e:
                     print(f"랭크 점수 업데이트 실패: {e}")
+            
+            # 진화 임베드 발송
+            if evo_embed:
+                try:
+                    await interaction.followup.send(embed=evo_embed)
+                except Exception:
+                    pass
 
             # 최종 상태창 표시 데이터 덧붙이기
             from pet_skill import DiscordUIFormatter
@@ -1881,7 +2064,7 @@ class PvPInteractiveView(discord.ui.View):
             pet.pvp_count = getattr(pet, 'pvp_count', 0) + 1
             if result == "A":
                 pet.win_count = getattr(pet, 'win_count', 0) + 1
-                pet.gain_exp(200)
+                exp_str, evo_embed = pet.gain_exp(200)
                 
                 # 1. 결과값 받기
                 result_code, message = pet.try_learn_skill()
@@ -1899,10 +2082,15 @@ class PvPInteractiveView(discord.ui.View):
                     )
                 else:
                     embed.add_field(name="스킬 습득", value=message, inline=False)
+                
+                if evo_embed:
+                    await self.message.channel.send(embed=evo_embed)
 
             elif result == "DRAW":
-                pet.gain_exp(50)
+                exp_str, evo_embed = pet.gain_exp(50)
                 embed.add_field(name="결과", value="🤝 무승부! 약간의 경험치를 획득했습니다.", inline=False)
+                if evo_embed:
+                    await self.message.channel.send(embed=evo_embed)
             else:
                 embed.add_field(name="결과", value="💀 패배했습니다. 다음 기회를 노리세요!", inline=False)
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
@@ -1987,6 +2175,14 @@ class PetActionExecutionView(View):
         penalty = self.cog.check_penalties_and_update(self.guild_id, self.user_id, pet)
         if penalty == "RUNAWAY":
             return await interaction.followup.send("🚨 펫이 굶주림 방치로 인해 야생으로 도망갔습니다.", ephemeral=False)
+        elif penalty == "FAINTED" or getattr(pet, "is_fainted", False):
+            from pet_views import FaintedPetView
+            embed = discord.Embed(
+                title="⚠️ 펫 건강 악화 (기절 상태) ⚠️", 
+                description="펫이 심각한 영양실조로 기절했습니다. 오직 **[치료하기 (500,000 골드)]**만 가능합니다.", 
+                color=discord.Color.dark_red()
+            )
+            return await interaction.followup.send(embed=embed, view=FaintedPetView(self.cog, self.user_id, self.guild_id, pet))
             
         # 기분 최악일 때 행동 거부 로직
         if pet.mood_state == "화남" and act_name not in ["PvP", "랭크전"]:
@@ -2073,6 +2269,12 @@ class PetActionExecutionView(View):
                 pet.fullness = min(100, pet.fullness + heal_amount)
                 pet.stress = max(0, pet.stress - 10)
                 
+                # 퀘스트 카운터 연동
+                if hasattr(pet, 'daily_quests') and "feed" in pet.daily_quests:
+                    q = pet.daily_quests["feed"]
+                    if q["count"] < q["target"]:
+                        q["count"] += 1
+                
                 if climate.weather == "폭염":
                     pet.fullness = max(0, pet.fullness - 15)
                     msg = f"🍖 [{used_fruit}급 열매]를 먹였습니다. (포만감: {int(pet.fullness)}/100, 스트레스: {pet.stress}/100)\n🔥 [폭염] 더위로 인해 포만감이 빠르게 줄어듭니다."
@@ -2095,12 +2297,22 @@ class PetActionExecutionView(View):
                 pet.pet_count_today += 1
                 pet.affinity = min(300, pet.affinity + 15)
                 msg = "👋 정성스레 쓰다듬었습니다."
+                # 퀘스트 카운터 연동
+                if hasattr(pet, 'daily_quests') and "stroke" in pet.daily_quests:
+                    q = pet.daily_quests["stroke"]
+                    if q["count"] < q["target"]:
+                        q["count"] += 1
         elif act_name == "청소하기":
             pet.cleanliness = min(100, pet.cleanliness + 50)
             msg = "🧼 깨끗이 청소했습니다!"
+            # 퀘스트 카운터 연동
+            if hasattr(pet, 'daily_quests') and "clean" in pet.daily_quests:
+                q = pet.daily_quests["clean"]
+                if q["count"] < q["target"]:
+                    q["count"] += 1
         elif act_name in ["놀아주기", "장난감"]:
             pet.mood_score = min(100, pet.mood_score + 25)
-            exp_result = pet.gain_exp(40)
+            exp_result, evo_embed = pet.gain_exp(40)
             msg = f"🧸 장난감을 활용해 신나게 놀아주었습니다! 기분이 대폭 상승합니다.\n{exp_result}"
         elif act_name in ["재우기", "휴식"]:
             if getattr(pet, 'sleep_count_today', 0) >= 5:
@@ -2120,13 +2332,17 @@ class PetActionExecutionView(View):
             else:
                 pet.bug_count_today += 1
                 pet.affinity = min(300, pet.affinity + 5)
-                exp_result = pet.gain_exp(15)
+                exp_result, evo_embed = pet.gain_exp(15)
                 msg = f"🐛 펫과 힘을 합쳐 풀밭의 벌레를 잡았습니다!\n{exp_result}"
         elif act_name == "산책":
             pet.mood_score = min(100, pet.mood_score + 15)
             pet.affinity = min(300, pet.affinity + 10)
-            exp_result = pet.gain_exp(20)
+            exp_result, evo_embed = pet.gain_exp(20)
             msg = f"🌳 맑은 공기를 쐬며 산책을 다녀왔습니다.\n{exp_result}"
+            
+            if climate.weather == "폭염":
+                pet.stress = min(100, pet.stress + 15)
+                msg += "\n🔥 [폭염] 더운 날씨에 무리한 산책으로 펫이 크게 지쳐 스트레스를 받았습니다!"
         elif act_name == "훈련":
             if pet.train_count_today >= 3:
                 msg = "❌ 오늘 훈련할 수 있는 최대 횟수(3회)를 초과했습니다! 내일 다시 시도하세요."
@@ -2134,7 +2350,13 @@ class PetActionExecutionView(View):
                 pet.train_count += 1
                 pet.train_count_today += 1
                 pet.stress = min(100, pet.stress + 15)
-                exp_result = pet.gain_exp(60)
+                exp_result, evo_embed = pet.gain_exp(60)
+                
+                # 퀴스트 카운터 연동
+                if hasattr(pet, 'daily_quests') and "train" in pet.daily_quests:
+                    q = pet.daily_quests["train"]
+                    if q["count"] < q["target"]:
+                        q["count"] += 1
                 
                 # 📌 꼬여있던 부분 정리: 바로 메시지와 튜플을 받아냅니다.
                 msg = f"🏋️ 집중 훈련을 단행했습니다! (오늘 훈련: {pet.train_count_today}/3)\n{exp_result}"
@@ -2180,7 +2402,7 @@ class PetActionExecutionView(View):
             if climate.season == "가을":
                 base_exp = int(base_exp * 1.1)
 
-            exp_result = pet.gain_exp(base_exp)
+            exp_result, evo_embed = pet.gain_exp(base_exp)
 
             msg = f"🗺️ **{pet.name}**이(가) 외부 지역으로 탐험을 떠났습니다! (오늘 탐험: {pet.explore_count_today}/3)\n{exp_result}"
             
@@ -2193,6 +2415,8 @@ class PetActionExecutionView(View):
                 msg += "\n🍁 [가을] 가을 시즌 효과로 탐험 보상이 10% 증가했습니다!"
             if climate.weather == "강풍":
                 msg += "\n💨 [강풍] 강풍을 타고 이동거리가 늘어나 탐험 보상을 더 많이 발견했습니다!"
+            if climate.weather in ["비", "안개"]:
+                msg += f"\n🌧️ [{climate.weather}] 궂은 날씨 속에서 숨겨진 아이템을 발견할 징조가 보입니다!"
 
             # 4. ⚔️ 성체/최종 진화 단계 펫 전용 추가 보상 (반지 제외 일반 장비)
             if pet.stage in ["성체", "최종 진화"]:
@@ -2249,7 +2473,7 @@ class PetActionExecutionView(View):
 
                 elif event_roll < 0.85: # 야생 맹수
                     pet.fullness = max(0, pet.fullness - 30)
-                    extra_exp = pet.gain_exp(base_exp)
+                    extra_exp, extra_evo_embed = pet.gain_exp(base_exp)
                     msg += f"\n\n🐺 **[야생 맹수의 습격]** 맹수에게서 도망치느라 포만감이 크게 줄었지만, 생존 본능이 자극되어 경험치를 두 배로 얻었습니다!\n{extra_exp}"
 
                 else: # 🎁 보물 상자 ('변하지 않는 반지' 드롭!)
@@ -2281,7 +2505,7 @@ class PetActionExecutionView(View):
 
         elif act_name == "채집":
             pet.stress = min(100, pet.stress + 15)
-            exp_result = pet.gain_exp(30)
+            exp_result, evo_embed = pet.gain_exp(30)
             db = self.cog._get_db(interaction.guild.id)
             find_gold = random.randint(100, 300)
             db.add_user_cash(str(interaction.user.id), find_gold)
@@ -2315,6 +2539,16 @@ class PetActionExecutionView(View):
         if ult:
             msg += f"\n\n🎉 **[각성]** {pet.name}이(가) 깊은 교감을 통해 전용 궁극기 `{ult}`을(를) 깨우쳤습니다!"
             
+        # [추가] 스트레스 100 도달 시 도주 페널티
+        if getattr(pet, 'stress', 0) >= 100:
+            self.cog.delete_user_pet(self.guild_id, self.user_id)
+            embed = discord.Embed(
+                title="💔 펫 도주...",
+                description=f"**{pet.name}**이(가) 극심한 스트레스(100/100)를 견디지 못하고 도망갔습니다...\n\n안타깝지만, 펫을 잃었습니다.",
+                color=0xe74c3c
+            )
+            return await interaction.edit_original_response(content=None, embed=embed, view=None)
+
         # 1. DB 저장 (가장 먼저 안전하게 처리)
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 

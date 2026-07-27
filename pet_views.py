@@ -24,6 +24,43 @@ async def go_to_home(interaction, cog, user_id, guild_id):
     else:
         await interaction.response.edit_message(embed=embed, view=MainPetHubView(cog, user_id, guild_id))
 
+class FaintedPetView(View):
+    def __init__(self, cog, user_id, guild_id, pet):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.user_id = user_id
+        self.guild_id = guild_id
+        self.pet = pet
+
+    @discord.ui.button(label="치료하기 (500,000 골드)", style=discord.ButtonStyle.danger)
+    async def heal_pet(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != str(self.user_id):
+            return await interaction.response.send_message("🚫 보호자가 아닙니다.", ephemeral=True)
+            
+        db = self.cog._get_db(int(self.guild_id))
+        user_data = db.get_user(self.user_id)
+        cash = user_data.get('cash', 0) if user_data else 0
+        
+        if cash < 500000:
+            return await interaction.response.send_message("❌ 골드가 부족합니다.", ephemeral=True)
+            
+        # 골드 차감 및 상태 완전 회복
+        db.add_user_cash(self.user_id, -500000)
+        self.pet.is_fainted = False
+        self.pet.faint_time = None
+        self.pet.zero_fullness_time = None
+        self.pet.zero_cleanliness_time = None
+        self.pet.fullness = 100
+        self.pet.cleanliness = 100
+        self.pet.energy = 100
+        self.pet.stress = 0
+        self.pet.mood_score = 100
+        self.cog.save_user_pet(self.guild_id, self.user_id, self.pet)
+        
+        await interaction.response.send_message("💖 펫이 성공적으로 치료되었습니다! 다시 건강해졌습니다.", ephemeral=True)
+        await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
+
+
 # 1. ⚔️ 스킬 관리 뷰
 class SkillManageView(View):
     def __init__(self, cog, user_id, guild_id):
@@ -50,6 +87,54 @@ class SkillManageView(View):
     @discord.ui.button(label="돌아가기", style=discord.ButtonStyle.danger, row=1)
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
         await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
+
+    @discord.ui.button(label="🧪 망각의 물약 사용", style=discord.ButtonStyle.secondary, row=1)
+    async def use_forget_potion(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pet = self.cog.get_user_pet(self.guild_id, self.user_id)
+        if not pet or not pet.skills:
+            return await interaction.response.send_message("❌ 지울 스킬이 없습니다.", ephemeral=True)
+            
+        potion_count = pet.inventory.get("소모품", {}).get("망각", 0)
+        if potion_count <= 0:
+            return await interaction.response.send_message("❌ [망각의 물약]이 없습니다. 상점에서 구매해주세요.", ephemeral=True)
+            
+        await interaction.response.send_message(
+            "🧪 어떤 스킬을 지우시겠습니까? (망각의 물약 1개 소모)",
+            view=SkillForgetSelectionView(self.cog, self.user_id, self.guild_id),
+            ephemeral=True
+        )
+
+# pet_views.py에 추가
+class SkillForgetSelectionView(discord.ui.View):
+    def __init__(self, cog, user_id, guild_id):
+        super().__init__()
+        pet = cog.get_user_pet(guild_id, user_id)
+        for skill in pet.skills:
+            self.add_item(self.create_button(skill, cog, user_id, guild_id))
+
+    def create_button(self, skill_name, cog, user_id, guild_id):
+        btn = discord.ui.Button(label=f"{skill_name} 지우기", style=discord.ButtonStyle.danger)
+        
+        async def callback(interaction: discord.Interaction):
+            pet = cog.get_user_pet(guild_id, user_id)
+            potion_count = pet.inventory.get("소모품", {}).get("망각", 0)
+            if potion_count <= 0:
+                return await interaction.response.send_message("❌ [망각의 물약]이 부족합니다.", ephemeral=True)
+                
+            if skill_name in pet.skills:
+                # 아이템 차감
+                pet.inventory["소모품"]["망각"] -= 1
+                pet.skills.remove(skill_name)
+                cog.save_user_pet(guild_id, user_id, pet)
+                await interaction.response.edit_message(
+                    content=f"🧪 **{skill_name}** 스킬을 잊었습니다... (남은 물약: {pet.inventory['소모품']['망각']}개)",
+                    view=None
+                )
+            else:
+                await interaction.response.send_message("❌ 해당 스킬을 찾을 수 없습니다.", ephemeral=True)
+                
+        btn.callback = callback
+        return btn
 
 # pet_views.py에 추가
 class SkillSelectionView(discord.ui.View):
@@ -249,31 +334,63 @@ class QuestView(View):
                 ephemeral=True
             )
 
-        # 미완료 퀘스트 목록 수집
+        # 미완료 퀘스트 목록 수집 (부분 완료도 보상 지급 - 달성한 수만큼 지급)
+        completed = 0
         incomplete = []
         for q_id, status in daily_quests.items():
-            if status["count"] < status["target"]:
+            if status["count"] >= status["target"]:
+                completed += 1
+            else:
                 quest_info = next((q for q in self.cog.quest_pool if q["id"] == q_id), None)
                 name = quest_info["name"] if quest_info else q_id
                 incomplete.append(f"• {name} ({status['count']}/{status['target']}회)")
 
-        if incomplete:
+        if completed == 0:
             return await interaction.response.send_message(
-                "❌ 아직 달성하지 못한 퀘스트가 있습니다!\n" + "\n".join(incomplete),
+                "❌ 아직 달성한 퀘스트가 없습니다!\n" + "\n".join(incomplete),
                 ephemeral=True
             )
 
-        # 4. 보상 지급 — 하급 열매 5개
+        # 4. 보상 지급 — 달성 퀘스트 수에 비례한 보상
+        db = self.cog._get_db(int(self.guild_id))
         if "열매" not in pet.inventory:
             pet.inventory["열매"] = {}
-        pet.inventory["열매"]["하"] = pet.inventory["열매"].get("하", 0) + 5
+
+        reward_lines = []
+        total_quests = len(daily_quests)
+
+        if completed == total_quests:
+            # 전체 달성 보상 — 최상급
+            pet.inventory["열매"]["중"] = pet.inventory["열매"].get("중", 0) + 3
+            pet.inventory["열매"]["하"] = pet.inventory["열매"].get("하", 0) + 5
+            gold_reward = 30000
+            exp_reward = 300
+            reward_lines.append("🏆 **[완벽 달성]** 중급 열매 3개 + 하급 열매 5개 + 경험치 300 + 30,000 골드")
+        elif completed >= total_quests // 2 + 1:
+            # 절반 이상 달성
+            pet.inventory["열매"]["하"] = pet.inventory["열매"].get("하", 0) + 5
+            gold_reward = 15000
+            exp_reward = 150
+            reward_lines.append("🎁 **[부분 달성]** 하급 열매 5개 + 경험치 150 + 15,000 골드")
+        else:
+            # 1개 이상 달성
+            pet.inventory["열매"]["하"] = pet.inventory["열매"].get("하", 0) + 2
+            gold_reward = 5000
+            exp_reward = 50
+            reward_lines.append("📦 **[일부 달성]** 하급 열매 2개 + 경험치 50 + 5,000 골드")
+
+        db.add_user_cash(self.user_id, gold_reward)
+        pet.gain_exp(exp_reward)
+
+        if incomplete:
+            reward_lines.append(f"\n미완료 퀘스트 ({len(incomplete)}개):\n" + "\n".join(incomplete))
 
         # 5. 수령 기록 업데이트 및 저장
         pet.last_reward_date = today
         self.cog.save_user_pet(self.guild_id, self.user_id, pet)
 
         await interaction.response.send_message(
-            "🎁 일일 퀘스트 **전부 달성** 완료!\n보상으로 **하급 열매 5개** 🍎가 가방에 지급되었습니다!",
+            f"🎁 일일 퀘스트 **{completed}/{total_quests}** 달성!\n" + "\n".join(reward_lines),
             ephemeral=False
         )
 
