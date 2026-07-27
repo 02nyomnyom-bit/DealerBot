@@ -347,8 +347,12 @@ class Pet:
         if 101 <= self.affinity <= 150:
             amount = int(amount * 1.05)
 
+        # 🚀 사용자 요청: 경험치 획득량 10배로 대폭 상향!
+        original_amount = amount
+        amount = amount * 10
+
         self.exp += amount
-        energy_cost = int(amount * 0.5)
+        energy_cost = int(original_amount * 0.5)
         if getattr(self, 'personality', None) == "나태":
             energy_cost = int(energy_cost * 0.5)  # 에너지 소모 50% 감소
         self.energy = max(0, self.energy - energy_cost)  # 소모한 만큼 에너지 감소
