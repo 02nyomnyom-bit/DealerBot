@@ -333,7 +333,7 @@ class Pet:
                 self.skills.append("화염 방사")
 
         if self.energy <= 0:
-            return "❌ 에너지가 전부 소진되어 더 이상 경험치를 지급받지 못합니다! [재우기]나 [휴식]을 통해 회복시키세요."
+            return ("❌ 에너지가 전부 소진되어 더 이상 경험치를 지급받지 못합니다! [재우기]나 [휴식]을 통해 회복시키세요.", None)
             
         # 기분 버프/너프 반영
         if self.mood_state == "행복":
