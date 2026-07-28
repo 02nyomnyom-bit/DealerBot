@@ -505,7 +505,14 @@ class Pet:
         if random.random() > success_chance:
             return ("FAIL", "...아쉽게도 새로운 스킬을 떠올리지 못했습니다.")
 
-        new_skill = get_random_skill_by_type(self.main_type)
+        # 중복 스킬 방지 로직 (최대 10번 시도)
+        for _ in range(10):
+            new_skill = get_random_skill_by_type(self.main_type)
+            if new_skill not in self.skills:
+                break
+        else:
+            # 10번 모두 중복이면 배울 수 있는 스킬이 부족한 것으로 처리
+            return ("FAIL", "...새로운 스킬을 떠올리려 했지만 이미 아는 기술이었습니다.")
         
         if not is_full:
             self.skills.append(new_skill)
@@ -891,12 +898,12 @@ class PetManager(commands.Cog):
         return "SUCCESS", "", embed
         
     def get_server_rank(self, guild_id: str, user_id: str, new_score: int = None) -> int:
-        """서버 내 릭크 순위를 반환합니다. new_score를 주면 그 점수 기준으로 계산."""
+        """서버 내 랭크 순위를 반환합니다. new_score를 주면 그 점수 기준으로 계산."""
         try:
             db = self._get_db(int(guild_id))
             rows = db.execute_query(
-                "SELECT user_id, pet_rank_score FROM users WHERE guild_id = ? ORDER BY pet_rank_score DESC",
-                (guild_id,), 'all'
+                "SELECT user_id, pet_rank_score FROM users ORDER BY pet_rank_score DESC",
+                (), 'all'
             )
             if not rows:
                 return 1
@@ -913,12 +920,12 @@ class PetManager(commands.Cog):
             return 0
 
     def get_server_ranking_list(self, guild_id: str, top_n: int = 10) -> list:
-        """서버 내 릭크 상위 top_n명의 (user_id, score, pet_name) 리스트를 반환합니다."""
+        """서버 내 랭크 상위 top_n명의 (user_id, score, pet_name) 리스트를 반환합니다."""
         try:
             db = self._get_db(int(guild_id))
             rows = db.execute_query(
-                "SELECT user_id, pet_rank_score FROM users WHERE guild_id = ? ORDER BY pet_rank_score DESC LIMIT ?",
-                (guild_id, top_n), 'all'
+                "SELECT user_id, pet_rank_score FROM users ORDER BY pet_rank_score DESC LIMIT ?",
+                (top_n,), 'all'
             )
             result = []
             for row in rows:
@@ -1062,77 +1069,6 @@ class PetManager(commands.Cog):
         view = StorageSwapView(self, user_id, guild_id, stored, active_pet)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
-    @app_commands.command(name="방생", description="현재 키우는 펫 중 하나를 자연으로 방생합니다. (이름 일치 필수, 3일 경과 제약)")
-    @app_commands.describe(펫이름="방생하여 영구 작별할 펫의 이름")
-    async def release_pet_cmd(self, interaction: discord.Interaction, 펫이름: str):
-        user_id = str(interaction.user.id)
-        guild_id = str(interaction.guild.id)
-        
-        # 1. 메인 펫 및 보관함 펫 목록 중 이름 매칭 수색
-        active_pet = self.get_user_pet(guild_id, user_id)
-        stored_pets = self.get_stored_pets(guild_id, user_id) # list of (db_id, Pet)
-        
-        target_pet: Optional[Pet] = None
-        is_active = False
-        db_id_to_delete = None
-        
-        if active_pet and active_pet.name == 펫이름:
-            target_pet = active_pet
-            is_active = True
-        else:
-            for db_id, p in stored_pets:
-                if p.name == 펫이름:
-                    target_pet = p
-                    db_id_to_delete = db_id
-                    break
-                    
-        if not target_pet:
-            await interaction.response.send_message(f"❌ 보호 중인 펫 중 이름이 **[{펫이름}]**인 아이를 찾을 수 없습니다. 다시 확인해 주세요.", ephemeral=False)
-            return
-
-        # 2. 입양 3일(72시간 / 259,200초) 제약 검사
-        elapsed_time = time.time() - target_pet.created_time
-        required_time = 3 * 86400
-        
-        if elapsed_time < required_time:
-            remaining = required_time - elapsed_time
-            days = int(remaining // 86400)
-            hours = int((remaining % 86400) // 3600)
-            minutes = int((remaining % 3600) // 60)
-            
-            time_msg = f"**{days}일 {hours}시간 {minutes}분**" if days > 0 else f"**{hours}시간 {minutes}분**"
-            await interaction.response.send_message(
-                f"❌ 아직 보호자와 함께한 시간이 짧습니다! 펫은 충분한 신뢰를 형성한 뒤에야 방생할 수 있습니다.\n"
-                f"⏱️ **방생 조건 충족까지 남은 시간:** {time_msg} (최소 3일 동행 필수)", 
-                ephemeral=True
-            )
-            return
-
-        # 3. 방생용 무작위 편지 선택 (5종)
-        letters = [
-            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"주인과 함께 생활한 것은 정말 즐거웠어! 잊지 못할 추억을 만들어 줘서 고마워. 새주인을 만나면 거기서도 잘지낼게!\"",
-            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"그동안 정말 고마웠어. 주인 곁에서 떠나더라도 친구인 건 변함없지? 가끔은 생각해 줘!\"",
-            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"그래, 주인이 그렇게 생각했다면 마음 편히 떠나야겠지. 그동안 정말 고마웠어!\"",
-            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"주인과 보낸 시간들은 온통 맑은 날 같았어. 나 없는 곳에서도 밥 제때 챙겨 먹고 아프지 마! 정말 고마웠어!\"",
-            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"서운했던 마음도 다 잊혀질 만큼 행복했어. 주인과의 따뜻했던 온기를 가슴속에 품고 씩씩하게 살아갈게. 안녕!\""
-        ]
-        chosen_letter = random.choice(letters)
-
-        # 4. 소멸 처리
-        if is_active:
-            self.delete_user_pet(guild_id, user_id)
-        else:
-            self.delete_stored_pet(guild_id, db_id_to_delete)
-
-        embed = discord.Embed(
-            title="🍃 숲속으로 떠나는 안녕",
-            description=f"**[{target_pet.name}]**이(가) 주인과의 추억을 정리하며 편지를 남기고 스스로 떠납니다.",
-            color=0x2ecc71
-        )
-        embed.add_field(name="✉️ 남겨진 편지 한 통", value=chosen_letter, inline=False)
-        embed.set_footer(text="펫은 자연의 품에서 무사히 뛰어놀며, 새로운 시작을 응원합니다.")
-        
-        await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="날씨", description="신비섬의 현재 실시간 기후 및 날씨를 확인합니다.")
     async def view_weather(self, interaction: discord.Interaction):
@@ -1194,7 +1130,7 @@ class PetManager(commands.Cog):
 
 
         
-    @app_commands.command(name="펫랜킹", description="서버 내 펫 랜크전 순위와 내 순위를 확인합니다.")
+    @app_commands.command(name="펫랭킹", description="서버 내 펫 랭크전 순위와 내 순위를 확인합니다.")
     async def pet_ranking(self, interaction: discord.Interaction):
         await interaction.response.defer()
         guild_id = str(interaction.guild_id)
@@ -1219,7 +1155,7 @@ class PetManager(commands.Cog):
         desc = "\n".join(lines) if lines else "랭크전 진행 중인 유저가 없습니다."
 
         embed = discord.Embed(
-            title="⚡ 서버 펫 랜크 리더보드",
+            title="⚡ 서버 펫 랭크 리더보드",
             description=desc,
             color=0xf1c40f
         )
@@ -1228,7 +1164,7 @@ class PetManager(commands.Cog):
             value=f"**{my_rank}위** | 점수: **{my_score:,}pt**",
             inline=False
         )
-        embed.set_footer(text="랜크전 승리 시 +25pt, 무승부 +5pt, 패배 시 -15pt")
+        embed.set_footer(text="랭크전 승리 시 +40pt, 무승부 +10pt, 패배 시 -20pt")
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="펫설정", description="[관리자 전용] 펫 상점 및 파밍 밸런싱, 유저 제한 초기화를 수행합니다.")
@@ -1309,6 +1245,65 @@ class PetManager(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
+    @app_commands.command(name="랭크마감", description="[관리자 전용] 랭크 시즌을 마감하고 순위별 보상을 지급 후 전체 점수를 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.default_permissions(administrator=True)
+    async def rank_season_close(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        guild_id = str(interaction.guild.id)
+        db = self._get_db(interaction.guild.id)
+
+        # 시즌 보상 테이블 (순위 → 골드)
+        season_rewards = {
+            1: 500000,
+            2: 300000,
+            3: 150000,
+            4: 80000,
+            5: 50000,
+        }
+
+        ranking = self.get_server_ranking_list(guild_id, top_n=10)
+        if not ranking:
+            return await interaction.followup.send("❌ 랭크 데이터가 없습니다.", ephemeral=True)
+
+        reward_lines = []
+        medal = ["🥇", "🥈", "🥉"]
+
+        for rank_pos, (user_id, score, pet_name) in enumerate(ranking, 1):
+            gold = season_rewards.get(rank_pos, 0)
+            icon = medal[rank_pos - 1] if rank_pos <= 3 else f"**{rank_pos}위**"
+            member = interaction.guild.get_member(int(user_id))
+            name = member.display_name if member else f"ID:{user_id}"
+
+            if gold > 0:
+                db.add_user_cash(user_id, gold)
+                reward_lines.append(f"{icon} **{name}** — {pet_name} | {score:,}pt → 보상 **{gold:,} 골드** 지급")
+            else:
+                reward_lines.append(f"**{rank_pos}위** **{name}** — {pet_name} | {score:,}pt")
+
+        # 전체 유저 랭크 점수 1000으로 초기화 (해당 서버 DB만)
+        try:
+            db.execute_query(
+                "UPDATE users SET pet_rank_score = 1000",
+                (), 'none'
+            )
+        except Exception as e:
+            return await interaction.followup.send(f"❌ 점수 초기화 실패: {e}", ephemeral=True)
+
+        embed = discord.Embed(
+            title="🏆 랭크 시즌 종료!",
+            description="시즌 순위별 보상이 지급되었습니다.\n모든 랭크 점수는 **1,000pt**로 초기화되었습니다.",
+            color=0xf39c12
+        )
+        embed.add_field(name="📊 시즌 최종 순위", value="\n".join(reward_lines) or "데이터 없음", inline=False)
+        embed.add_field(
+            name="💰 보상 안내",
+            value="1위: 500,000 골드\n2위: 300,000 골드\n3위: 150,000 골드\n4위: 80,000 골드\n5위: 50,000 골드",
+            inline=False
+        )
+        embed.set_footer(text=f"시즌 마감 실행자: {interaction.user.display_name}")
+        await interaction.followup.send(embed=embed)
+
 
 # --- 보관함 스왑 뷰 ---
 class StorageSwapView(discord.ui.View):
@@ -1355,21 +1350,57 @@ class StorageSwapView(discord.ui.View):
         await interaction.response.send_message(f"🔄 성공적으로 **{target_pet.name}**(으)로 스왑(교체) 되었습니다! `/보호자` 명령어를 확인하세요.", ephemeral=False)
 
     async def handle_release(self, interaction: discord.Interaction):
+        import random, time
         custom_id = interaction.data["custom_id"]
         db_id = int(custom_id.split("_")[1])
         
         target_pet = self.cog.get_stored_pet_by_id(self.guild_id, db_id)
         if not target_pet:
-            await interaction.response.send_message("❌ 대상을 찾을 수 없습니다.", ephemeral=True)
-            return
-            
+            return await interaction.response.send_message("❌ 대상을 찾을 수 없습니다.", ephemeral=True)
+        
+        # 3일(72시간) 제약 검사
+        elapsed_time = time.time() - target_pet.created_time
+        required_time = 3 * 86400
+        
+        if elapsed_time < required_time:
+            remaining = required_time - elapsed_time
+            days = int(remaining // 86400)
+            hours = int((remaining % 86400) // 3600)
+            minutes = int((remaining % 3600) // 60)
+            time_msg = f"**{days}일 {hours}시간 {minutes}분**" if days > 0 else f"**{hours}시간 {minutes}분**"
+            return await interaction.response.send_message(
+                f"❌ 아직 보호자와 함께한 시간이 짧습니다! 펫은 충분한 신뢰를 형성한 뒤에야 방생할 수 있습니다.\n"
+                f"⏱️ **방생 조건 충족까지 남은 시간:** {time_msg} (최소 3일 동행 필수)",
+                ephemeral=True
+            )
+        
+        # 펫 삭제
         self.cog.delete_stored_pet(self.guild_id, db_id)
         
-        # 골드 지급 보상
+        # 보상 골드 지급
         db = self.cog._get_db(int(self.guild_id))
         db.add_user_cash(self.user_id, 5000)
         
-        await interaction.response.send_message(f"🌱 보관함의 **{target_pet.name}**을(를) 자연으로 방생했습니다.\n(보상으로 5,000 골드를 획득했습니다.)", ephemeral=False)
+        # 종류별 편지 연출
+        letters = [
+            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"주인과 함께 생활한 것은 정말 즐거웠어! 잊지 못할 추억을 만들어 줘서 고마워. 새주인을 만나면 거기서도 잘지낼게!\"",
+            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"그동안 정말 고마웠어. 주인 곳에서 떠나더라도 친구인 건 변함없지? 가끼은 생각해 줘!\"",
+            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"그래, 주인이 그렇게 생각했다면 마음 편히 떠나야겠지. 그동안 정말 고마웠어!\"",
+            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"주인과 보낸 시간들은 온통 맑은 날 같았어. 나 없는 곳에서도 밥 제때 챙겨 먹고 아프지 마! 정말 고마웠어!\"",
+            f"💌 **{target_pet.name}이(가) 보낸 편지**\n\"서운했던 마음도 다 잊여질 만큼 행복했어. 주인과의 따뜻했던 온기를 가슴속에 품고 씨씨하게 살아갈게. 안녕!\""
+        ]
+        chosen_letter = random.choice(letters)
+        
+        embed = discord.Embed(
+            title="🍃 숙속으로 떠나는 안녕",
+            description=f"**[{target_pet.name}]**이(가) 주인과의 추억을 정리하며 편지를 남기고 스스로 떠나니다.",
+            color=0x2ecc71
+        )
+        embed.add_field(name="✉️ 남겨진 편지 한 통", value=chosen_letter, inline=False)
+        embed.add_field(name="💰 방생 보상", value="5,000 골드 획득", inline=True)
+        embed.set_footer(text="펫은 자연의 품에서 무사히 뛰어놀며, 새로운 시작을 응원합니다.")
+        
+        await interaction.response.send_message(embed=embed)
 
 class MatchingCancelView(discord.ui.View):
     def __init__(self, cancel_callback):
@@ -2163,10 +2194,10 @@ class PetActionExecutionView(View):
         if act_name == "청소하기" and pet.cleanliness >= 99:
             return await interaction.response.send_message("❌ 이미 주변이 아주 깨끗합니다!", ephemeral=False)
         
-        if act_name == "쓰다듬기" and pet.affinity >= 297: # 친밀도 300 상한
+        if act_name == "쓰다듬기" and pet.affinity >= 497: # 친밀도 500 상한
             return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=False)
 
-        if act_name == "벌레잡기" and pet.affinity >= 297:
+        if act_name == "벌레잡기" and pet.affinity >= 497:
             return await interaction.response.send_message("❌ 이미 충분히 친밀해요!", ephemeral=False)
         
         # 2. 통과했다면 로딩 처리 (버튼 누른 직후 로딩 표시)
@@ -2290,7 +2321,7 @@ class PetActionExecutionView(View):
                 msg = "❌ 사탕은 하루에 한 번만 줄 수 있습니다! 너무 많이 먹으면 건강에 안 좋아요."
             else:
                 pet.snack_count_today = getattr(pet, 'snack_count_today', 0) + 1
-                pet.affinity = min(300, pet.affinity + 20)
+                pet.affinity = min(500, pet.affinity + 10)
                 pet.fullness = min(100, pet.fullness + 10)
                 msg = f"🍬 달콤한 사탕을 주었습니다! {pet.name}이(가) 무척 행복해하며 당신을 따릅니다. (친밀도 대폭 상승)"
 
@@ -2299,7 +2330,7 @@ class PetActionExecutionView(View):
                 msg = "❌ 쓰다듬기는 하루에 다섯 번만 가능합니다!"
             else:
                 pet.pet_count_today += 1
-                pet.affinity = min(300, pet.affinity + 15)
+                pet.affinity = min(500, pet.affinity + 7)
                 msg = "👋 정성스레 쓰다듬었습니다."
                 # 퀘스트 카운터 연동
                 if hasattr(pet, 'daily_quests') and "stroke" in pet.daily_quests:
@@ -2335,12 +2366,12 @@ class PetActionExecutionView(View):
                 msg = "❌ 벌레잡기는 하루에 세 번만 가능합니다!"
             else:
                 pet.bug_count_today += 1
-                pet.affinity = min(300, pet.affinity + 5)
+                pet.affinity = min(500, pet.affinity + 2)
                 exp_result, evo_embed = pet.gain_exp(15)
                 msg = f"🐛 펫과 힘을 합쳐 풀밭의 벌레를 잡았습니다!\n{exp_result}"
         elif act_name == "산책":
             pet.mood_score = min(100, pet.mood_score + 15)
-            pet.affinity = min(300, pet.affinity + 10)
+            pet.affinity = min(500, pet.affinity + 5)
             exp_result, evo_embed = pet.gain_exp(20)
             msg = f"🌳 맑은 공기를 쐬며 산책을 다녀왔습니다.\n{exp_result}"
             
@@ -2458,7 +2489,7 @@ class PetActionExecutionView(View):
                     fruit_grade = random.choice(["상", "중", "하"])
                     pet.inventory.setdefault("열매", {})
                     pet.inventory["열매"][fruit_grade] = pet.inventory["열매"].get(fruit_grade, 0) + 1
-                    pet.affinity = min(300, pet.affinity + 10)
+                    pet.affinity = min(500, pet.affinity + 5)
                     msg += f"\n\n🎒 **[방랑 상인 조우]** 숲속에서 길을 잃은 상인을 도와주고 **최고급 열매({fruit_grade})** 1개를 얻었습니다!"
             
                 elif event_roll < 0.45: # 옹달샘
@@ -2520,7 +2551,7 @@ class PetActionExecutionView(View):
                 msg = "❌ 간식은 하루에 한 번만 줄 수 있습니다! 너무 많이 먹으면 건강에 안 좋아요."
             else:
                 pet.snack_count_today = getattr(pet, 'snack_count_today', 0) + 1
-                pet.affinity = min(300, pet.affinity + 20)
+                pet.affinity = min(500, pet.affinity + 10)
                 pet.fullness = min(100, pet.fullness + 10)
                 msg = f"🍬 달콤한 간식을 주었습니다! {pet.name}이(가) 무척 행복해하며 당신을 따릅니다. (친밀도 대폭 상승)"
         
