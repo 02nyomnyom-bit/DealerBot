@@ -136,24 +136,36 @@ class StickyMemoCog(commands.Cog):
         finally:
             self.active_tasks.pop(channel.id, None)
 
+    def trigger_debounce(self, channel):
+        """메시지 또는 상호작용 발생 시 타이머(디바운스)를 가동/갱신하는 공통 로직"""
+        if not hasattr(channel, 'guild') or not channel.guild:
+            return
+
+        db = self.get_db(channel.guild.id)
+        if not db: return
+
+        # 현재 대화가 올라온 '그 채널'에 등록된 접착 메모가 있는지 확인
+        if db.execute_query("SELECT 1 FROM sticky_memos WHERE channel_id = ?", (str(channel.id),), 'one'):
+            # 채팅/명령어가 계속 이어지는 중이라면 이전 타이머를 파괴 (디바운스 초기화)
+            if channel.id in self.active_tasks:
+                self.active_tasks[channel.id].cancel()
+
+            # 마지막 발생 시점부터 딱 6초간 타이머 가동 (6초 뒤 조용해지면 이사 시작)
+            task = asyncio.create_task(self.delayed_renew(channel, 6.0))
+            self.active_tasks[channel.id] = task
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         # 봇이 쓴 글이거나 서버가 아닌 DM인 경우 무시
         if message.author.bot or not message.guild:
             return
+        self.trigger_debounce(message.channel)
 
-        db = self.get_db(message.guild.id)
-        if not db: return
-
-        # 현재 대화가 올라온 '그 채널'에 등록된 접착 메모가 있는지 확인
-        if db.execute_query("SELECT 1 FROM sticky_memos WHERE channel_id = ?", (str(message.channel.id),), 'one'):
-            # 유저가 계속 말을 이어 나가는 중이라면 이전 타이머를 파괴 (디바운스 초기화)
-            if message.channel.id in self.active_tasks:
-                self.active_tasks[message.channel.id].cancel()
-
-            # 유저의 마지막 채팅 시점부터 딱 6초간 타이머 가동 (6초 뒤 조용해지면 이사 시작)
-            task = asyncio.create_task(self.delayed_renew(message.channel, 6.0))
-            self.active_tasks[message.channel.id] = task
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        # 명령어, 버튼, 모달 등 봇과 상호작용(봇의 응답 발생) 시에도 접착 메모 갱신
+        if interaction.guild and interaction.channel:
+            self.trigger_debounce(interaction.channel)
 
 async def setup(bot: commands.Bot):
     existing_commands = [cmd.name for cmd in bot.tree.get_commands()]
