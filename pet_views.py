@@ -200,8 +200,8 @@ class EvolutionView(View):
 
         elif stage == "유년기":
             lv_ok  = pet.level >= 40
-            tr_ok  = pet.train_count >= 50
-            ex_ok  = pet.explore_count >= 50
+            tr_ok  = pet.train_count >= 20
+            ex_ok  = pet.explore_count >= 20
             all_ok = lv_ok and tr_ok and ex_ok
 
             embed = discord.Embed(
@@ -212,8 +212,8 @@ class EvolutionView(View):
                 name="📊 달성 현황",
                 value=(
                     f"{'✅' if lv_ok else '❌'} 레벨 **{pet.level}** / 40 이상\n"
-                    f"{'✅' if tr_ok else '❌'} 훈련 **{pet.train_count}회** / 50회 이상\n"
-                    f"{'✅' if ex_ok else '❌'} 탐험 **{pet.explore_count}회** / 50회 이상"
+                    f"{'✅' if tr_ok else '❌'} 훈련 **{pet.train_count}회** / 20회 이상\n"
+                    f"{'✅' if ex_ok else '❌'} 탐험 **{pet.explore_count}회** / 20회 이상"
                 ),
                 inline=False
             )
@@ -225,7 +225,7 @@ class EvolutionView(View):
         elif stage == "성체":
             lv_ok  = pet.level >= 75
             pv_ok  = pet.pvp_count >= 30
-            af_ok  = pet.affinity >= 70
+            af_ok  = pet.affinity >= 300
             pt_ok  = pet.potential >= 50
             all_ok = lv_ok and pv_ok and af_ok and pt_ok
 
@@ -238,7 +238,7 @@ class EvolutionView(View):
                 value=(
                     f"{'✅' if lv_ok else '❌'} 레벨 **{pet.level}** / 75 이상\n"
                     f"{'✅' if pv_ok else '❌'} PvP **{pet.pvp_count}회** / 30회 이상\n"
-                    f"{'✅' if af_ok else '❌'} 친밀도 **{pet.affinity}** / 70 이상\n"
+                    f"{'✅' if af_ok else '❌'} 친밀도 **{pet.affinity}** / 300 이상\n"
                     f"{'✅' if pt_ok else '❌'} 잠재력 **{pet.potential}%** / 50% 이상"
                 ),
                 inline=False

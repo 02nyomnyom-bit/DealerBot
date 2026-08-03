@@ -427,7 +427,7 @@ class Pet:
             embed.set_footer(text="🌟 [유년기] 이제 훈련과 탐험으로 성체를 향해 나아가세요!")
             return ("\n\n🌅 **[진화 완료]** 유년기로 진화했습니다!", embed)
 
-        # 2. 유년기 -> 성체 (Lv.40 달성, 훈련 50회, 탐험 50회)
+        # 2. 유년기 -> 성체 (Lv.40 달성, 훈련 20회, 탐험 20회)
         elif self.stage == "유년기" and self.level >= 40 and self.train_count >= 20 and self.explore_count >= 20:
             self.stage = "성체"
             available_types = ["노말", "불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼"]
@@ -447,12 +447,12 @@ class Pet:
             embed.add_field(name="🔥 주속성", value=f"**{self.main_type}**", inline=True)
             embed.add_field(name="💧 부속성 각성", value=f"**{self.sub_type}**", inline=True)
             embed.add_field(name="⚔️ 신규 습득 스킬", value="웅크리기, 피하기", inline=False)
-            embed.add_field(name="📋 다음 진화 조건", value="Lv.75 + PvP 30회 + 친밀도 70 + 잠재력 50%", inline=False)
+            embed.add_field(name="📋 다음 진화 조건", value="Lv.75 + PvP 30회 + 친밀도 300 + 잠재력 50%", inline=False)
             embed.set_footer(text="⚡ [성체] 이제 PvP 배틀에 참여할 수 있습니다!")
             return ("\n\n⚡ **[원소 각성 진화]** 성체로 진화했습니다!", embed)
 
         # 3. 성체 -> 최종 진화
-        elif self.stage == "성체" and self.level >= 75 and self.pvp_count >= 30 and self.affinity >= 50 and self.potential >= 50:
+        elif self.stage == "성체" and self.level >= 75 and self.pvp_count >= 30 and self.affinity >= 300 and self.potential >= 50:
             
             hidden_evo = None
             if climate.weather == "비" and climate.is_night and self.affinity >= 250 and self.main_type == "물":
