@@ -428,7 +428,7 @@ class Pet:
             return ("\n\n🌅 **[진화 완료]** 유년기로 진화했습니다!", embed)
 
         # 2. 유년기 -> 성체 (Lv.40 달성, 훈련 50회, 탐험 50회)
-        elif self.stage == "유년기" and self.level >= 40 and self.train_count >= 50 and self.explore_count >= 50:
+        elif self.stage == "유년기" and self.level >= 40 and self.train_count >= 20 and self.explore_count >= 20:
             self.stage = "성체"
             available_types = ["노말", "불", "물", "풀", "전기", "비행", "땅", "어둠", "독", "에스퍼"]
             available_types.remove(self.main_type)
@@ -452,7 +452,7 @@ class Pet:
             return ("\n\n⚡ **[원소 각성 진화]** 성체로 진화했습니다!", embed)
 
         # 3. 성체 -> 최종 진화
-        elif self.stage == "성체" and self.level >= 75 and self.pvp_count >= 30 and self.affinity >= 70 and self.potential >= 50:
+        elif self.stage == "성체" and self.level >= 75 and self.pvp_count >= 30 and self.affinity >= 50 and self.potential >= 50:
             
             hidden_evo = None
             if climate.weather == "비" and climate.is_night and self.affinity >= 250 and self.main_type == "물":
