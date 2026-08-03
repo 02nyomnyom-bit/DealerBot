@@ -173,16 +173,103 @@ class EvolutionView(View):
         if not pet:
             return await interaction.response.send_message("❌ 펫이 없습니다.", ephemeral=True)
 
-        # 진화 조건 수동 검사 진행
+        # 진화 조건 현황 embed 생성
+        stage = pet.stage
+
+        if stage == "새끼":
+            lv_ok    = pet.level >= 15
+            aff_ok   = pet.affinity >= 30
+            all_ok   = lv_ok and aff_ok
+
+            embed = discord.Embed(
+                title="🌱 새끼 → 유년기 진화 조건",
+                color=0x2ecc71 if all_ok else 0x95a5a6
+            )
+            embed.add_field(
+                name="📊 달성 현황",
+                value=(
+                    f"{'✅' if lv_ok  else '❌'} 레벨 **{pet.level}** / 15 이상\n"
+                    f"{'✅' if aff_ok else '❌'} 친밀도 **{pet.affinity}** / 30 이상"
+                ),
+                inline=False
+            )
+            if all_ok:
+                embed.set_footer(text="✨ 조건 충족! 진화를 시도합니다...")
+            else:
+                embed.set_footer(text="⏳ 아직 조건이 충족되지 않았습니다.")
+
+        elif stage == "유년기":
+            lv_ok  = pet.level >= 40
+            tr_ok  = pet.train_count >= 50
+            ex_ok  = pet.explore_count >= 50
+            all_ok = lv_ok and tr_ok and ex_ok
+
+            embed = discord.Embed(
+                title="⚡ 유년기 → 성체 진화 조건",
+                color=0xf39c12 if all_ok else 0x95a5a6
+            )
+            embed.add_field(
+                name="📊 달성 현황",
+                value=(
+                    f"{'✅' if lv_ok else '❌'} 레벨 **{pet.level}** / 40 이상\n"
+                    f"{'✅' if tr_ok else '❌'} 훈련 **{pet.train_count}회** / 50회 이상\n"
+                    f"{'✅' if ex_ok else '❌'} 탐험 **{pet.explore_count}회** / 50회 이상"
+                ),
+                inline=False
+            )
+            if all_ok:
+                embed.set_footer(text="✨ 조건 충족! 진화를 시도합니다...")
+            else:
+                embed.set_footer(text="⏳ 아직 조건이 충족되지 않았습니다.")
+
+        elif stage == "성체":
+            lv_ok  = pet.level >= 75
+            pv_ok  = pet.pvp_count >= 30
+            af_ok  = pet.affinity >= 70
+            pt_ok  = pet.potential >= 50
+            all_ok = lv_ok and pv_ok and af_ok and pt_ok
+
+            embed = discord.Embed(
+                title="🔥 성체 → 최종 진화 조건",
+                color=0xe74c3c if all_ok else 0x95a5a6
+            )
+            embed.add_field(
+                name="📊 달성 현황",
+                value=(
+                    f"{'✅' if lv_ok else '❌'} 레벨 **{pet.level}** / 75 이상\n"
+                    f"{'✅' if pv_ok else '❌'} PvP **{pet.pvp_count}회** / 30회 이상\n"
+                    f"{'✅' if af_ok else '❌'} 친밀도 **{pet.affinity}** / 70 이상\n"
+                    f"{'✅' if pt_ok else '❌'} 잠재력 **{pet.potential}%** / 50% 이상"
+                ),
+                inline=False
+            )
+            if all_ok:
+                embed.set_footer(text="✨ 조건 충족! 진화를 시도합니다...")
+            else:
+                embed.set_footer(text="⏳ 아직 조건이 충족되지 않았습니다.")
+
+        else:
+            # 최종 진화 상태
+            embed = discord.Embed(
+                title="🏆 최종 진화 완료",
+                description="이미 최고 단계에 도달했습니다. 더 이상 진화할 수 없습니다.",
+                color=0x9b59b6
+            )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        # 조건 미충족 시 현황만 보여주고 종료
+        if not all_ok:
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        # 조건 충족 시 실제 진화 시도
         evo_msg, evo_embed = pet.check_evolution_conditions()
-        
+
         if evo_msg:
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
-            await interaction.response.send_message(f"🎉 진화에 성공했습니다!{evo_msg}", ephemeral=False)
-            # 상태 새로고침
+            await interaction.response.send_message(f"🎉 진화에 성공했습니다!{evo_msg}", embed=evo_embed, ephemeral=False)
             await go_to_home(interaction, self.cog, self.user_id, self.guild_id)
         else:
-            await interaction.response.send_message("⏳ 아직 다음 단계로 진화하기 위한 성장 조건(레벨, 누적 횟수 등)이 충족되지 않았습니다.", ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="돌아가기", style=discord.ButtonStyle.danger, row=1)
     async def back(self, interaction: discord.Interaction, button: discord.ui.Button):
