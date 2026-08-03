@@ -110,6 +110,18 @@ class Pet:
         else: return "화남"
 
     @property
+    def max_energy(self) -> int:
+        if self.stage == "새끼":
+            return 100
+        elif self.stage == "유년기":
+            return 200
+        elif self.stage == "성체":
+            return 300
+        elif self.stage == "최종 진화":
+            return 500
+        return 100
+
+    @property
     def affinity_rank(self):
         """기획서 기준 친밀도 6구간 정의"""
         if self.affinity <= 50: return "노말"
@@ -398,6 +410,7 @@ class Pet:
                 self.skills = ["잠자기"]
             else:
                 self.skills = ["몸통박치기"]
+            self.energy = self.max_energy
 
             embed = discord.Embed(
                 title="🌅 진화 완료!",
@@ -421,6 +434,7 @@ class Pet:
             available_types.remove(self.main_type)
             self.sub_type = random.choice(available_types)
             self.skills.extend(["웅크리기", "피하기"])
+            self.energy = self.max_energy
 
             embed = discord.Embed(
                 title="⚡ 원소 각성 진화!",
@@ -454,6 +468,7 @@ class Pet:
                 self.stage = "최종 진화"
                 self.crit = 30
                 self.res = 20
+                self.energy = self.max_energy
                 self.name = f"{hidden_evo} {self.name}"
                 embed = discord.Embed(
                     title="✨ 히든 진화 발동!!!",
@@ -472,6 +487,7 @@ class Pet:
             self.stage = "최종 진화"
             self.crit = 15
             self.res = 10
+            self.energy = self.max_energy
             embed = discord.Embed(
                 title="🔥 최종 진화 완료!",
                 description=(
@@ -2356,9 +2372,9 @@ class PetActionExecutionView(View):
                 pet.sleep_count_today = getattr(pet, 'sleep_count_today', 0) + 1
                 # 👇 아래 줄부터 모두 else 안쪽으로 들여쓰기 되어야 합니다!
                 heal_amount = 100 if getattr(pet, 'personality', None) == "나태" else 50
-                pet.energy = min(100, pet.energy + heal_amount)
+                pet.energy = min(pet.max_energy, pet.energy + heal_amount)
                 pet.stress = max(0, pet.stress - 20)
-                msg = f"💤 푹 쉬면서 편안하게 재웠습니다. (에너지: {int(pet.energy)}/100, 스트레스: {pet.stress}/100)"
+                msg = f"💤 푹 쉬면서 편안하게 재웠습니다. (에너지: {int(pet.energy)}/{pet.max_energy}, 스트레스: {pet.stress}/100)"
                 if getattr(pet, 'personality', None) == "나태":
                     msg += "\n🦥 [나태] 성격 덕분에 휴식 효율이 2배가 되었습니다!"
         elif act_name == "벌레잡기":
@@ -2493,7 +2509,7 @@ class PetActionExecutionView(View):
                     msg += f"\n\n🎒 **[방랑 상인 조우]** 숲속에서 길을 잃은 상인을 도와주고 **최고급 열매({fruit_grade})** 1개를 얻었습니다!"
             
                 elif event_roll < 0.45: # 옹달샘
-                    pet.energy = min(100, pet.energy + 50)
+                    pet.energy = min(pet.max_energy, pet.energy + 50)
                     pet.mood_score = min(100, pet.mood_score + 30)
                     pet.cleanliness = 100
                     msg += "\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"

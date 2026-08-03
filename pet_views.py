@@ -52,7 +52,7 @@ class FaintedPetView(View):
         self.pet.zero_cleanliness_time = None
         self.pet.fullness = 100
         self.pet.cleanliness = 100
-        self.pet.energy = 100
+        self.pet.energy = self.pet.max_energy
         self.pet.stress = 0
         self.pet.mood_score = 100
         self.cog.save_user_pet(self.guild_id, self.user_id, self.pet)
@@ -174,7 +174,7 @@ class EvolutionView(View):
             return await interaction.response.send_message("❌ 펫이 없습니다.", ephemeral=True)
 
         # 진화 조건 수동 검사 진행
-        evo_msg = pet.check_evolution_conditions()
+        evo_msg, evo_embed = pet.check_evolution_conditions()
         
         if evo_msg:
             self.cog.save_user_pet(self.guild_id, self.user_id, pet)
