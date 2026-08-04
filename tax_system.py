@@ -6,6 +6,7 @@ from discord.ext import commands
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple, Literal
 import os
+import math
 
 # 한국 시간대 설정 (UTC+9)
 KST = timezone(timedelta(hours=9))
@@ -28,6 +29,19 @@ def safe_import_database():
         return None, False
 
 get_guild_db_manager_func, DATABASE_AVAILABLE = safe_import_database()
+
+def _calc_level_from_xp(xp: int) -> int:
+    """XP를 기반으로 레벨을 역산합니다."""
+    if xp < 98:
+        return 0
+    return int(math.floor(math.sqrt((xp + 2) / 100)))
+
+try:
+    from role_reward_system import role_reward_manager
+    ROLE_SYSTEM_AVAILABLE = True
+except ImportError:
+    role_reward_manager = None
+    ROLE_SYSTEM_AVAILABLE = False
 
 # --- 1. 자산 선택 뷰 (버튼 형식) ---
 class TaxTypeSelectView(discord.ui.View):
@@ -181,6 +195,31 @@ class TaxSystemCog(commands.Cog):
             await msg.edit(content=None, embed=embed)
 
         log_admin_action(f"[세금수거] {interaction.user.display_name} : {역할.name} {type_name} {퍼센트}% 수거 (총액: {total_collected})")
+
+        # 🔄 세금 수거 후 역할 자동 재산정
+        if ROLE_SYSTEM_AVAILABLE and tax_type == "xp" and success_count > 0:
+            role_changed_count = 0
+            for member in members:
+                if member.bot:
+                    continue
+                uid = str(member.id)
+                xp_data = db.get_user_xp(uid)
+                current_xp = xp_data.get('xp', 0) if xp_data else 0
+                new_level = _calc_level_from_xp(current_xp)
+                try:
+                    await role_reward_manager.check_and_assign_level_role(member, new_level)
+                    role_changed_count += 1
+                except Exception as e:
+                    print(f"[세금수거] 역할 재산정 오류 ({member.display_name}): {e}")
+            
+            if role_changed_count > 0:
+                await interaction.followup.send(
+                    embed=discord.Embed(
+                        title="🔄 역할 자동 재산정 완료",
+                        description=f"XP 세금 수거로 인해 **{role_changed_count}명**의 레벨 역할을 재산정했습니다.",
+                        color=discord.Color.teal()
+                    )
+                )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(TaxSystemCog(bot))

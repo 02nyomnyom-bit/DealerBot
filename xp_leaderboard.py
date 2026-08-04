@@ -451,7 +451,7 @@ class XPLeaderboardCog(commands.Cog):
         db = get_guild_db_manager(guild_id)
         db.execute_query('''
             INSERT OR IGNORE INTO user_xp (user_id, guild_id, xp, level)
-            VALUES (?, ?, 0, 1)
+            VALUES (?, ?, 0, 0)
         ''', (user_id, guild_id))
         
         # XP 추가
@@ -713,6 +713,7 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.choices(작업=[
         app_commands.Choice(name="📊 불일치 데이터 확인만", value="check_only"),
         app_commands.Choice(name="🧹 등록되지 않은 사용자 XP 삭제", value="cleanup_unregistered"),
+        app_commands.Choice(name="📋 전체 XP 통계", value="full_stats"),
     ])
     @app_commands.choices(확인=[
         app_commands.Choice(name="✅ 네, 실행합니다", value="confirmed"),
@@ -949,9 +950,6 @@ class XPLeaderboardCog(commands.Cog):
         """메시지 이벤트로 채팅 XP 지급 (등록된 사용자만)"""
         # 봇이 보낸 메시지나 DM 무시
         if message.author.bot or message.guild is None:
-            return
-        # 길드(서버)에서 온 메시지가 아니면 무시
-        if message.guild is None:
             return
         # 너무 짧은 메시지는 무시
         if len(message.content) < 5:
