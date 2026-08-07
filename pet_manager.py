@@ -2501,54 +2501,54 @@ class PetActionExecutionView(View):
                     event_roll = random.random()
                     db = self.cog._get_db(int(self.guild_id))
                     
-                if event_roll < 0.25: # 방랑 상인
-                    fruit_grade = random.choice(["상", "중", "하"])
-                    pet.inventory.setdefault("열매", {})
-                    pet.inventory["열매"][fruit_grade] = pet.inventory["열매"].get(fruit_grade, 0) + 1
-                    pet.affinity = min(500, pet.affinity + 5)
-                    msg += f"\n\n🎒 **[방랑 상인 조우]** 숲속에서 길을 잃은 상인을 도와주고 **최고급 열매({fruit_grade})** 1개를 얻었습니다!"
-            
-                elif event_roll < 0.45: # 옹달샘
-                    pet.energy = min(pet.max_energy, pet.energy + 50)
-                    pet.mood_score = min(100, pet.mood_score + 30)
-                    pet.cleanliness = 100
-                    msg += "\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"
-            
-                elif event_roll < 0.65: # 폭우
-                    pet.cleanliness = max(0, pet.cleanliness - 40)
-                    pet.stress = min(100, pet.stress + 20)
-                    msg += "\n\n⛈️ **[변덕스러운 폭우]** 갑작스러운 폭우에 진흙탕을 구르며 펫의 청결도가 깎이고 스트레스를 받았습니다..."
-                    if random.random() < 0.15:
-                        pet.inventory["장비"].append({"부위": "비옷", "등급": "희귀"})
-                        msg += " (하지만 덤블 속에서 누군가 흘린 [비옷]을 주웠습니다!)"
+                    if event_roll < 0.25: # 방랑 상인
+                        fruit_grade = random.choice(["상", "중", "하"])
+                        pet.inventory.setdefault("열매", {})
+                        pet.inventory["열매"][fruit_grade] = pet.inventory["열매"].get(fruit_grade, 0) + 1
+                        pet.affinity = min(500, pet.affinity + 5)
+                        msg += f"\n\n🎒 **[방랑 상인 조우]** 숲속에서 길을 잃은 상인을 도와주고 **최고급 열매({fruit_grade})** 1개를 얻었습니다!"
+                
+                    elif event_roll < 0.45: # 옹달샘
+                        pet.energy = min(pet.max_energy, pet.energy + 50)
+                        pet.mood_score = min(100, pet.mood_score + 30)
+                        pet.cleanliness = 100
+                        msg += "\n\n💧 **[요정의 옹달샘]** 맑고 신비로운 옹달샘에서 휴식하여 펫의 컨디션이 최상으로 회복되었습니다!"
+                
+                    elif event_roll < 0.65: # 폭우
+                        pet.cleanliness = max(0, pet.cleanliness - 40)
+                        pet.stress = min(100, pet.stress + 20)
+                        msg += "\n\n⛈️ **[변덕스러운 폭우]** 갑작스러운 폭우에 진흙탕을 구르며 펫의 청결도가 깎이고 스트레스를 받았습니다..."
+                        if random.random() < 0.15:
+                            pet.inventory["장비"].append({"부위": "비옷", "등급": "희귀"})
+                            msg += " (하지만 덤블 속에서 누군가 흘린 [비옷]을 주웠습니다!)"
 
-                elif event_roll < 0.85: # 야생 맹수
-                    pet.fullness = max(0, pet.fullness - 30)
-                    extra_exp, extra_evo_embed = pet.gain_exp(base_exp)
-                    msg += f"\n\n🐺 **[야생 맹수의 습격]** 맹수에게서 도망치느라 포만감이 크게 줄었지만, 생존 본능이 자극되어 경험치를 두 배로 얻었습니다!\n{extra_exp}"
+                    elif event_roll < 0.85: # 야생 맹수
+                        pet.fullness = max(0, pet.fullness - 30)
+                        extra_exp, extra_evo_embed = pet.gain_exp(base_exp)
+                        msg += f"\n\n🐺 **[야생 맹수의 습격]** 맹수에게서 도망치느라 포만감이 크게 줄었지만, 생존 본능이 자극되어 경험치를 두 배로 얻었습니다!\n{extra_exp}"
 
-                else: # 🎁 보물 상자 ('변하지 않는 반지' 드롭!)
-                    chest_roll = random.random()
-                    drop_cut = 0.05  # 기본 5%
-                    if os.path.exists("data/pet_config.json"):
-                        try:
-                            with open("data/pet_config.json", "r", encoding="utf-8") as f:
-                                cfg = json.load(f)
-                                drop_cut = cfg.get("ring_drop_rate", 0.05)
-                        except Exception:
-                            pass
+                    else: # 🎁 보물 상자 ('변하지 않는 반지' 드롭!)
+                        chest_roll = random.random()
+                        drop_cut = 0.05  # 기본 5%
+                        if os.path.exists("data/pet_config.json"):
+                            try:
+                                with open("data/pet_config.json", "r", encoding="utf-8") as f:
+                                    cfg = json.load(f)
+                                    drop_cut = cfg.get("ring_drop_rate", 0.05)
+                            except Exception:
+                                pass
 
-                    msg += "\n\n🎁 **[신비한 보물 상자 발견!]** 수풀 속에서 고대의 상자를 발견했습니다!"
-                    if chest_roll < drop_cut:
-                        user_data = db.get_user(self.user_id)
-                        if user_data:
-                            user_inventory = user_data.get("inventory", [])
-                            user_inventory.append("변하지 않는 반지")
-                            user_data["inventory"] = user_inventory
-                            db.save_user(self.user_id, user_data)
-                        msg += " 안에서 **[변하지 않는 반지]**를 발견했습니다! (계정 가방으로 지급)"
-                    else:
-                        msg += " 하지만 합정 속에 아무것도 없었습니다..."
+                        msg += "\n\n🎁 **[신비한 보물 상자 발견!]** 수풀 속에서 고대의 상자를 발견했습니다!"
+                        if chest_roll < drop_cut:
+                            user_data = db.get_user(self.user_id)
+                            if user_data:
+                                user_inventory = user_data.get("inventory", [])
+                                user_inventory.append("변하지 않는 반지")
+                                user_data["inventory"] = user_inventory
+                                db.save_user(self.user_id, user_data)
+                            msg += " 안에서 **[변하지 않는 반지]**를 발견했습니다! (계정 가방으로 지급)"
+                        else:
+                            msg += " 하지만 함정 속에 아무것도 없었습니다..."
 
                 # 6. 최종 데이터 저장 및 결과 전송
                 self.cog.save_user_pet(self.guild_id, self.user_id, pet)
