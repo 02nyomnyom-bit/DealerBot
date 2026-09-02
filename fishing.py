@@ -1541,6 +1541,11 @@ class FishingGameView(discord.ui.View):
                         if f_name in FACILITIES:
                             fish_rate_bonus += FACILITIES[f_name].get("effect", {}).get("fish_rate", 0.0)
 
+                # 🧪 미끼 업그레이드 확률 추가 (1레벨당 0.1% = 0.001)
+                gear_data = self.db.execute_query("SELECT bait_level FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+                bait_level = gear_data['bait_level'] if gear_data else 0
+                fish_rate_bonus += bait_level * 0.001
+
                 # ⚖️ [등급별 확률 캡 시스템]
                 raw_weights = []
                 for f in valid_pool:
@@ -2308,13 +2313,23 @@ class FishingSystemCog(commands.Cog):
         app_commands.Choice(name="정보 조회", value="info"),
         app_commands.Choice(name="낚시터 구매 (매입)", value="buy"),
         app_commands.Choice(name="낚시터 판매 (매각)", value="sell"),
-        app_commands.Choice(name="설정 변경 (입장료/공개여부/지형)", value="edit")
+        app_commands.Choice(name="설정 변경 (입장료/개방여부/지형)", value="edit")
     ])
     @app_commands.choices(지형=[
         app_commands.Choice(name="🏞️ 호수", value="호수"),
         app_commands.Choice(name="🌊 바다", value="바다"),
         app_commands.Choice(name="🐊 늪", value="늪"),
         app_commands.Choice(name="🦖 쥬라기", value="쥬라기")
+    ])
+    @app_commands.describe(
+        액션="수행할 작업을 선택하세요.",
+        입장료="[설정 변경] 낚시터 입장료를 설정합니다.",
+        공개="[설정 변경] 낚시터 개방 여부를 설정합니다.",
+        지형="[설정 변경] 낚시터 지형을 변경합니다."
+    )
+    @app_commands.choices(공개=[
+        app_commands.Choice(name="무료 개방 (누구나 입장 가능)", value=1),
+        app_commands.Choice(name="입장권 필요 (비공개)", value=0)
     ])
     async def fish_ground(
         self, 

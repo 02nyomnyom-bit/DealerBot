@@ -367,11 +367,11 @@ class PointManager(commands.Cog):
     @app_commands.command(name="지갑", description="자신의 보유 현금 또는 다른 사용자의 현금을 확인합니다.")
     @app_commands.describe(
         대상자="[관리자 전용] 현금을 확인할 사용자",
-        비공개="결과를 나만 볼지 여부 (기본값: 네)"
+        비공개="결과를 채팅창에 공개할지, 나만 볼지 선택 (기본값: 나만 보기)"
     )
     @app_commands.choices(비공개=[
-        app_commands.Choice(name="네", value="True"),
-        app_commands.Choice(name="아니오", value="False")
+        app_commands.Choice(name="나만 보기 (비공개)", value="True"),
+        app_commands.Choice(name="모두에게 공개", value="False")
     ])
     async def wallet(self, interaction: Interaction, 대상자: Optional[Member] = None, 비공개: str = "True"):
         """지갑(보유 현금) 및 오늘 활동 확인 명령어"""

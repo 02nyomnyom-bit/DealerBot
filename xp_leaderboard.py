@@ -180,11 +180,11 @@ class XPLeaderboardCog(commands.Cog):
     @app_commands.command(name="레벨", description="자신의 레벨 및 XP를 확인합니다.")
     @app_commands.describe(
         사용자="[관리자 전용] 레벨을 확인할 사용자",
-        비공개="결과를 나만 볼지 여부 (기본값: 네)"
+        비공개="결과를 채팅창에 공개할지, 나만 볼지 선택 (기본값: 나만 보기)"
     )
     @app_commands.choices(비공개=[
-        app_commands.Choice(name="네", value="True"),
-        app_commands.Choice(name="아니오", value="False")
+        app_commands.Choice(name="나만 보기 (비공개)", value="True"),
+        app_commands.Choice(name="모두에게 공개", value="False")
     ])
     async def level(self, interaction: discord.Interaction, 사용자: Optional[discord.Member] = None, 비공개: str = "True"):
         # 💡 [순서 보정] 컨텍스트 확보를 위해 서버 ID 변수를 최상단으로 올립니다.
