@@ -9,3 +9,10 @@ __pycache__/
 scan_result.txt
 data/pet_config.json
 .vscode/settings.json
+temp_bait.txt
+temp_catch.txt
+temp_catch_def.txt
+temp_execute_fishing.txt
+temp_fish_rate.txt
+temp_pull.txt
+temp_search.txt
