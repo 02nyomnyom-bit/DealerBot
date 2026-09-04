@@ -1933,7 +1933,7 @@ class FishingGameView(discord.ui.View):
 # === 🎰 낚싯대 랜덤강화 확인 뷰 ===
 class RodRandomUpgradeView(discord.ui.View):
     COST = 300000  # 30만원
-    MAX_STACKS = 10  # 효과 중첩 최대 10회 (꽝 제외)
+    # 각 효과별 최대 중첩: 5회 (내구도는 1000까지)
 
     # 꽝 60% / 나머지 6개 효과 합계 40% (각 ~6.67%)
     EFFECTS = [
