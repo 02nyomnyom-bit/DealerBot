@@ -1421,7 +1421,9 @@ class FishingGameView(discord.ui.View):
                     "SELECT rod_buf_trash, rod_buf_fine, rod_buf_special, rod_buf_pollution, rod_buf_fantasy, rod_buf_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?",
                     (uid, gid), 'one'
                 )
-                if not rod_buffs:
+                if rod_buffs:
+                    rod_buffs = dict(rod_buffs)
+                else:
                     rod_buffs = {'rod_buf_trash': 0, 'rod_buf_fine': 0, 'rod_buf_special': 0, 'rod_buf_pollution': 0, 'rod_buf_fantasy': 0, 'rod_buf_durability': 0}
 
                 # 🎰 쓰레기 확률 감소 버프 적용 (1회당 0.1% = 0.001)
@@ -2502,6 +2504,10 @@ class FishingSystemCog(commands.Cog):
             return                
         uid, chid, gid = str(interaction.user.id), str(interaction.channel_id), str(interaction.guild_id)
         
+        user = db.get_user(uid)
+        if user:
+            user = dict(user)
+        
         ground = db.execute_query("SELECT * FROM fishing_ground WHERE channel_id = ? AND guild_id = ?", (chid, gid), 'one')
         if not ground:
             db.execute_query("INSERT INTO fishing_ground (channel_id, guild_id, channel_name, usage_time_limit) VALUES (?, ?, ?, 6)", (chid, gid, interaction.channel.name))
@@ -2947,6 +2953,7 @@ class FishingSystemCog(commands.Cog):
         f_data = FACILITIES[시설명]
         user = db.get_user(uid)
         
+        if user: user = dict(user)
         if not user or user.get('fishing_reputation', 0) < f_data['req_rep']: 
             return await interaction.response.send_message(f"❌ 개인 낚시 명성이 부족합니다! (필요: {f_data['req_rep']:,}점)", ephemeral=True)
         if user.get('cash', 0) < f_data['req_cash']: 
@@ -3098,6 +3105,7 @@ class FishingSystemCog(commands.Cog):
 
             gear = db.execute_query("SELECT rod_level, rod_durability, bait_count, rod_buf_durability, rod_random_count FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             if gear:
+                gear = dict(gear)
                 dur_bonus = gear.get('rod_buf_durability', 0) or 0
                 max_d = 100 + (gear['rod_level'] * 100) + dur_bonus
                 random_count = gear.get('rod_random_count', 0) or 0
@@ -3203,6 +3211,7 @@ class FishingSystemCog(commands.Cog):
         elif 액션 == "repair":
             g = db.execute_query("SELECT rod_durability, rod_level, rod_buf_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             if not g: return await interaction.response.send_message("❌ 수리할 낚싯대가 없습니다!", ephemeral=True)
+            g = dict(g)
             dur_bonus = g.get('rod_buf_durability', 0) or 0
             max_d = 100 + (g['rod_level'] * 100) + dur_bonus
             cost = (max_d - g['rod_durability']) * 20
@@ -3372,6 +3381,7 @@ class FishingSystemCog(commands.Cog):
         gear = db.execute_query("SELECT * FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
         if not gear:
             return await interaction.response.send_message("❌ 장비가 없습니다! 초보자 세트를 먼저 구매하세요.", ephemeral=True)
+        gear = dict(gear)
 
         # 🎰 랜덤 강화 분기
         if 강화대상 == "rod_random":
