@@ -3103,7 +3103,7 @@ class FishingSystemCog(commands.Cog):
                     h, m = divmod(int(remain.total_seconds() // 60), 60)
                     embed.add_field(name="🧤 낚시 장갑 버프", value=f"쓰레기 확률 **-10%** (남은 시간: {h}시간 {m}분)", inline=False)
 
-            gear = db.execute_query("SELECT rod_level, rod_durability, bait_count, rod_buf_durability, rod_random_count FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+            gear = db.execute_query("SELECT * FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             if gear:
                 gear = dict(gear)
                 dur_bonus = gear.get('rod_buf_durability', 0) or 0
@@ -3113,6 +3113,18 @@ class FishingSystemCog(commands.Cog):
                 if random_count > 0:
                     rod_info += f" | 🎰 랜덤강화: {random_count}/10회"
                 embed.add_field(name="🎣 현재 장비", value=rod_info, inline=False)
+
+                buff_lines = []
+                if gear.get('rod_buf_trash', 0): buff_lines.append(f"• 쓰레기 확률 감소 x{gear['rod_buf_trash']}")
+                if gear.get('rod_buf_fine', 0): buff_lines.append(f"• 벌금 감소 x{gear['rod_buf_fine']}")
+                if gear.get('rod_buf_special', 0): buff_lines.append(f"• 특수 동물/유해 생물 감소 x{gear['rod_buf_special']}")
+                if gear.get('rod_buf_pollution', 0): buff_lines.append(f"• 오염도 감소 x{gear['rod_buf_pollution']}")
+                if gear.get('rod_buf_fantasy', 0): buff_lines.append(f"• 환상등급 상승 x{gear['rod_buf_fantasy']}")
+                if gear.get('rod_buf_durability', 0): buff_lines.append(f"• 내구도 증가 x{gear['rod_buf_durability']}")
+                
+                if buff_lines:
+                    embed.add_field(name="✨ 랜덤강화 적용 효과", value="\n".join(buff_lines), inline=False)
+
                 embed.add_field(name="🐛 보유 미끼", value=f"{gear['bait_count']}개", inline=True)
             else:
                 embed.add_field(name="⚠️ 장비 없음", value="낚시가게에서 초보자 세트를 구매해 보세요!", inline=False)
