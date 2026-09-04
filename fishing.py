@@ -1416,6 +1416,18 @@ class FishingGameView(discord.ui.View):
                             trash_mod = FACILITIES[f_name].get("effect", {}).get("trash_rate", 0)
                             trash_chance += trash_mod
 
+                # 🎰 [추가] 낚싯대 랜덤강화 버프 로드
+                rod_buffs = self.db.execute_query(
+                    "SELECT rod_buf_trash, rod_buf_fine, rod_buf_special, rod_buf_pollution, rod_buf_fantasy, rod_buf_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?",
+                    (uid, gid), 'one'
+                )
+                if not rod_buffs:
+                    rod_buffs = {'rod_buf_trash': 0, 'rod_buf_fine': 0, 'rod_buf_special': 0, 'rod_buf_pollution': 0, 'rod_buf_fantasy': 0, 'rod_buf_durability': 0}
+
+                # 🎰 쓰레기 확률 감소 버프 적용 (1회당 0.1% = 0.001)
+                if rod_buffs.get('rod_buf_trash', 0):
+                    trash_chance -= rod_buffs['rod_buf_trash'] * 0.001
+
                 # 쓰레기 확률 상한선을 0.9999 (99.99%)로 설정합니다! (단, 패널티 시는 1.0)
                 if not self.force_trash:
                     trash_chance = max(0.0, min(0.9999, trash_chance))
@@ -1484,6 +1496,10 @@ class FishingGameView(discord.ui.View):
                         # Group 4: 5티어부터 5%씩 인상
                         rate += (current_ground_tier - 4) * 0.05
                     
+                    # 🎰 벌금 감소 버프 적용 (1회당 0.1% = 0.001 차감)
+                    if rod_buffs.get('rod_buf_fine', 0):
+                        rate = max(0.0, rate - rod_buffs['rod_buf_fine'] * 0.001)
+
                     # 계산된 금액이 1,000원보다 적으면 최소 1,000원 부과
                     calculated_fine = int(current_cash * rate)
                     
@@ -1586,13 +1602,25 @@ class FishingGameView(discord.ui.View):
 
                 # 캡 적용 (가장 희귀한 순서대로 조정하여 하위 등급의 비중을 확보)
                 adjusted_weights = list(raw_weights)
-                adjusted_weights = apply_cap(adjusted_weights, rarity_map["환상"], 0.10) # 환상 10%
+                # 🎰 환상등급 상승 버프 적용 (1회당 0.1% = 0.001 캡 증가)
+                fantasy_cap = 0.10 + (rod_buffs.get('rod_buf_fantasy', 0) * 0.001)
+                adjusted_weights = apply_cap(adjusted_weights, rarity_map["환상"], fantasy_cap)
                 adjusted_weights = apply_cap(adjusted_weights, rarity_map["전설"], 0.15) # 전설 15%
                 adjusted_weights = apply_cap(adjusted_weights, rarity_map["신종"], 0.30) # 신종 30%
 
                 # ✅ 최종 결정
                 fish = random.choices(valid_pool, weights=adjusted_weights, k=1)[0]
                 length = round(random.uniform(fish["min"], fish["max"]), 1)
+
+                # 🎰 특수 동물/유해 생물 감소 버프 (1회당 0.1% = 0.001 확률로 회피)
+                special_avoid_chance = rod_buffs.get('rod_buf_special', 0) * 0.001
+                special_creatures = ["수달","자라","붉은가위가재","너구리","보라성게","아무르불가사리","랩터","피라냐"]
+                if fish["name"] in special_creatures and special_avoid_chance > 0 and random.random() < special_avoid_chance:
+                    # 유해생물 회피 성공 — 흔함 등급 물고기로 재결정
+                    common_pool = [f for f in valid_pool if f["rarity"] == "흔함" and f["name"] not in special_creatures]
+                    if common_pool:
+                        fish = random.choice(common_pool)
+                        length = round(random.uniform(fish["min"], fish["max"]), 1)
 
                 # 💥 [특수 동물 및 유해생물 이벤트 즉시 작동 구역]
                 # ✅ [수정] 특수 이벤트 체크 및 DB 트랜잭션을 통합 관리합니다.
@@ -1856,6 +1884,13 @@ class FishingGameView(discord.ui.View):
                     elif rarity == "환상":
                         event_embed.set_author(name="🌌 기적 발생! 환상의 생명체 등장! 🌌")
 
+                # 🎰 오염도 감소 버프 적용 (1회당 0.1% = 0.001 비율로 오염도 차감)
+                pollution_reduction = rod_buffs.get('rod_buf_pollution', 0)
+                if pollution_reduction > 0 and current_pollution > 0:
+                    reduce_amount = current_pollution * pollution_reduction * 0.001
+                    new_pollution = max(0.0, current_pollution - reduce_amount)
+                    conn.execute("UPDATE fishing_ground SET pollution = ? WHERE channel_id = ? AND guild_id = ?", (new_pollution, chid, gid))
+
                 # 🏁 모든 처리가 끝난 후 커밋을 수행합니다.
                 conn.commit()
                 
@@ -1891,6 +1926,111 @@ class FishingGameView(discord.ui.View):
         
         await interaction.edit_original_response(embed=embed, view=None)
         self._clear_session() # 액티브 세션 및 유저 락을 해제합니다.
+
+
+# === 🎰 낚싯대 랜덤강화 확인 뷰 ===
+class RodRandomUpgradeView(discord.ui.View):
+    COST = 300000  # 30만원
+    MAX_STACKS = 10  # 효과 중첩 최대 10회 (꽝 제외)
+
+    # 꽝 60% / 나머지 6개 효과 합계 40% (각 ~6.67%)
+    EFFECTS = [
+        {"name": "꽝", "col": None, "weight": 90},
+        {"name": "쓰레기 확률 감소", "col": "rod_buf_trash", "weight": 10},
+        {"name": "벌금 감소", "col": "rod_buf_fine", "weight": 10},
+        {"name": "특수 동물/유해 생물 감소", "col": "rod_buf_special", "weight": 10},
+        {"name": "오염도 감소", "col": "rod_buf_pollution", "weight": 10},
+        {"name": "환상등급 상승", "col": "rod_buf_fantasy", "weight": 10},
+        {"name": "내구도 증가", "col": "rod_buf_durability", "weight": 10},
+    ]
+
+    def __init__(self, user: discord.Member, db, uid: str, gid: str):
+        super().__init__(timeout=30.0)
+        self.user = user
+        self.db = db
+        self.uid = uid
+        self.gid = gid
+
+    @discord.ui.button(label="✅ 예 (30만원 차감)", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("본인만 조작할 수 있습니다.", ephemeral=True)
+
+        conn = self.db.get_connection()
+        try:
+            conn.execute("BEGIN")
+
+            # 잔액 확인
+            user_data = conn.execute("SELECT cash FROM users WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid)).fetchone()
+            current_cash = user_data['cash'] if user_data else 0
+            if current_cash < self.COST:
+                conn.rollback()
+                return await interaction.response.edit_message(
+                    embed=discord.Embed(title="❌ 자금 부족", description=f"보유 현금이 부족합니다. (필요: {self.COST:,}원)", color=discord.Color.red()),
+                    view=None
+                )
+
+            # 현재 효과 중첩 횟수 확인
+            gear = conn.execute("SELECT rod_random_count, rod_buf_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid)).fetchone()
+            current_count = gear['rod_random_count'] if gear else 0
+            current_dur_buf = gear['rod_buf_durability'] if gear else 0
+
+            if current_count >= self.MAX_STACKS:
+                conn.rollback()
+                return await interaction.response.edit_message(
+                    embed=discord.Embed(title="❌ 강화 한도 도달", description="랜덤 강화 효과는 최대 **10회**까지만 중첩 가능합니다.", color=discord.Color.red()),
+                    view=None
+                )
+
+            # 30만원 차감
+            conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.COST, self.uid, self.gid))
+
+            # 랜덤 효과 결정
+            effect = random.choices(self.EFFECTS, weights=[e["weight"] for e in self.EFFECTS], k=1)[0]
+
+            result_emoji = "💀"
+            result_desc = "아무 효과도 얻지 못했습니다..."
+
+            if effect["col"] is not None:
+                # 효과 당첨 → 중첩 횟수 증가 (꽝은 세지 않음)
+                conn.execute("UPDATE fishing_gear SET rod_random_count = rod_random_count + 1 WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid))
+                current_count += 1
+
+                if effect["col"] == "rod_buf_durability":
+                    # 내구도: 10씩 증가, 최대 1000
+                    new_val = min(1000, current_dur_buf + 10)
+                    conn.execute(f"UPDATE fishing_gear SET {effect['col']} = ? WHERE user_id = ? AND guild_id = ?", (new_val, self.uid, self.gid))
+                    result_emoji = "🔧"
+                    result_desc = f"낚싯대 기본 내구도가 **+10** 증가했습니다! (현재 보너스: +{new_val})"
+                else:
+                    conn.execute(f"UPDATE fishing_gear SET {effect['col']} = {effect['col']} + 1 WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid))
+                    result_emoji = "✨"
+                    result_desc = f"**{effect['name']}** 효과를 획득했습니다!"
+
+            conn.commit()
+
+            embed = discord.Embed(
+                title=f"🎰 랜덤 강화 결과 (효과 중첩: {current_count}/10회)",
+                description=f"{result_emoji} {result_desc}\n\n💸 **{self.COST:,}원** 차감됨",
+                color=discord.Color.gold() if effect["col"] else discord.Color.dark_grey()
+            )
+            await interaction.response.edit_message(embed=embed, view=None)
+
+        except Exception as e:
+            conn.rollback()
+            await interaction.response.edit_message(
+                embed=discord.Embed(title="❌ 오류 발생", description=f"강화 중 오류: {e}", color=discord.Color.red()),
+                view=None
+            )
+
+    @discord.ui.button(label="❌ 아니오", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.user:
+            return await interaction.response.send_message("본인만 조작할 수 있습니다.", ephemeral=True)
+        await interaction.response.edit_message(
+            embed=discord.Embed(title="🛑 강화 취소", description="랜덤 강화를 취소했습니다.", color=discord.Color.light_grey()),
+            view=None
+        )
 
 class GroundAccessView(discord.ui.View):
     def __init__(self, user: discord.Member, fee: int, hours: int, owner_id: str, db_manager: DatabaseManager):
@@ -2077,6 +2217,22 @@ class FishingSystemCog(commands.Cog):
         if 'is_sabotaged' not in cols_p:
             try: db.execute_query("ALTER TABLE fishing_passes ADD COLUMN is_sabotaged INTEGER DEFAULT 0")
             except: pass
+
+        # 🎰 [추가] 낚싯대 랜덤강화 컬럼 누락 보정
+        cols_gear_res = db.execute_query("PRAGMA table_info(fishing_gear)", (), 'all')
+        cols_gear = [c['name'] for c in cols_gear_res] if cols_gear_res else []
+        for col_name, col_type in [
+            ("rod_random_count", "INTEGER DEFAULT 0"),
+            ("rod_buf_trash", "INTEGER DEFAULT 0"),
+            ("rod_buf_fine", "INTEGER DEFAULT 0"),
+            ("rod_buf_special", "INTEGER DEFAULT 0"),
+            ("rod_buf_pollution", "INTEGER DEFAULT 0"),
+            ("rod_buf_fantasy", "INTEGER DEFAULT 0"),
+            ("rod_buf_durability", "INTEGER DEFAULT 0"),
+        ]:
+            if col_name not in cols_gear:
+                try: db.execute_query(f"ALTER TABLE fishing_gear ADD COLUMN {col_name} {col_type}")
+                except: pass
 
         # 3. 낚시터 테이블 컬럼 누락 보정 (PRAGMA 조회)
         cols_g_res = db.execute_query("PRAGMA table_info(fishing_ground)", (), 'all')
@@ -2940,10 +3096,15 @@ class FishingSystemCog(commands.Cog):
                     h, m = divmod(int(remain.total_seconds() // 60), 60)
                     embed.add_field(name="🧤 낚시 장갑 버프", value=f"쓰레기 확률 **-10%** (남은 시간: {h}시간 {m}분)", inline=False)
 
-            gear = db.execute_query("SELECT rod_level, rod_durability, bait_count FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+            gear = db.execute_query("SELECT rod_level, rod_durability, bait_count, rod_buf_durability, rod_random_count FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             if gear:
-                max_d = 100 + (gear['rod_level'] * 100)
-                embed.add_field(name="🎣 현재 장비", value=f"Lv.{gear['rod_level']} 낚싯대 (내구도: {gear['rod_durability']}/{max_d})", inline=False)
+                dur_bonus = gear.get('rod_buf_durability', 0) or 0
+                max_d = 100 + (gear['rod_level'] * 100) + dur_bonus
+                random_count = gear.get('rod_random_count', 0) or 0
+                rod_info = f"Lv.{gear['rod_level']} 낚싯대 (내구도: {gear['rod_durability']}/{max_d})"
+                if random_count > 0:
+                    rod_info += f" | 🎰 랜덤강화: {random_count}/10회"
+                embed.add_field(name="🎣 현재 장비", value=rod_info, inline=False)
                 embed.add_field(name="🐛 보유 미끼", value=f"{gear['bait_count']}개", inline=True)
             else:
                 embed.add_field(name="⚠️ 장비 없음", value="낚시가게에서 초보자 세트를 구매해 보세요!", inline=False)
@@ -3040,9 +3201,10 @@ class FishingSystemCog(commands.Cog):
                 else: await interaction.response.send_message(f"❌ 판매 처리 중 오류가 발생했습니다. (에러: {e})", ephemeral=True)
         
         elif 액션 == "repair":
-            g = db.execute_query("SELECT rod_durability, rod_level FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
+            g = db.execute_query("SELECT rod_durability, rod_level, rod_buf_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             if not g: return await interaction.response.send_message("❌ 수리할 낚싯대가 없습니다!", ephemeral=True)
-            max_d = 100 + (g['rod_level'] * 100)
+            dur_bonus = g.get('rod_buf_durability', 0) or 0
+            max_d = 100 + (g['rod_level'] * 100) + dur_bonus
             cost = (max_d - g['rod_durability']) * 20
             if cost <= 0: return await interaction.response.send_message("🛠️ 이미 완벽한 상태입니다.", ephemeral=True)
             if (db.get_user_cash(uid) or 0) < cost: return await interaction.response.send_message(f"❌ 수리비가 부족합니다! (필요: {cost:,}원)", ephemeral=True)
@@ -3195,7 +3357,8 @@ class FishingSystemCog(commands.Cog):
     @app_commands.command(name="낚시장비강화", description="현금을 지불하여 낚싯대 및 미끼의 한계 레벨을 강화합니다.")
     @app_commands.choices(강화대상=[
         app_commands.Choice(name="🎣 낚싯대 강화 (내구도 한계치 및 등급 상승)", value="rod"),
-        app_commands.Choice(name="🧪 미끼 등급 강화 (물고기 포획률 상승)", value="bait")
+        app_commands.Choice(name="🧪 미끼 등급 강화 (물고기 포획률 상승)", value="bait"),
+        app_commands.Choice(name="🎰 낚싯대 랜덤강화 (30만원)", value="rod_random")
     ])
     async def upgrade_gear(self, interaction: discord.Interaction, 강화대상: str):
         db = self._get_db(interaction) # 인스턴스화된 DB 매니저 할당
@@ -3209,6 +3372,24 @@ class FishingSystemCog(commands.Cog):
         gear = db.execute_query("SELECT * FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
         if not gear:
             return await interaction.response.send_message("❌ 장비가 없습니다! 초보자 세트를 먼저 구매하세요.", ephemeral=True)
+
+        # 🎰 랜덤 강화 분기
+        if 강화대상 == "rod_random":
+            current_count = gear.get('rod_random_count', 0) or 0
+            if current_count >= 10:
+                return await interaction.response.send_message("❌ 랜덤 강화 효과는 최대 **10회**까지만 중첩 가능합니다.", ephemeral=True)
+
+            embed = discord.Embed(
+                title="🎰 낚싯대 랜덤강화",
+                description=(
+                    f"**30만원**을 지불하여 낚싯대에 랜덤 효과를 부여합니다.\n\n"
+                    f"📊 현재 효과 중첩: **{current_count}/10회**\n\n"
+                    f"랜덤 강화를 하시겠습니까?"
+                ),
+                color=discord.Color.gold()
+            )
+            view = RodRandomUpgradeView(interaction.user, db, uid, gid)
+            return await interaction.response.send_message(embed=embed, view=view)
 
         current_cash = db.get_user_cash(uid) or 0
         conn = db.get_connection()
