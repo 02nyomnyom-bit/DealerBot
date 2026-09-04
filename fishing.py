@@ -1972,15 +1972,25 @@ class RodRandomUpgradeView(discord.ui.View):
                     view=None
                 )
 
-            # 현재 효과 중첩 횟수 확인
-            gear = conn.execute("SELECT rod_random_count, rod_buf_durability FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid)).fetchone()
-            current_count = gear['rod_random_count'] if gear else 0
-            current_dur_buf = gear['rod_buf_durability'] if gear else 0
+            # 현재 모든 효과 중첩 횟수 확인
+            gear = conn.execute("SELECT rod_random_count, rod_buf_durability, rod_buf_trash, rod_buf_fine, rod_buf_special, rod_buf_pollution, rod_buf_fantasy FROM fishing_gear WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid)).fetchone()
+            
+            # 동적 가중치 계산 (최대치 도달한 효과는 리스트에서 제외)
+            available_effects = []
+            for e in self.EFFECTS:
+                if e["col"] is None:
+                    available_effects.append(e) # 꽝은 항상 포함
+                elif e["col"] == "rod_buf_durability":
+                    if gear[e["col"]] < 1000:
+                        available_effects.append(e)
+                else:
+                    if gear[e["col"]] < 5:
+                        available_effects.append(e)
 
-            if current_count >= self.MAX_STACKS:
+            if len(available_effects) == 1: # 꽝만 남음
                 conn.rollback()
                 return await interaction.response.edit_message(
-                    embed=discord.Embed(title="❌ 강화 한도 도달", description="랜덤 강화 효과는 최대 **10회**까지만 중첩 가능합니다.", color=discord.Color.red()),
+                    embed=discord.Embed(title="❌ 강화 한도 도달", description="모든 랜덤 강화 효과가 이미 최대치에 도달했습니다!", color=discord.Color.red()),
                     view=None
                 )
 
@@ -1988,31 +1998,32 @@ class RodRandomUpgradeView(discord.ui.View):
             conn.execute("UPDATE users SET cash = cash - ? WHERE user_id = ? AND guild_id = ?", (self.COST, self.uid, self.gid))
 
             # 랜덤 효과 결정
-            effect = random.choices(self.EFFECTS, weights=[e["weight"] for e in self.EFFECTS], k=1)[0]
+            effect = random.choices(available_effects, weights=[e["weight"] for e in available_effects], k=1)[0]
 
             result_emoji = "💀"
             result_desc = "아무 효과도 얻지 못했습니다..."
 
             if effect["col"] is not None:
-                # 효과 당첨 → 중첩 횟수 증가 (꽝은 세지 않음)
+                # 효과 당첨 → 총 성공 횟수 증가 (표시용)
                 conn.execute("UPDATE fishing_gear SET rod_random_count = rod_random_count + 1 WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid))
-                current_count += 1
-
+                
                 if effect["col"] == "rod_buf_durability":
-                    # 내구도: 10씩 증가, 최대 1000
-                    new_val = min(1000, current_dur_buf + 10)
+                    new_val = min(1000, gear['rod_buf_durability'] + 10)
                     conn.execute(f"UPDATE fishing_gear SET {effect['col']} = ? WHERE user_id = ? AND guild_id = ?", (new_val, self.uid, self.gid))
                     result_emoji = "🔧"
                     result_desc = f"낚싯대 기본 내구도가 **+10** 증가했습니다! (현재 보너스: +{new_val})"
                 else:
-                    conn.execute(f"UPDATE fishing_gear SET {effect['col']} = {effect['col']} + 1 WHERE user_id = ? AND guild_id = ?", (self.uid, self.gid))
+                    new_val = gear[effect["col"]] + 1
+                    conn.execute(f"UPDATE fishing_gear SET {effect['col']} = ? WHERE user_id = ? AND guild_id = ?", (new_val, self.uid, self.gid))
                     result_emoji = "✨"
-                    result_desc = f"**{effect['name']}** 효과를 획득했습니다!"
+                    result_desc = f"**{effect['name']}** 효과를 획득했습니다! (중첩: {new_val}/5회)"
 
             conn.commit()
 
+            total_success = gear['rod_random_count'] + (1 if effect["col"] else 0)
+
             embed = discord.Embed(
-                title=f"🎰 랜덤 강화 결과 (효과 중첩: {current_count}/10회)",
+                title=f"🎰 랜덤 강화 결과 (총 성공 횟수: {total_success}회)",
                 description=f"{result_emoji} {result_desc}\n\n💸 **{self.COST:,}원** 차감됨",
                 color=discord.Color.gold() if effect["col"] else discord.Color.dark_grey()
             )
@@ -3111,7 +3122,7 @@ class FishingSystemCog(commands.Cog):
                 random_count = gear.get('rod_random_count', 0) or 0
                 rod_info = f"Lv.{gear['rod_level']} 낚싯대 (내구도: {gear['rod_durability']}/{max_d})"
                 if random_count > 0:
-                    rod_info += f" | 🎰 랜덤강화: {random_count}/10회"
+                    rod_info += f" | 🎰 랜덤강화: 총 {random_count}회 성공"
                 embed.add_field(name="🎣 현재 장비", value=rod_info, inline=False)
 
                 buff_lines = []
@@ -3398,14 +3409,13 @@ class FishingSystemCog(commands.Cog):
         # 🎰 랜덤 강화 분기
         if 강화대상 == "rod_random":
             current_count = gear.get('rod_random_count', 0) or 0
-            if current_count >= 10:
-                return await interaction.response.send_message("❌ 랜덤 강화 효과는 최대 **10회**까지만 중첩 가능합니다.", ephemeral=True)
-
+            
             embed = discord.Embed(
                 title="🎰 낚싯대 랜덤강화",
                 description=(
-                    f"**30만원**을 지불하여 낚싯대에 랜덤 효과를 부여합니다.\n\n"
-                    f"📊 현재 효과 중첩: **{current_count}/10회**\n\n"
+                    f"**30만원**을 지불하여 낚싯대에 랜덤 효과를 부여합니다.\n"
+                    f"(각 효과는 최대 5회, 내구도는 최대 1000까지 축적 가능)\n\n"
+                    f"📊 현재까지 누적 성공 횟수: **{current_count}회**\n\n"
                     f"랜덤 강화를 하시겠습니까?"
                 ),
                 color=discord.Color.gold()
