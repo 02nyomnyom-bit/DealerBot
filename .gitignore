@@ -42,3 +42,5 @@ temp_upgrade.txt
 temp_upgrade2.txt
 temp_upgrade3.txt
 *.txt
+temp_db.py
+data/bot_database.db

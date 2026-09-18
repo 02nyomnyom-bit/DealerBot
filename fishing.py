@@ -2573,6 +2573,7 @@ class FishingSystemCog(commands.Cog):
             # 🧤 [추가] 낚시 장갑 버프 체크 (개인 정보 조회)
             glove_buff = 0.0
             u = db.get_user(uid)
+            if u: u = dict(u)
             if u and u.get('trash_buff_until'):
                 buff_until = parse_kst(u['trash_buff_until'])
                 if datetime.now(KST) < buff_until:
@@ -3093,6 +3094,7 @@ class FishingSystemCog(commands.Cog):
         if 분류 == "me":
             u = db.get_user(uid)
             if not u: return await interaction.response.send_message("❌ 기록을 찾을 수 없습니다. 경제 시스템에 먼저 가입하세요.", ephemeral=True)
+            u = dict(u)
             
             cnt_res = db.execute_query("SELECT COUNT(*) as c FROM fishing_inventory WHERE user_id = ? AND guild_id = ?", (uid, gid), 'one')
             cnt = cnt_res['c'] if cnt_res else 0
@@ -3171,6 +3173,7 @@ class FishingSystemCog(commands.Cog):
                 return await interaction.response.send_message("🎒 가방에 팔 물고기가 없습니다.", ephemeral=True)
             
             user_data = db.get_user(uid)
+            if user_data: user_data = dict(user_data)
             user_rep = user_data.get('fishing_reputation', 0) if user_data else 0
 
             if user_rep < 1000:
